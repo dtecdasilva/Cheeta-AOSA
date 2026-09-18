@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full">
+      <body suppressHydrationWarning className="min-h-full">
         <AuthProvider>
           <AppProvider>{children}</AppProvider>
         </AuthProvider>
