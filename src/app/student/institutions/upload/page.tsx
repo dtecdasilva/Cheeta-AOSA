@@ -3,24 +3,27 @@
 import { useState } from "react";
 import { Topbar } from "@/components/Topbar";
 import DocumentUploadRow from "@/components/institutions/DocumentUploadRow";
-import { mockInstitutions, mockDocuments, mockDocumentStates, mockOptionalDocuments } from "@/lib/mockData/institutions";
+import { mockInstitutions, mockDocuments, mockDocumentStates, mockOptionalDocuments, DocumentReviewState } from "@/lib/mockData/institutions";
 
 export default function Page() {
   const [documents, setDocuments] = useState(mockDocuments);
-  const [states, setStates] = useState(mockDocumentStates);
+  const [states, setStates] = useState<Record<string, { status: DocumentReviewState; rejectionReason?: string | null }>>(mockDocumentStates);
 
-  function handleUpdate(docIdOrName: string, payload: { fileName: string | null; uploadedAt: string | null; state?: { status: string; rejectionReason?: string | null } }) {
+  function handleUpdate(
+    docIdOrName: string,
+    payload: { fileName: string | null; uploadedAt: string | null; state?: { status: DocumentReviewState; rejectionReason?: string | null } }
+  ) {
     // allow updates by document id (when existing) or by name for optional docs
     const idx = documents.findIndex((d) => d.id === docIdOrName);
     if (idx >= 0) {
       const next = [...documents];
       next[idx] = { ...next[idx], fileName: payload.fileName, uploadedAt: payload.uploadedAt };
       setDocuments(next);
-      if (payload.state) setStates((s) => ({ ...s, [next[idx].id]: payload.state }));
+      if (payload.state) setStates((s) => ({ ...s, [next[idx].id]: payload.state } as Record<string, { status: DocumentReviewState; rejectionReason?: string | null }>));
     } else {
       // optional doc by name: synthesize id and state locally
       const key = `opt-${docIdOrName.replace(/\s+/g, "-").toLowerCase()}`;
-      setStates((s) => ({ ...s, [key]: payload.state ?? { status: payload.fileName ? "PENDING" : "NOT_UPLOADED" } }));
+      setStates((s) => ({ ...s, [key]: payload.state ?? { status: payload.fileName ? ("PENDING" as DocumentReviewState) : ("NOT_UPLOADED" as DocumentReviewState) } } as Record<string, { status: DocumentReviewState; rejectionReason?: string | null }>));
     }
   }
 
@@ -50,7 +53,7 @@ export default function Page() {
                       <DocumentUploadRow
                         key={req}
                         docName={req}
-                        document={doc}
+                        uploadedDocument={doc}
                         initialState={state}
                         onUpdate={(p) => handleUpdate(doc?.id ?? req, p)}
                       />
@@ -65,7 +68,7 @@ export default function Page() {
                     const key = `opt-${inst.id}-${opt}`;
                     const state = states[key] || { status: "NOT_UPLOADED" };
                     return (
-                      <DocumentUploadRow key={key} docName={opt} document={null} initialState={state} onUpdate={(p) => handleUpdate(key, p)} />
+                      <DocumentUploadRow key={key} docName={opt} uploadedDocument={null} initialState={state} onUpdate={(p) => handleUpdate(key, p)} />
                     );
                   })}
                 </div>

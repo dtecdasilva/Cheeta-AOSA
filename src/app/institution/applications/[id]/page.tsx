@@ -1,5 +1,5 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../../../InstitutionShell";
+import { InstitutionShell } from "../../InstitutionShell";
 import ApplicationDetail from "@/components/institution/ApplicationDetail";
 import { findApplicationById } from "@/lib/mockData/applications";
 
@@ -10,7 +10,6 @@ export default async function Page({ params }: { params: { id: string } }) {
     <InstitutionShell user={user}>
       <main className="px-4 py-6 sm:px-8 sm:py-8">
         {app ? (
-          // @ts-expect-error client
           <ApplicationDetail application={app} institutionId={user.institutionId ?? "inst-1"} />
         ) : (
           <p className="text-sm text-[var(--color-ink-soft)]">Application not found.</p>

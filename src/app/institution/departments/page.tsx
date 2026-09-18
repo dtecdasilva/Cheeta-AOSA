@@ -7,7 +7,6 @@ export default async function Page() {
   return (
     <InstitutionShell user={user}>
       <main className="px-4 py-6 sm:px-8 sm:py-8">
-        {/* @ts-expect-error Server -> Client */}
         <DepartmentList institutionId={user.institutionId ?? "inst-1"} />
       </main>
     </InstitutionShell>

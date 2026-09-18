@@ -11,7 +11,6 @@ export default async function Page({ params }: { params: { id: string } }) {
       <main className="px-4 py-6 sm:px-8 sm:py-8">
         <h1 className="mb-4 text-xl font-semibold">Edit department</h1>
         {dep ? (
-          // @ts-expect-error client component
           <DepartmentForm institutionId={user.institutionId ?? "inst-1"} initial={dep} />
         ) : (
           <p className="text-sm text-[var(--color-ink-soft)]">Department not found.</p>

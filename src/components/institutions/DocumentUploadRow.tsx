@@ -2,21 +2,22 @@
 
 import { useState } from "react";
 import { UploadedDocument } from "@/lib/types";
+import type { DocumentReviewState } from "@/lib/mockData/institutions";
 
 export default function DocumentUploadRow({
   docName,
-  document,
+  uploadedDocument,
   initialState,
   onUpdate,
 }: {
   docName: string;
-  document?: UploadedDocument | null;
-  initialState: { status: string; rejectionReason?: string | null } | undefined;
-  onUpdate?: (updated: { fileName: string | null; uploadedAt: string | null; state?: { status: string; rejectionReason?: string | null } }) => void;
+  uploadedDocument?: UploadedDocument | null;
+  initialState: { status: DocumentReviewState; rejectionReason?: string | null } | undefined;
+  onUpdate?: (updated: { fileName: string | null; uploadedAt: string | null; state?: { status: DocumentReviewState; rejectionReason?: string | null } }) => void;
 }) {
-  const [fileName, setFileName] = useState<string | null>(document?.fileName ?? null);
-  const [uploadedAt, setUploadedAt] = useState<string | null>(document?.uploadedAt ?? null);
-  const [status, setStatus] = useState<string>(initialState?.status ?? (fileName ? "PENDING" : "NOT_UPLOADED"));
+  const [fileName, setFileName] = useState<string | null>(uploadedDocument?.fileName ?? null);
+  const [uploadedAt, setUploadedAt] = useState<string | null>(uploadedDocument?.uploadedAt ?? null);
+  const [status, setStatus] = useState<DocumentReviewState>(initialState?.status ?? (fileName ? ("PENDING" as DocumentReviewState) : ("NOT_UPLOADED" as DocumentReviewState)));
   const [reason, setReason] = useState<string | null>(initialState?.rejectionReason ?? null);
   const [uploading, setUploading] = useState(false);
 

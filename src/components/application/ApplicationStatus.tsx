@@ -1,6 +1,6 @@
 "use client";
 
-import { ApplicationStatus } from "@/lib/types";
+import type { ApplicationStatus } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
 
 type Entry = { status: ApplicationStatus; actor: string; note?: string; at: string };

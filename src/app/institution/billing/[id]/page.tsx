@@ -10,7 +10,6 @@ export default async function Page({ params }: { params: { id: string } }) {
     <InstitutionShell user={user}>
       <main className="px-4 py-6 sm:px-8 sm:py-8">
         {cfg ? (
-          // @ts-expect-error client
           <BillingView config={cfg} />
         ) : (
           <p className="text-sm text-[var(--color-ink-soft)]">Fee not found.</p>

@@ -8,7 +8,6 @@ export default async function Page() {
     <InstitutionShell user={user}>
       <main className="px-4 py-6 sm:px-8 sm:py-8">
         <h1 className="mb-4 text-xl font-semibold">Add fee</h1>
-        {/* @ts-expect-error client */}
         <BillingForm institutionId={user.institutionId ?? "inst-1"} />
       </main>
     </InstitutionShell>

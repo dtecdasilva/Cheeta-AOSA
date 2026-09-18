@@ -10,7 +10,6 @@ export default async function Page({ params }: { params: { id: string } }) {
     <InstitutionShell user={user}>
       <main className="px-4 py-6 sm:px-8 sm:py-8">
         {faculty ? (
-          // @ts-expect-error client component
           <FacultyView faculty={faculty} />
         ) : (
           <p className="text-sm text-[var(--color-ink-soft)]">Faculty not found.</p>
