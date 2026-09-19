@@ -150,7 +150,7 @@ export function ExaminationForm() {
   return (
     <div className="max-w-4xl space-y-6">
       {/* Saved records table */}
-      <div className="border border-[var(--color-line)] bg-white">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)]">
         <div className="flex items-center justify-between border-b border-[var(--color-line)] px-5 py-3.5">
           <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Your examinations</p>
           {!formOpen && (
@@ -241,7 +241,7 @@ export function ExaminationForm() {
 
       {/* Add / edit form */}
       {formOpen && (
-        <div className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+        <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
           <p className="mb-4 font-[var(--font-display)] text-base text-[var(--color-ink)]">
             {editingId ? "Edit examination" : "Add an examination"}
           </p>

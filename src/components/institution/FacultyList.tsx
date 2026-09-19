@@ -1,49 +1,63 @@
 "use client";
 
 import Link from "next/link";
-import { mockFaculties, Faculty } from "@/lib/mockData/faculties";
-import { PrimaryButton, SecondaryButton } from "@/components/Form";
 import { useState } from "react";
+import { mockFaculties, Faculty } from "@/lib/mockData/faculties";
+import { ButtonLinkClass } from "@/components/Form";
+import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
 
 export default function FacultyList({ institutionId }: { institutionId: string }) {
-  const initial = mockFaculties.filter((f) => f.institutionId === institutionId);
-  const [items, setItems] = useState<Faculty[]>(initial);
+  const [items, setItems] = useState<Faculty[]>(() =>
+    mockFaculties.filter((f) => f.institutionId === institutionId)
+  );
 
   function toggleStatus(id: string) {
-    setItems((s) => s.map((f) => (f.id === id ? { ...f, status: f.status === "active" ? "inactive" : "active" } : f)));
+    setItems((s) =>
+      s.map((f) => (f.id === id ? { ...f, status: f.status === "active" ? "inactive" : "active" } : f))
+    );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">Faculties</h2>
-        <Link href="/institution/faculty/add">
-          <PrimaryButton>Add faculty</PrimaryButton>
-        </Link>
-      </div>
+      <SectionHeading
+        title="Faculties"
+        actions={
+          <Link href="/institution/faculty/add" className={ButtonLinkClass("primary")}>
+            Add faculty
+          </Link>
+        }
+      />
 
-      <div className="space-y-2">
-        {items.map((f) => (
-          <div key={f.id} className="flex items-center justify-between rounded border border-[var(--color-line)] bg-white p-3">
-            <div>
-              <p className="font-medium text-[var(--color-ink)]">{f.name}</p>
-              <p className="text-xs text-[var(--color-ink-soft)]">Dean: {f.dean}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link href={`/institution/faculty/${f.id}`} className="text-sm text-[var(--color-ink)] underline">
-                View
-              </Link>
-              <Link href={`/institution/faculty/${f.id}/edit`} className="text-sm text-[var(--color-ink)] underline">
-                Edit
-              </Link>
-              <button onClick={() => toggleStatus(f.id)} className="text-sm text-[var(--color-ink-soft)]">
-                {f.status === "active" ? "Deactivate" : "Activate"}
-              </button>
-            </div>
-          </div>
-        ))}
-        {items.length === 0 && <p className="text-sm text-[var(--color-ink-soft)]">No faculties yet.</p>}
-      </div>
+      {items.length === 0 ? (
+        <EmptyState
+          message="No faculties yet."
+          action={
+            <Link href="/institution/faculty/add" className={ButtonLinkClass("secondary")}>
+              Add the first faculty
+            </Link>
+          }
+        />
+      ) : (
+        <RowList>
+          {items.map((f) => (
+            <Row
+              key={f.id}
+              title={f.name}
+              subtitle={`Dean: ${f.dean}`}
+              meta={f.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+              actions={
+                <>
+                  <RowAction href={`/institution/faculty/${f.id}`}>View</RowAction>
+                  <RowAction href={`/institution/faculty/${f.id}/edit`}>Edit</RowAction>
+                  <RowAction tone="muted" onClick={() => toggleStatus(f.id)}>
+                    {f.status === "active" ? "Deactivate" : "Activate"}
+                  </RowAction>
+                </>
+              }
+            />
+          ))}
+        </RowList>
+      )}
     </div>
   );
 }

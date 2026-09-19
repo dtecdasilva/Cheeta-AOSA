@@ -1,12 +1,16 @@
-export default function InstitutionDashboardPage() {
+import { requireRole } from "@/lib/auth/guard";
+import InstitutionDashboard from "@/components/institution/InstitutionDashboard";
+import { PageHeading, PAGE_MAIN_CLASS } from "@/components/ui";
+
+export default async function Page() {
+  const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   return (
-    <div className="max-w-2xl border border-dashed border-[var(--color-line-strong)] px-6 py-14 text-center">
-      <p className="font-[var(--font-display)] text-lg text-[var(--color-ink)]">Institution portal — coming next</p>
-      <p className="mx-auto mt-1.5 max-w-md text-sm text-[var(--color-ink-soft)]">
-        You&apos;re signed in and authorized for this portal. Faculties, departments, programs,
-        fee configuration, document requirements and application processing will be built
-        as their own module.
-      </p>
-    </div>
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading
+        title="Dashboard"
+        description="Application volume and what currently needs your attention."
+      />
+      <InstitutionDashboard user={user} />
+    </main>
   );
 }

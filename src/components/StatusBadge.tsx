@@ -12,8 +12,22 @@ const STATUS_META: Record<ApplicationStatus, { label: string; fg: string; bg: st
   RESUBMITTED: { label: "Resubmitted", fg: "text-[var(--color-amber)]", bg: "bg-[var(--color-amber-soft)]", dot: "bg-[var(--color-amber)]" },
 };
 
-export function StatusBadge({ status }: { status: ApplicationStatus }) {
-  const meta = STATUS_META[status];
+const UNKNOWN_META = {
+  label: "Not started",
+  fg: "text-[var(--color-ink-faint)]",
+  bg: "bg-[var(--color-line)]/40",
+  dot: "bg-[var(--color-ink-faint)]",
+};
+
+/**
+ * `status` is typed, but the values reaching this component come from
+ * per-institution status maps that may legitimately have no entry for a
+ * given institution yet. Looking the metadata up blindly threw on
+ * `meta.fg` and took the whole table down with it, so an unrecognised or
+ * missing status renders as "Not started" instead.
+ */
+export function StatusBadge({ status }: { status: ApplicationStatus | undefined | null }) {
+  const meta = (status && STATUS_META[status]) || UNKNOWN_META;
   return (
     <span
       className={`inline-flex items-center gap-1.5 border border-[var(--color-line)] px-2 py-1 text-xs font-medium ${meta.fg} ${meta.bg}`}

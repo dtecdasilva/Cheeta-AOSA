@@ -1,13 +1,13 @@
 "use client";
 import Image from "next/image";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, X } from "lucide-react";
 import { useApp } from "@/context/AppContext";
 import { LogoutButton } from "@/components/auth/LogoutButton";
-import { STUDENT_NAV, STUDENT_NAV_UTILITY } from "@/lib/studentNav";
+import { STUDENT_NAV, STUDENT_NAV_UTILITY, type NavEntry } from "@/lib/studentNav";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
@@ -18,20 +18,27 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
   const { notifications } = useApp();
   const unread = notifications.filter((n) => !n.read).length;
 
-  // Groups containing the active route start expanded; the rest collapsed.
-  const initialExpanded = useMemo(() => {
-    const state: Record<string, boolean> = {};
-    STUDENT_NAV.forEach((entry) => {
-      if (entry.kind === "group") {
-        state[entry.label] = entry.children.some((c) => isActive(pathname, c.href));
-      }
-    });
-    return state;
-  }, [pathname]);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(initialExpanded);
+  /**
+   * A group is open if the user explicitly toggled it, otherwise if it
+   * contains the current route.
+   *
+   * The previous version computed the "contains active route" map with
+   * useMemo and passed it to useState — but useState only ever reads its
+   * argument on the first render, so navigating to a page inside a
+   * collapsed group left that group shut, with no visible indication of
+   * where you were. Tracking only the explicit overrides and deriving the
+   * rest on each render means the open state follows the route.
+   */
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
 
-  function toggle(label: string) {
-    setExpanded((e) => ({ ...e, [label]: !e[label] }));
+  function isGroupOpen(entry: Extract<NavEntry, { kind: "group" }>) {
+    const override = overrides[entry.label];
+    if (override !== undefined) return override;
+    return entry.children.some((c) => isActive(pathname, c.href));
+  }
+
+  function toggle(entry: Extract<NavEntry, { kind: "group" }>) {
+    setOverrides((e) => ({ ...e, [entry.label]: !isGroupOpen(entry) }));
   }
 
   return (
@@ -75,12 +82,12 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
           }
 
           const Icon = entry.icon;
-          const isOpen = !!expanded[entry.label];
+          const isOpen = isGroupOpen(entry);
           const groupHasActive = entry.children.some((c) => isActive(pathname, c.href));
           return (
             <div key={entry.label}>
               <button
-                onClick={() => toggle(entry.label)}
+                onClick={() => toggle(entry)}
                 className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
                   groupHasActive ? "text-white" : "text-white/65 hover:bg-white/5 hover:text-white"
                 }`}
@@ -133,7 +140,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
                 <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
                 {item.label}
                 {item.href === "/student/notifications" && unread > 0 && (
-                  <span className="ml-auto rounded-full bg-[var(--color-brass)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-ink)]">
+                  <span className="ml-auto bg-[var(--color-brass)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-ink)]">
                     {unread}
                   </span>
                 )}

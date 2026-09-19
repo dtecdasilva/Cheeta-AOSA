@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
-import { SelectInput } from "@/components/Form";
+import {Field, SelectInput} from "@/components/Form";
 import { InstitutionWithProfile, ProgramChoice } from "@/lib/institutionDiscovery/data";
 
 const RANK_LABELS: Record<number, string> = { 1: "First Choice", 2: "Second Choice", 3: "Third Choice" };
@@ -99,7 +99,7 @@ export function StudyProgramSelector({
         Back
       </button>
 
-      <div className="mb-5 border border-[var(--color-line)] bg-white p-5">
+      <div className="mb-5 border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
         <p className="font-[var(--font-display)] text-lg text-[var(--color-ink)]">{institution.name}</p>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
           Choose {slots === 1 ? "your study program" : `up to ${slots} study programs, in order of preference`} for
@@ -124,7 +124,7 @@ export function StudyProgramSelector({
             : [];
 
           return (
-            <div key={index} className="border border-[var(--color-line)] bg-white p-5">
+            <div key={index} className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
               <div className="mb-4 flex items-center justify-between">
                 <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">
                   {RANK_LABELS[index + 1] ?? `Choice ${index + 1}`}
@@ -138,8 +138,7 @@ export function StudyProgramSelector({
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <label className="mb-1.5 block text-sm text-[var(--color-ink-soft)]">Faculty / School</label>
+                <Field label="Faculty / School">
                   <SelectInput value={choice?.facultyId ?? ""} onChange={(e) => handleFacultyChange(index, e.target.value)}>
                     <option value="">Select…</option>
                     {institution.profile.faculties.map((f) => (
@@ -148,10 +147,9 @@ export function StudyProgramSelector({
                       </option>
                     ))}
                   </SelectInput>
-                </div>
+                </Field>
 
-                <div>
-                  <label className="mb-1.5 block text-sm text-[var(--color-ink-soft)]">Department</label>
+                <Field label="Department">
                   <SelectInput
                     value={choice?.departmentId ?? ""}
                     onChange={(e) => handleDepartmentChange(index, e.target.value)}
@@ -164,10 +162,9 @@ export function StudyProgramSelector({
                       </option>
                     ))}
                   </SelectInput>
-                </div>
+                </Field>
 
-                <div>
-                  <label className="mb-1.5 block text-sm text-[var(--color-ink-soft)]">Qualification</label>
+                <Field label="Qualification">
                   <SelectInput
                     value={choice?.qualification ?? ""}
                     onChange={(e) => handleQualificationChange(index, e.target.value)}
@@ -180,10 +177,9 @@ export function StudyProgramSelector({
                       </option>
                     ))}
                   </SelectInput>
-                </div>
+                </Field>
 
-                <div>
-                  <label className="mb-1.5 block text-sm text-[var(--color-ink-soft)]">Study program</label>
+                <Field label="Study program">
                   <SelectInput
                     value={choice?.programId ?? ""}
                     onChange={(e) => handleProgramChange(index, e.target.value)}
@@ -196,7 +192,7 @@ export function StudyProgramSelector({
                       </option>
                     ))}
                   </SelectInput>
-                </div>
+                </Field>
               </div>
 
               {choice?.programId && (

@@ -39,7 +39,7 @@ export function FeesStep({
 
   return (
     <div className="space-y-6">
-      <div className="border border-[var(--color-line)] bg-white">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)]">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-[var(--color-line)] text-left text-xs text-[var(--color-ink-faint)]">
@@ -68,7 +68,7 @@ export function FeesStep({
         </table>
       </div>
 
-      <div className="grid gap-5 border border-[var(--color-line)] bg-white p-5 sm:grid-cols-2">
+      <div className="grid gap-5 border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:grid-cols-2">
         <Field label="Payment method" required>
           <SelectInput value={method} onChange={(e) => { setMethod(e.target.value); setSaved(false); }} disabled={!editable}>
             {METHODS.map((m) => (

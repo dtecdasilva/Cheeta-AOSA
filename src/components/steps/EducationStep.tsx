@@ -35,7 +35,7 @@ export function EducationStep({
     <div className="space-y-6">
       <div className="space-y-4">
         {rows.map((row, i) => (
-          <div key={row.id} className="border border-[var(--color-line)] bg-white p-5">
+          <div key={row.id} className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <div className="mb-3 flex items-center justify-between">
               <p className="text-sm font-medium text-[var(--color-ink)]">Record {i + 1}</p>
               {editable && rows.length > 1 && (

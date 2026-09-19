@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_MAIN_CLASS } from "@/components/ui";
 import Link from "next/link";
 import { Plus } from "lucide-react";
 import { useApp } from "@/context/AppContext";
@@ -14,7 +15,7 @@ export default function ApplicationsPage() {
   return (
     <>
       <Topbar title="My applications" description="Every institution you've applied to, and where each one stands." />
-      <main className="px-8 py-8">
+      <main className={PAGE_MAIN_CLASS}>
         <div className="flex justify-end">
           <Link
             href="/student/applications/new"
@@ -32,7 +33,7 @@ export default function ApplicationsPage() {
         ) : (
           <div className="mt-6 space-y-6">
             {applications.map((app) => (
-              <div key={app.id} className="border border-[var(--color-line)] bg-white">
+              <div key={app.id} className="border border-[var(--color-line)] bg-[var(--color-surface)]">
                 <div className="flex items-center justify-between border-b border-[var(--color-line)] px-5 py-3.5">
                   <div>
                     <p className="text-xs text-[var(--color-ink-faint)]">

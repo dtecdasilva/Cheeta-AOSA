@@ -1,52 +1,81 @@
 "use client";
 
 import Link from "next/link";
-import { mockPaymentMethods, PaymentMethodConfig } from "@/lib/mockData/paymentMethods";
-import { PrimaryButton } from "@/components/Form";
 import { useState } from "react";
+import { mockPaymentMethods, PaymentMethodConfig } from "@/lib/mockData/paymentMethods";
+import { ButtonLinkClass } from "@/components/Form";
+import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
+
+const TYPE_LABELS: Record<PaymentMethodConfig["type"], string> = {
+  bank: "Bank account",
+  money_transfer: "Money transfer",
+  mobile_operator: "Mobile operator",
+  debit_wallet: "Debit wallet",
+};
 
 export default function PaymentMethodsList({ institutionId }: { institutionId: string }) {
-  const initial = mockPaymentMethods.filter((p) => p.institutionId === institutionId);
-  const [items, setItems] = useState<PaymentMethodConfig[]>(initial);
+  // Local state only. The previous version also mutated the imported
+  // `mockPaymentMethods` array in place, so toggling or deleting here
+  // silently rewrote the module-level data every other screen reads from
+  // — and those edits survived until a full reload, in a way a real API
+  // call never would. Swapping this for a real endpoint later means
+  // replacing these handlers, not untangling shared mutable state.
+  const [items, setItems] = useState<PaymentMethodConfig[]>(() =>
+    mockPaymentMethods.filter((p) => p.institutionId === institutionId)
+  );
 
   function toggle(id: string) {
     setItems((s) => s.map((it) => (it.id === id ? { ...it, active: !it.active } : it)));
-    const target = mockPaymentMethods.find((p) => p.id === id);
-    if (target) target.active = !target.active;
   }
 
   function remove(id: string) {
-    const idx = mockPaymentMethods.findIndex((p) => p.id === id);
-    if (idx !== -1) mockPaymentMethods.splice(idx, 1);
     setItems((s) => s.filter((it) => it.id !== id));
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">Payment methods</h2>
-        <Link href="/institution/payment-methods/add">
-          <PrimaryButton>Add method</PrimaryButton>
-        </Link>
-      </div>
+    <div className="space-y-4">
+      <SectionHeading
+        title="Payment methods"
+        actions={
+          <Link href="/institution/payment-methods/add" className={ButtonLinkClass("primary")}>
+            Add method
+          </Link>
+        }
+      />
 
-      <div className="space-y-2">
-        {items.map((m) => (
-          <div key={m.id} className="flex items-center justify-between rounded border border-[var(--color-line)] bg-white p-3">
-            <div>
-              <p className="font-medium text-[var(--color-ink)]">{m.label}</p>
-              <p className="text-xs text-[var(--color-ink-soft)]">{m.type} • {m.active ? 'Active' : 'Inactive'}</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link href={`/institution/payment-methods/${m.id}`} className="text-sm text-[var(--color-ink)] underline">View</Link>
-              <Link href={`/institution/payment-methods/${m.id}/edit`} className="text-sm text-[var(--color-ink)] underline">Edit</Link>
-              <button onClick={() => toggle(m.id)} className="text-sm text-[var(--color-ink-soft)]">{m.active ? 'Deactivate' : 'Activate'}</button>
-              <button onClick={() => remove(m.id)} className="text-sm text-[var(--color-danger)]">Delete</button>
-            </div>
-          </div>
-        ))}
-        {items.length === 0 && <p className="text-sm text-[var(--color-ink-soft)]">No payment methods configured.</p>}
-      </div>
+      {items.length === 0 ? (
+        <EmptyState
+          message="No payment methods configured."
+          action={
+            <Link href="/institution/payment-methods/add" className={ButtonLinkClass("secondary")}>
+              Add the first method
+            </Link>
+          }
+        />
+      ) : (
+        <RowList>
+          {items.map((m) => (
+            <Row
+              key={m.id}
+              title={m.label}
+              subtitle={TYPE_LABELS[m.type]}
+              meta={m.active ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+              actions={
+                <>
+                  <RowAction href={`/institution/payment-methods/${m.id}`}>View</RowAction>
+                  <RowAction href={`/institution/payment-methods/${m.id}/edit`}>Edit</RowAction>
+                  <RowAction tone="muted" onClick={() => toggle(m.id)}>
+                    {m.active ? "Deactivate" : "Activate"}
+                  </RowAction>
+                  <RowAction tone="danger" onClick={() => remove(m.id)}>
+                    Delete
+                  </RowAction>
+                </>
+              }
+            />
+          ))}
+        </RowList>
+      )}
     </div>
   );
 }

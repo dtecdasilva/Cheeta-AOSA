@@ -1,21 +1,25 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../../../InstitutionShell";
+import { resolveInstitutionId } from "@/lib/auth/institution";
 import FacultyForm from "@/components/institution/FacultyForm";
 import { mockFaculties } from "@/lib/mockData/faculties";
+import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
-  const faculty = mockFaculties.find((f) => f.id === params.id && f.institutionId === (user.institutionId ?? ""));
+  const { id } = await params;
+  const institutionId = resolveInstitutionId(user);
+  // Scoped to the caller's own institution — an id belonging to another
+  // institution reads as "not found" rather than being served.
+  const record = mockFaculties.find((r) => r.id === id && r.institutionId === institutionId);
+
   return (
-    <InstitutionShell user={user}>
-      <main className="px-4 py-6 sm:px-8 sm:py-8">
-        <h1 className="mb-4 text-xl font-semibold">Edit faculty</h1>
-        {faculty ? (
-          <FacultyForm institutionId={user.institutionId ?? "inst-1"} initial={faculty} />
-        ) : (
-          <p className="text-sm text-[var(--color-ink-soft)]">Faculty not found.</p>
-        )}
-      </main>
-    </InstitutionShell>
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading title="Edit faculty" />
+      {record ? (
+        <FacultyForm institutionId={institutionId} initial={record} />
+      ) : (
+        <EmptyState message="This faculty doesn't exist, or belongs to another institution." />
+      )}
+    </main>
   );
 }

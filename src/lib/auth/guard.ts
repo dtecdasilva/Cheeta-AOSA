@@ -34,7 +34,12 @@ export async function requireRole(allowed: Role[]): Promise<PublicUser> {
     redirect("/login");
   }
   if (!allowed.includes(user.role)) {
-    redirect("/unauthorized");
+    // Send them to their OWN portal rather than a dead end: they are
+    // authenticated and have somewhere legitimate to be, they just don't
+    // belong on this URL. This matches what the proxy already does for
+    // requests it intercepts before render. /unauthorized remains the
+    // fallback for a role with no home mapping.
+    redirect(ROLE_HOME[user.role] ?? "/unauthorized");
   }
   return user;
 }

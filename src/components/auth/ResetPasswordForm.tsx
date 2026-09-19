@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Field, TextInput, PrimaryButton } from "@/components/Form";
+import { Field, TextInput, PrimaryButton, FormError } from "@/components/Form";
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -86,11 +86,7 @@ export function ResetPasswordForm() {
         />
       </Field>
 
-      {error && (
-        <p role="alert" className="border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]">
-          {error}
-        </p>
-      )}
+      {error && <FormError>{error}</FormError>}
 
       <PrimaryButton type="submit" disabled={loading} className="w-full">
         {loading ? "Resetting…" : "Reset password"}

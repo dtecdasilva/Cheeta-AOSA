@@ -12,7 +12,7 @@ export default function ProcessFlowPage() {
         description="Every application on Cheeta AOSA follows the same five steps, from your first details to tracking a decision."
       />
       <main className="px-4 py-6 sm:px-8 sm:py-8">
-        <div className="max-w-3xl border border-[var(--color-line)] bg-white p-6 sm:p-8">
+        <div className="max-w-3xl border border-[var(--color-line)] bg-[var(--color-surface)] p-6 sm:p-8">
           <ProcessProgress progress={progress} variant="detailed" />
         </div>
 

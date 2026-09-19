@@ -1,29 +1,27 @@
-"use client";
-
 import { Department } from "@/lib/mockData/departments";
-import Link from "next/link";
+import { mockFaculties } from "@/lib/mockData/faculties";
+import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
 
 export default function DepartmentView({ department }: { department: Department }) {
+  const faculty = mockFaculties.find((f) => f.id === department.facultyId);
   return (
-    <div className="space-y-4">
-      <div className="rounded border border-[var(--color-line)] bg-white p-4">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">{department.name}</h2>
-        <p className="text-sm text-[var(--color-ink-soft)]">Head: {department.head}</p>
-      </div>
-
-      <div className="rounded border border-[var(--color-line)] bg-white p-4 space-y-2">
-        <p><strong>Address:</strong> {department.address}</p>
-        <p><strong>Location:</strong> {department.location}</p>
-        <p><strong>Region:</strong> {department.region}</p>
-        <p><strong>Town:</strong> {department.town}</p>
-        <p><strong>Phone:</strong> {department.phone}</p>
-        <p><strong>Email:</strong> {department.email}</p>
-        <p><strong>Status:</strong> {department.status}</p>
-      </div>
-
-      <div>
-        <Link href={`/institution/departments/${department.id}/edit`} className="text-sm text-[var(--color-ink)] underline">Edit</Link>
-      </div>
+    <div className="max-w-2xl space-y-4">
+      <Card padded={false}>
+        <CardHeader title={department.name} description={`Head: ${department.head}`} />
+        <DescriptionList
+          items={[
+            { label: "Faculty", value: faculty?.name },
+            { label: "Address", value: department.address },
+            { label: "Town", value: department.town },
+            { label: "Region", value: department.region },
+            { label: "Location", value: department.location },
+            { label: "Phone", value: department.phone },
+            { label: "Email", value: department.email },
+            { label: "Status", value: department.status === "active" ? "Active" : "Inactive" },
+          ]}
+        />
+      </Card>
+      <RowAction href={`/institution/departments/${department.id}/edit`}>Edit</RowAction>
     </div>
   );
 }

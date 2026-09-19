@@ -31,7 +31,7 @@ export default function DashboardPage() {
       <Topbar title={`Welcome back, ${firstName}`} description="Here's where your application stands today." />
       <main className="px-4 py-6 sm:px-8 sm:py-8">
         {/* Applicant name, current step, progress at a glance */}
-        <div className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+        <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs text-[var(--color-ink-faint)]">Current step</p>
@@ -57,7 +57,7 @@ export default function DashboardPage() {
         {/* Stats grid */}
         <div className="mt-6 grid grid-cols-2 gap-px border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4">
           {stats.map((s) => (
-            <div key={s.label} className="bg-white px-5 py-4">
+            <div key={s.label} className="bg-[var(--color-surface)] px-5 py-4">
               <p className="font-[var(--font-display)] text-2xl text-[var(--color-ink)] sm:text-3xl">{s.value}</p>
               <p className="mt-1 text-xs text-[var(--color-ink-soft)]">{s.label}</p>
             </div>
@@ -68,7 +68,7 @@ export default function DashboardPage() {
           {/* Application statuses */}
           <div>
             <h2 className="font-[var(--font-display)] text-xl text-[var(--color-ink)]">Application statuses</h2>
-            <div className="mt-3 divide-y divide-[var(--color-line)] border border-[var(--color-line)] bg-white">
+            <div className="mt-3 divide-y divide-[var(--color-line)] border border-[var(--color-line)] bg-[var(--color-surface)]">
               {selectedInstitutionIds.map((id) => {
                 const inst = institutions.find((i) => i.id === id);
                 if (!inst) return null;

@@ -24,7 +24,7 @@ export function Stepper({
               onClick={() => onSelect(key)}
               className={`flex w-full items-center gap-3 border-l-2 px-4 py-3 text-left text-sm transition-colors disabled:cursor-not-allowed ${
                 isActive
-                  ? "border-[var(--color-brass)] bg-white text-[var(--color-ink)]"
+                  ? "border-[var(--color-brass)] bg-[var(--color-surface)] text-[var(--color-ink)]"
                   : disabled
                   ? "border-transparent text-[var(--color-ink-faint)]"
                   : "border-transparent text-[var(--color-ink-soft)] hover:bg-white/60"

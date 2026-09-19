@@ -1,14 +1,14 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../InstitutionShell";
+import { resolveInstitutionId } from "@/lib/auth/institution";
 import FacultyList from "@/components/institution/FacultyList";
+import { PageHeading, PAGE_MAIN_CLASS } from "@/components/ui";
 
 export default async function Page() {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   return (
-    <InstitutionShell user={user}>
-      <main className="px-4 py-6 sm:px-8 sm:py-8">
-        <FacultyList institutionId={user.institutionId ?? "inst-1"} />
-      </main>
-    </InstitutionShell>
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading title="Faculty / School" description="Faculties and schools that make up your institution." />
+      <FacultyList institutionId={resolveInstitutionId(user)} />
+    </main>
   );
 }

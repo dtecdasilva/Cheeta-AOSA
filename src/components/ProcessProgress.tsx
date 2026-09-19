@@ -9,12 +9,12 @@ const STATUS_STYLES: Record<ProcessStepStatus, { node: string; line: string; tex
     text: "text-[var(--color-ink)]",
   },
   current: {
-    node: "border-[var(--color-brass)] bg-white text-[var(--color-brass-dark)] ring-2 ring-[var(--color-brass-soft)]",
+    node: "border-[var(--color-brass)] bg-[var(--color-surface)] text-[var(--color-brass-dark)] ring-2 ring-[var(--color-brass-soft)]",
     line: "bg-[var(--color-line-strong)]",
     text: "text-[var(--color-ink)]",
   },
   upcoming: {
-    node: "border-[var(--color-line-strong)] bg-white text-[var(--color-ink-faint)]",
+    node: "border-[var(--color-line-strong)] bg-[var(--color-surface)] text-[var(--color-ink-faint)]",
     line: "bg-[var(--color-line-strong)]",
     text: "text-[var(--color-ink-faint)]",
   },
@@ -41,7 +41,7 @@ function CompactProgress({ progress }: { progress: ApplicantProcessProgress }) {
           <li key={step.key} className={`flex items-center ${isLast ? "" : "flex-1"}`}>
             <div className="flex flex-col items-center">
               <span
-                className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold ${styles.node}`}
+                className={`flex h-8 w-8 shrink-0 items-center justify-center border-2 text-xs font-semibold ${styles.node}`}
                 title={step.title}
               >
                 {status === "complete" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : step.order}
@@ -69,7 +69,7 @@ function DetailedProgress({ progress }: { progress: ApplicantProcessProgress }) 
           <li key={step.key} className="flex gap-4">
             <div className="flex flex-col items-center">
               <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 text-sm font-semibold ${styles.node}`}
+                className={`flex h-9 w-9 shrink-0 items-center justify-center border-2 text-sm font-semibold ${styles.node}`}
               >
                 {status === "complete" ? <Check className="h-4.5 w-4.5" strokeWidth={2.5} /> : step.order}
               </span>
@@ -97,7 +97,7 @@ function DetailedProgress({ progress }: { progress: ApplicantProcessProgress }) 
                   <li key={sub.href}>
                     <Link
                       href={sub.href}
-                      className="inline-block border border-[var(--color-line)] bg-white px-2.5 py-1 text-xs text-[var(--color-ink-soft)] transition-colors hover:border-[var(--color-ink)] hover:text-[var(--color-ink)]"
+                      className="inline-block border border-[var(--color-line)] bg-[var(--color-surface)] px-2.5 py-1 text-xs text-[var(--color-ink-soft)] transition-colors hover:border-[var(--color-ink)] hover:text-[var(--color-ink)]"
                     >
                       {sub.label}
                     </Link>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
@@ -31,7 +32,7 @@ export default function ApplicationWizardPage({ params }: { params: Promise<{ id
     return (
       <>
         <Topbar title="Application not found" />
-        <main className="px-8 py-8">
+        <main className={PAGE_MAIN_CLASS}>
           <p className="text-sm text-[var(--color-ink-soft)]">
             This application doesn&apos;t exist or has been removed.{" "}
             <button onClick={() => router.push("/student/applications")} className="underline underline-offset-4">
@@ -51,9 +52,9 @@ export default function ApplicationWizardPage({ params }: { params: Promise<{ id
         title="Application"
         description={application.institutionIds.map((i) => institutions.find((x) => x.id === i)?.name).join(", ")}
       />
-      <main className="flex gap-8 px-8 py-8">
-        <div className="w-72 shrink-0">
-          <div className="mb-4 flex items-center justify-between border border-[var(--color-line)] bg-white px-4 py-3">
+      <main className={`flex flex-col gap-8 lg:flex-row ${PAGE_MAIN_CLASS}`}>
+        <div className="w-full shrink-0 lg:w-72">
+          <div className="mb-4 flex items-center justify-between border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3">
             <span className="text-xs text-[var(--color-ink-soft)]">Overall status</span>
             <StatusBadge status={application.overallStatus} />
           </div>

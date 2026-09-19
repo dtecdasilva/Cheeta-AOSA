@@ -19,10 +19,10 @@ export const mockStatusHistory: StatusEntry[] = [
 export const mockRejectionReason = "Insufficient grades in prerequisite subjects.";
 
 export const mockAdmissionInfo = {
-  institutionId: "inst-oxf",
+  institutionId: "inst-1",
   offer: {
     offeredAt: "2026-09-02T13:00:00Z",
-    decisionBy: "Oxbridge Admissions Office",
-    details: "Provisional offer for BEng Computer Engineering. Subject to final transcript verification.",
+    decisionBy: "Mont Fébé University Admissions Office",
+    details: "Provisional offer for BSc Computer Science. Subject to final transcript verification.",
   },
 };

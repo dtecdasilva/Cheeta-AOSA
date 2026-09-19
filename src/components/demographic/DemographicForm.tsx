@@ -140,7 +140,7 @@ export function DemographicForm() {
       )}
 
       {/* Identity */}
-      <section className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+      <section className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <h2 className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Identity</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -193,7 +193,7 @@ export function DemographicForm() {
       </section>
 
       {/* Contact */}
-      <section className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+      <section className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <h2 className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Contact</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <Field label="Email" hint="From your registration — cannot be changed here.">
@@ -224,7 +224,7 @@ export function DemographicForm() {
       </section>
 
       {/* Disability */}
-      <section className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+      <section className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <h2 className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Disability</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <Field label="Disability" required>
@@ -252,7 +252,7 @@ export function DemographicForm() {
       </section>
 
       {/* Origin & residence */}
-      <section className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+      <section className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <h2 className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Origin &amp; residence</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <CountrySelect
@@ -303,7 +303,7 @@ export function DemographicForm() {
       </section>
 
       {/* Personal */}
-      <section className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+      <section className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <h2 className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Personal</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <Field label="Religion" required>
@@ -332,7 +332,7 @@ export function DemographicForm() {
       </section>
 
       {/* Parents / guardian */}
-      <section className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+      <section className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <h2 className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Parent / guardian information</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <Field label="Father's names" required>

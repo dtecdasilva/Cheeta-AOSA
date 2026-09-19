@@ -1,20 +1,25 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../../InstitutionShell";
+import { resolveInstitutionId } from "@/lib/auth/institution";
 import ProgramView from "@/components/institution/ProgramView";
 import { mockPrograms } from "@/lib/mockData/programs";
+import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
-  const prog = mockPrograms.find((p) => p.id === params.id && p.institutionId === (user.institutionId ?? ""));
+  const { id } = await params;
+  const institutionId = resolveInstitutionId(user);
+  // Scoped to the caller's own institution — an id belonging to another
+  // institution reads as "not found" rather than being served.
+  const record = mockPrograms.find((r) => r.id === id && r.institutionId === institutionId);
+
   return (
-    <InstitutionShell user={user}>
-      <main className="px-4 py-6 sm:px-8 sm:py-8">
-        {prog ? (
-          <ProgramView program={prog} />
-        ) : (
-          <p className="text-sm text-[var(--color-ink-soft)]">Program not found.</p>
-        )}
-      </main>
-    </InstitutionShell>
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading title="Study program" />
+      {record ? (
+        <ProgramView program={record} />
+      ) : (
+        <EmptyState message="This programme doesn't exist, or belongs to another institution." />
+      )}
+    </main>
   );
 }

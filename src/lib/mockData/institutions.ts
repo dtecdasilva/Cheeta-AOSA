@@ -1,50 +1,42 @@
-import { Application, Institution, ProgramChoice, StudyProgram, UploadedDocument, PaymentInfo } from "@/lib/types";
+import { Application, ApplicationStatus, ProgramChoice, StudyProgram, UploadedDocument, PaymentInfo } from "@/lib/types";
+import { institutions } from "@/lib/data";
 
-export const mockInstitutions: Institution[] = [
-  {
-    id: "inst-oxf",
-    name: "Oxbridge International University",
-    type: "University",
-    location: "Oxford, UK",
-    logoInitial: "O",
-    applicationFee: 50,
-    webFee: 5,
-    maxProgramChoices: 3,
-    requiredDocuments: ["Transcript", "Passport", "Certificates"],
-  },
-  {
-    id: "inst-ken",
-    name: "Kenvale Polytechnic",
-    type: "Vocational School",
-    location: "Nairobi, Kenya",
-    logoInitial: "K",
-    applicationFee: 30,
-    webFee: 3,
-    maxProgramChoices: 3,
-    requiredDocuments: ["Transcript", "ID", "Passport"],
-  },
-];
+/**
+ * The institutions shown in the applicant-facing mock screens are the SAME
+ * records the rest of the platform uses (src/lib/data.ts) rather than a
+ * second, parallel list. Keeping one source of truth is what makes the
+ * institution portal, the fee summary and the applicant screens agree on
+ * ids, names, fees and currency — an earlier divergent copy here used
+ * different ids (and GBP/KES amounts), which silently emptied every
+ * institution-portal list and mispriced the summary cards.
+ */
+export const mockInstitutions = institutions;
+
+/** The two institutions these applicant-facing mocks are written against. */
+const INST_A = "inst-1";
+const INST_B = "inst-2";
 
 export const mockPrograms: StudyProgram[] = [
-  { id: "p-1", institutionId: "inst-oxf", faculty: "Faculty of Science", department: "Biological Sciences", name: "BSc Biology", qualification: "BSc" },
-  { id: "p-2", institutionId: "inst-oxf", faculty: "Faculty of Engineering", department: "Computer Engineering", name: "BEng Computer Engineering", qualification: "BEng" },
-  { id: "p-3", institutionId: "inst-ken", faculty: "School of Business", department: "Accounting", name: "Diploma in Accounting", qualification: "Dip" },
-  { id: "p-4", institutionId: "inst-ken", faculty: "School of Applied Sciences", department: "Information Technology", name: "Certificate in IT", qualification: "Cert" },
+  { id: "p-1", institutionId: INST_A, faculty: "Faculty of Science", department: "Biology", name: "BSc Biology", qualification: "Bachelor's Degree" },
+  { id: "p-2", institutionId: INST_A, faculty: "Faculty of Science", department: "Computer Science", name: "BSc Computer Science", qualification: "Bachelor's Degree" },
+  { id: "p-3", institutionId: INST_B, faculty: "School of Engineering", department: "Electrical Systems", name: "HND Electrical Engineering", qualification: "Higher National Diploma" },
+  { id: "p-4", institutionId: INST_B, faculty: "School of Engineering", department: "Civil Works", name: "HND Civil Engineering", qualification: "Higher National Diploma" },
 ];
 
 export const mockProgramChoices: ProgramChoice[] = [
-  { institutionId: "inst-oxf", programId: "p-2", rank: 1 },
-  { institutionId: "inst-oxf", programId: "p-1", rank: 2 },
-  { institutionId: "inst-ken", programId: "p-3", rank: 1 },
+  { institutionId: INST_A, programId: "p-2", rank: 1 },
+  { institutionId: INST_A, programId: "p-1", rank: 2 },
+  { institutionId: INST_B, programId: "p-3", rank: 1 },
 ];
 
 export const mockDocuments: UploadedDocument[] = [
-  { id: "d-1", institutionId: "inst-oxf", requirementName: "Transcript", fileName: "transcript.pdf", uploadedAt: "2026-09-01T10:00:00Z" },
-  { id: "d-2", institutionId: "inst-oxf", requirementName: "Passport", fileName: null, uploadedAt: null },
-  { id: "d-3", institutionId: "inst-oxf", requirementName: "Certificates", fileName: "certs.zip", uploadedAt: "2026-09-02T12:00:00Z" },
-  { id: "d-4", institutionId: "inst-ken", requirementName: "Transcript", fileName: "ken_transcript.pdf", uploadedAt: "2026-08-28T08:30:00Z" },
-  { id: "d-5", institutionId: "inst-ken", requirementName: "ID", fileName: null, uploadedAt: null },
-  { id: "d-6", institutionId: "inst-ken", requirementName: "Passport", fileName: "passport.jpg", uploadedAt: "2026-08-28T08:33:00Z" },
+  { id: "d-1", institutionId: INST_A, requirementName: "Birth certificate", fileName: "birth-certificate.pdf", uploadedAt: "2026-09-01T10:00:00Z" },
+  { id: "d-2", institutionId: INST_A, requirementName: "Baccalaureate certificate", fileName: null, uploadedAt: null },
+  { id: "d-3", institutionId: INST_A, requirementName: "Passport photo", fileName: "passport-photo.jpg", uploadedAt: "2026-09-02T12:00:00Z" },
+  { id: "d-4", institutionId: INST_A, requirementName: "Transcript of records", fileName: "transcript.pdf", uploadedAt: "2026-09-02T12:05:00Z" },
+  { id: "d-5", institutionId: INST_B, requirementName: "Birth certificate", fileName: "birth-certificate.pdf", uploadedAt: "2026-08-28T08:30:00Z" },
+  { id: "d-6", institutionId: INST_B, requirementName: "Level certificate", fileName: null, uploadedAt: null },
+  { id: "d-7", institutionId: INST_B, requirementName: "Passport photo", fileName: "passport-photo.jpg", uploadedAt: "2026-08-28T08:33:00Z" },
 ];
 
 // Document review states (mock)
@@ -61,18 +53,20 @@ export const mockDocumentStates: Record<string, { status: DocumentReviewState; r
 
 // Optional documents per institution (mock)
 export const mockOptionalDocuments: Record<string, string[]> = {
-  "inst-oxf": ["Birth certificate", "Passport-size photograph", "Other institution documents"],
-  "inst-ken": ["Birth certificate", "Examination slips", "Passport-size photograph"],
+  [INST_A]: ["Recommendation letter", "Proof of residence"],
+  [INST_B]: ["Examination slips", "Proof of residence"],
 };
 
 export const mockPayments: Record<string, PaymentInfo | null> = {
-  "inst-oxf": { method: "Card", reference: "PAY-0001", paidAt: "2026-09-03T09:00:00Z", amount: 55 },
-  "inst-ken": null,
+  // Amount is the institution's application fee + web fee, in XAF — the
+  // currency every fee in this platform is stored in (see lib/utils.ts).
+  [INST_A]: { method: "Mobile money", reference: "PAY-0001", paidAt: "2026-09-03T09:00:00Z", amount: 17500 },
+  [INST_B]: null,
 };
 
-export const mockPerInstitutionStatus: Record<string, string> = {
-  "inst-oxf": "SUBMITTED",
-  "inst-ken": "INCOMPLETE",
+export const mockPerInstitutionStatus: Record<string, ApplicationStatus> = {
+  [INST_A]: "SUBMITTED",
+  [INST_B]: "INCOMPLETE",
 };
 
 export const mockApplication = (): Application => ({
@@ -80,8 +74,8 @@ export const mockApplication = (): Application => ({
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   overallStatus: "SUBMITTED",
-  institutionIds: mockInstitutions.map((i) => i.id),
-  perInstitutionStatus: mockPerInstitutionStatus as any,
+  institutionIds: [INST_A, INST_B],
+  perInstitutionStatus: mockPerInstitutionStatus,
   steps: { personal: "submitted", education: "submitted", examination: "submitted", institutions: "submitted", documents: "editable", fees: "editable", review: "locked" },
   personalInfo: null,
   education: [],

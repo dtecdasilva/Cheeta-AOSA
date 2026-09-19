@@ -2,9 +2,25 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Field, TextInput, PrimaryButton } from "@/components/Form";
+import Link from "next/link";
+import { Field, TextInput, PrimaryButton, FormError } from "@/components/Form";
 
 const ACCOUNT_INACTIVE_MESSAGE = "This account has been deactivated. Contact your administrator.";
+
+/**
+ * Only same-origin paths are accepted as a post-login destination.
+ * Checking `startsWith("/")` alone was not enough: "//evil.com" and
+ * "/\\evil.com" both begin with a slash and are read by browsers as
+ * protocol-relative URLs, which turned the `next` parameter into an open
+ * redirect an attacker could use to bounce a freshly-authenticated user
+ * off-site.
+ */
+function safeNext(next: string | null): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/")) return null;
+  if (next.startsWith("//") || next.startsWith("/\\")) return null;
+  return next;
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -34,7 +50,7 @@ export function LoginForm() {
         setError(data.error ?? "Could not sign in.");
         return;
       }
-      router.push(next && next.startsWith("/") ? next : data.redirectTo);
+      router.push(safeNext(next) ?? data.redirectTo);
       router.refresh();
     } catch {
       setError("Something went wrong. Check your connection and try again.");
@@ -69,16 +85,12 @@ export function LoginForm() {
       </Field>
 
       <div className="flex justify-end">
-        <a href="/forgot-password" className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
+        <Link href="/forgot-password" className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
           Forgot your password?
-        </a>
+        </Link>
       </div>
 
-      {error && (
-        <p role="alert" className="border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]">
-          {error}
-        </p>
-      )}
+      {error && <FormError>{error}</FormError>}
 
       <PrimaryButton type="submit" disabled={loading} className="w-full">
         {loading ? "Signing in…" : "Sign in"}

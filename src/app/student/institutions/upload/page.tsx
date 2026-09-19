@@ -35,7 +35,7 @@ export default function Page() {
           <h2 className="text-lg font-semibold mb-4">Upload Documents</h2>
 
           {mockInstitutions.map((inst) => (
-            <section key={inst.id} className="mb-6 border border-[var(--color-line)] rounded-lg p-4 bg-[var(--color-card)]">
+            <section key={inst.id} className="mb-6 border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-semibold">{inst.name}</div>

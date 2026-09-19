@@ -1,21 +1,25 @@
-"use client";
-
 import { FeeConfig } from "@/lib/mockData/billing";
+import { formatCurrency } from "@/lib/utils";
+import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
 
 export default function BillingView({ config }: { config: FeeConfig }) {
   return (
-    <div className="space-y-4">
-      <div className="rounded border border-[var(--color-line)] bg-white p-4">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">{config.name}</h2>
-        <p className="text-sm text-[var(--color-ink-soft)]">{config.type} • {config.category}</p>
-      </div>
-
-      <div className="rounded border border-[var(--color-line)] bg-white p-4 space-y-2">
-        <p><strong>Currency:</strong> {config.currency}</p>
-        <p><strong>Amount:</strong> {config.amount}</p>
-        <p><strong>Effective date:</strong> {config.effectiveDate}</p>
-        <p><strong>Status:</strong> {config.status}</p>
-      </div>
+    <div className="max-w-2xl space-y-4">
+      <Card padded={false}>
+        <CardHeader title={config.name} description={`${config.type} · ${config.category}`} />
+        <DescriptionList
+          items={[
+            // Amounts are stored in XAF platform-wide, so they are formatted
+            // the same way here as everywhere else rather than printed raw.
+            { label: "Amount", value: formatCurrency(config.amount) },
+            { label: "Currency", value: config.currency },
+            { label: "Effective date", value: config.effectiveDate },
+            { label: "Status", value: config.status === "active" ? "Active" : "Inactive" },
+            { label: "Notes", value: config.notes },
+          ]}
+        />
+      </Card>
+      <RowAction href={`/institution/billing/${config.id}/edit`}>Edit</RowAction>
     </div>
   );
 }

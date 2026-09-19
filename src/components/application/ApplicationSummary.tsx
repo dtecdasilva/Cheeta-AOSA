@@ -26,7 +26,7 @@ export default function ApplicationSummary({
     <div className="space-y-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="col-span-2 space-y-6">
-          <div className="border border-[var(--color-line)] bg-white p-5">
+          <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="mb-1 font-[var(--font-display)] text-base text-[var(--color-ink)]">Demographic</p>
@@ -36,7 +36,7 @@ export default function ApplicationSummary({
             </div>
           </div>
 
-          <div className="border border-[var(--color-line)] bg-white p-5">
+          <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="mb-1 font-[var(--font-display)] text-base text-[var(--color-ink)]">Education</p>
@@ -46,7 +46,7 @@ export default function ApplicationSummary({
             </div>
           </div>
 
-          <div className="border border-[var(--color-line)] bg-white p-5">
+          <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <div className="flex items-start justify-between">
               <div>
                 <p className="mb-1 font-[var(--font-display)] text-base text-[var(--color-ink)]">Examinations & Results</p>
@@ -56,7 +56,7 @@ export default function ApplicationSummary({
             </div>
           </div>
 
-          <div className="border border-[var(--color-line)] bg-white p-5">
+          <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <p className="mb-3 font-[var(--font-display)] text-base text-[var(--color-ink)]">Institutions & Program Choices</p>
             <div className="space-y-4">
               {institutions.map((inst) => (
@@ -74,7 +74,7 @@ export default function ApplicationSummary({
             </div>
           </div>
 
-          <div className="border border-[var(--color-line)] bg-white p-5">
+          <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <p className="mb-3 font-[var(--font-display)] text-base text-[var(--color-ink)]">Uploads</p>
             <div className="space-y-3">
               {institutions.map((inst) => {
@@ -107,7 +107,7 @@ export default function ApplicationSummary({
             </div>
           </div>
 
-          <div className="border border-[var(--color-line)] bg-white p-5">
+          <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <p className="mb-3 font-[var(--font-display)] text-base text-[var(--color-ink)]">Fees & Payments</p>
             <div className="space-y-2 text-sm text-[var(--color-ink-soft)]">
               {institutions.map((inst) => (
@@ -130,7 +130,7 @@ export default function ApplicationSummary({
         </div>
 
         <aside className="space-y-6">
-          <div className="sticky top-20 w-64 border border-[var(--color-line)] bg-white p-5">
+          <div className="sticky top-20 w-64 border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
             <p className="mb-3 font-[var(--font-display)] text-sm text-[var(--color-ink)]">Quick review</p>
             <ReviewStep application={application} onFinalSubmit={() => alert('Final submit (mock)')} />
           </div>

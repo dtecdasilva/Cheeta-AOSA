@@ -1,49 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { mockDepartments, Department } from "@/lib/mockData/departments";
-import { PrimaryButton } from "@/components/Form";
 import { useState } from "react";
+import { mockDepartments, Department } from "@/lib/mockData/departments";
+import { mockFaculties } from "@/lib/mockData/faculties";
+import { ButtonLinkClass } from "@/components/Form";
+import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
 
 export default function DepartmentList({ institutionId }: { institutionId: string }) {
-  const initial = mockDepartments.filter((d) => d.institutionId === institutionId);
-  const [items, setItems] = useState<Department[]>(initial);
+  const [items, setItems] = useState<Department[]>(() =>
+    mockDepartments.filter((d) => d.institutionId === institutionId)
+  );
 
   function toggleStatus(id: string) {
-    setItems((s) => s.map((d) => (d.id === id ? { ...d, status: d.status === "active" ? "inactive" : "active" } : d)));
+    setItems((s) =>
+      s.map((d) => (d.id === id ? { ...d, status: d.status === "active" ? "inactive" : "active" } : d))
+    );
+  }
+
+  function facultyName(facultyId?: string) {
+    return mockFaculties.find((f) => f.id === facultyId)?.name;
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">Departments</h2>
-        <Link href="/institution/departments/add">
-          <PrimaryButton>Add department</PrimaryButton>
-        </Link>
-      </div>
+      <SectionHeading
+        title="Departments"
+        actions={
+          <Link href="/institution/departments/add" className={ButtonLinkClass("primary")}>
+            Add department
+          </Link>
+        }
+      />
 
-      <div className="space-y-2">
-        {items.map((f) => (
-          <div key={f.id} className="flex items-center justify-between rounded border border-[var(--color-line)] bg-white p-3">
-            <div>
-              <p className="font-medium text-[var(--color-ink)]">{f.name}</p>
-              <p className="text-xs text-[var(--color-ink-soft)]">Head: {f.head}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              <Link href={`/institution/departments/${f.id}`} className="text-sm text-[var(--color-ink)] underline">
-                View
-              </Link>
-              <Link href={`/institution/departments/${f.id}/edit`} className="text-sm text-[var(--color-ink)] underline">
-                Edit
-              </Link>
-              <button onClick={() => toggleStatus(f.id)} className="text-sm text-[var(--color-ink-soft)]">
-                {f.status === "active" ? "Deactivate" : "Activate"}
-              </button>
-            </div>
-          </div>
-        ))}
-        {items.length === 0 && <p className="text-sm text-[var(--color-ink-soft)]">No departments yet.</p>}
-      </div>
+      {items.length === 0 ? (
+        <EmptyState
+          message="No departments yet."
+          action={
+            <Link href="/institution/departments/add" className={ButtonLinkClass("secondary")}>
+              Add the first department
+            </Link>
+          }
+        />
+      ) : (
+        <RowList>
+          {items.map((d) => (
+            <Row
+              key={d.id}
+              title={d.name}
+              subtitle={[facultyName(d.facultyId), `Head: ${d.head}`].filter(Boolean).join(" · ")}
+              meta={d.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+              actions={
+                <>
+                  <RowAction href={`/institution/departments/${d.id}`}>View</RowAction>
+                  <RowAction href={`/institution/departments/${d.id}/edit`}>Edit</RowAction>
+                  <RowAction tone="muted" onClick={() => toggleStatus(d.id)}>
+                    {d.status === "active" ? "Deactivate" : "Activate"}
+                  </RowAction>
+                </>
+              }
+            />
+          ))}
+        </RowList>
+      )}
     </div>
   );
 }

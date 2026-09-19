@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { CheckCircle2 } from "lucide-react";
-import { Field, TextInput, SelectInput, PrimaryButton } from "@/components/Form";
+import { Field, TextInput, SelectInput, PrimaryButton, FormError, ButtonLinkClass } from "@/components/Form";
 import { INSTITUTION_TYPES } from "@/lib/data";
 import { validateEmail, validateMobileNumber, validateInstitutionType } from "@/lib/validation";
 
@@ -87,7 +88,7 @@ export function RegisterForm() {
           </div>
         </div>
 
-        <div className="border border-[var(--color-line)] bg-white p-4 text-sm text-[var(--color-ink-soft)]">
+        <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-4 text-sm text-[var(--color-ink-soft)]">
           <p>
             A login code was sent to <span className="font-medium text-[var(--color-ink)]">{result.applicant?.email}</span>,
             and an SMS notification was sent to{" "}
@@ -118,12 +119,12 @@ export function RegisterForm() {
           </div>
         )}
 
-        <a
+        <Link
           href="/login"
-          className="inline-flex items-center justify-center gap-2 bg-[var(--color-ink)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-dark)]"
+          className={ButtonLinkClass("primary")}
         >
           Go to sign in
-        </a>
+        </Link>
       </div>
     );
   }
@@ -137,16 +138,16 @@ export function RegisterForm() {
           login details.
         </p>
         <div className="flex gap-3">
-          <a
+          <Link
             href="/login"
-            className="inline-flex items-center justify-center gap-2 bg-[var(--color-ink)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-dark)]"
+            className={ButtonLinkClass("primary")}
           >
             Go to sign in
-          </a>
+          </Link>
           <button
             type="button"
             onClick={() => setAccountExists(false)}
-            className="inline-flex items-center justify-center gap-2 border border-[var(--color-line-strong)] bg-white px-4 py-2.5 text-sm font-medium text-[var(--color-ink)] hover:border-[var(--color-ink)]"
+            className={ButtonLinkClass("secondary")}
           >
             Use a different email
           </button>
@@ -157,7 +158,7 @@ export function RegisterForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      <Field label="Email address" htmlFor="email" required hint="Your login details will be sent here.">
+      <Field label="Email address" htmlFor="email" required hint="Your login details will be sent here." error={fieldErrors.email}>
         <TextInput
           id="email"
           type="email"
@@ -167,10 +168,9 @@ export function RegisterForm() {
           placeholder="you@example.com"
           required
         />
-        {fieldErrors.email && <p className="mt-1 text-xs text-[var(--color-danger)]">{fieldErrors.email}</p>}
       </Field>
 
-      <Field label="Institution type" htmlFor="institutionType" required hint="This determines which application experience you'll see.">
+      <Field label="Institution type" htmlFor="institutionType" required hint="This determines which application experience you'll see." error={fieldErrors.institutionType}>
         <SelectInput
           id="institutionType"
           value={institutionType}
@@ -184,12 +184,9 @@ export function RegisterForm() {
             </option>
           ))}
         </SelectInput>
-        {fieldErrors.institutionType && (
-          <p className="mt-1 text-xs text-[var(--color-danger)]">{fieldErrors.institutionType}</p>
-        )}
       </Field>
 
-      <Field label="Mobile telephone number" htmlFor="mobileNumber" required hint="Used for SMS notifications about your application.">
+      <Field label="Mobile telephone number" htmlFor="mobileNumber" required hint="Used for SMS notifications about your application." error={fieldErrors.mobileNumber}>
         <TextInput
           id="mobileNumber"
           type="tel"
@@ -199,16 +196,9 @@ export function RegisterForm() {
           placeholder="+237 6XX XXX XXX"
           required
         />
-        {fieldErrors.mobileNumber && (
-          <p className="mt-1 text-xs text-[var(--color-danger)]">{fieldErrors.mobileNumber}</p>
-        )}
       </Field>
 
-      {formError && (
-        <p role="alert" className="border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]">
-          {formError}
-        </p>
-      )}
+      {formError && <FormError>{formError}</FormError>}
 
       <PrimaryButton type="submit" disabled={loading} className="w-full">
         {loading ? "Registering…" : "Register"}

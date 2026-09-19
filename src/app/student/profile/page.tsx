@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { useAuth } from "@/context/AuthContext";
 import { Topbar } from "@/components/Topbar";
@@ -14,8 +15,8 @@ export default function ProfilePage() {
   return (
     <>
       <Topbar title="Profile" description="Your account details." />
-      <main className="px-8 py-8">
-        <div className="max-w-xl border border-[var(--color-line)] bg-white">
+      <main className={PAGE_MAIN_CLASS}>
+        <div className="max-w-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
           <div className="border-b border-[var(--color-line)] px-5 py-3.5">
             <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Account</p>
           </div>
@@ -48,7 +49,7 @@ export default function ProfilePage() {
         </div>
 
         {personal && (
-          <div className="mt-6 max-w-xl border border-[var(--color-line)] bg-white">
+          <div className="mt-6 max-w-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
             <div className="border-b border-[var(--color-line)] px-5 py-3.5">
               <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">
                 Personal information on file

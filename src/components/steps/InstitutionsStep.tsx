@@ -48,7 +48,7 @@ export function InstitutionsStep({
         const chosen = selected.filter((c) => c.institutionId === instId).sort((a, b) => a.rank - b.rank);
 
         return (
-          <div key={instId} className="border border-[var(--color-line)] bg-white">
+          <div key={instId} className="border border-[var(--color-line)] bg-[var(--color-surface)]">
             <div className="border-b border-[var(--color-line)] px-5 py-3.5">
               <p className="font-medium text-[var(--color-ink)]">{inst.name}</p>
               <p className="text-xs text-[var(--color-ink-faint)]">

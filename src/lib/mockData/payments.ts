@@ -1,5 +1,7 @@
-import { Institution } from "@/lib/types";
 import { mockInstitutions } from "./institutions";
+
+const INST_A = "inst-1";
+const INST_B = "inst-2";
 
 export type BankAccountConfig = {
   accountName: string;
@@ -38,41 +40,41 @@ export type InstitutionPaymentConfig = {
 };
 
 export const mockPaymentConfigs: InstitutionPaymentConfig[] = mockInstitutions.map((i) => {
-  if (i.id === "inst-oxf") {
+  if (i.id === INST_A) {
     return {
       institutionId: i.id,
       bank: {
-        accountName: "Oxbridge International Univ. - Applications",
-        accountNumber: "1234567890",
-        bankName: "First Global Bank",
-        branch: "Oxford Branch",
+        accountName: "Mont Fébé University — Applications",
+        accountNumber: "CM21 10005 00012 09876543210 88",
+        bankName: "Afriland First Bank",
+        branch: "Mont Fébé Branch",
         instructions: "Deposit the exact amount and include your application ID as reference.",
       },
       mobileMoney: [
-        { operator: "MobiCash", accountNumber: "+441234567890", accountName: "Oxbridge Applications", instructions: "Send with application reference." },
+        { operator: "MTN MoMo", accountNumber: "+237 677 000 100", accountName: "Mont Fébé Applications", instructions: "Send with your application reference." },
       ],
       moneyTransfer: [
-        { provider: "QuickSend", recipientName: "Oxbridge Intl Univ", referenceFormat: "APP-{applicationId}", instructions: "Use the APP-<id> reference when sending." },
+        { provider: "Express Union", recipientName: "Mont Fébé University", referenceFormat: "APP-{applicationId}", instructions: "Use the APP-<id> reference when sending." },
       ],
-      debitWallet: { walletName: "GlobalPay Wallet", walletId: "GW-001", instructions: "Open your wallet app and send to the institution wallet." },
+      debitWallet: { walletName: "Orange Money Wallet", walletId: "MFU-001", instructions: "Open your wallet app and send to the institution wallet." },
     };
   }
 
-  if (i.id === "inst-ken") {
+  if (i.id === INST_B) {
     return {
       institutionId: i.id,
       bank: {
-        accountName: "Kenvale Polytechnic Applications",
-        accountNumber: "9988776655",
-        bankName: "Kenya National Bank",
-        branch: "Nairobi Main",
+        accountName: "Sanaga Polytechnic — Applications",
+        accountNumber: "CM21 10033 00044 01234567890 21",
+        bankName: "Société Générale Cameroun",
+        branch: "Douala Bonanjo",
       },
       mobileMoney: [
-        { operator: "M-Kopa", accountNumber: "+254700111222", accountName: "Kenvale Fees" },
-        { operator: "MobiCash", accountNumber: "+254711222333", accountName: "Kenvale Payments" },
+        { operator: "Orange Money", accountNumber: "+237 699 000 200", accountName: "Sanaga Fees" },
+        { operator: "MTN MoMo", accountNumber: "+237 677 000 200", accountName: "Sanaga Payments" },
       ],
       moneyTransfer: [],
-      debitWallet: { walletName: "KenWallet", walletId: "KW-09" },
+      debitWallet: { walletName: "Sanaga Wallet", walletId: "SNG-09" },
     };
   }
 

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { mockInstitutions } from "@/lib/mockData/institutions";
+import { Field, SelectInput } from "@/components/Form";
+import { Card, EmptyState } from "@/components/ui";
 import { getPaymentConfigForInstitution } from "@/lib/mockData/payments";
 
 export default function PaymentInstructions({ method }: { method: "bank" | "mobile" | "money" | "wallet" }) {
@@ -10,34 +12,35 @@ export default function PaymentInstructions({ method }: { method: "bank" | "mobi
 
   return (
     <div className="max-w-3xl">
-      <div className="mb-4">
-        <label className="text-sm text-[var(--color-ink-soft)]">Select institution</label>
-        <div className="mt-2">
-          <select value={institutionId} onChange={(e) => setInstitutionId(e.target.value)} className="border px-3 py-2 rounded">
+      <div className="mb-6 max-w-sm">
+        <Field label="Select institution">
+          <SelectInput value={institutionId} onChange={(e) => setInstitutionId(e.target.value)}>
             {mockInstitutions.map((i) => (
-              <option key={i.id} value={i.id}>{i.name}</option>
+              <option key={i.id} value={i.id}>
+                {i.name}
+              </option>
             ))}
-          </select>
-        </div>
+          </SelectInput>
+        </Field>
       </div>
 
-      {!config && <div className="p-4 border rounded">No payment configuration available for this institution.</div>}
+      {!config && <EmptyState message="No payment configuration available for this institution yet." />}
 
       {config && method === "bank" && config.bank && (
-        <div className="border rounded p-4">
-          <div className="font-medium">Bank account details</div>
+        <Card>
+          <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Bank account details</p>
           <div className="text-sm text-[var(--color-ink-soft)] mt-2">
             <div><strong>Bank:</strong> {config.bank.bankName} {config.bank.branch ? `, ${config.bank.branch}` : ""}</div>
             <div><strong>Account name:</strong> {config.bank.accountName}</div>
             <div><strong>Account number:</strong> {config.bank.accountNumber}</div>
             {config.bank.instructions && <div className="mt-2 text-xs text-[var(--color-ink-faint)]">{config.bank.instructions}</div>}
           </div>
-        </div>
+        </Card>
       )}
 
       {config && method === "mobile" && config.mobileMoney && (
-        <div className="border rounded p-4">
-          <div className="font-medium">Mobile money options</div>
+        <Card>
+          <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Mobile money options</p>
           <div className="mt-2 text-sm text-[var(--color-ink-soft)]">
             {config.mobileMoney.map((m, idx) => (
               <div key={idx} className="mb-2">
@@ -47,12 +50,12 @@ export default function PaymentInstructions({ method }: { method: "bank" | "mobi
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {config && method === "money" && config.moneyTransfer && (
-        <div className="border rounded p-4">
-          <div className="font-medium">Money transfer instructions</div>
+        <Card>
+          <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Money transfer instructions</p>
           <div className="mt-2 text-sm text-[var(--color-ink-soft)]">
             {config.moneyTransfer.map((m, idx) => (
               <div key={idx} className="mb-2">
@@ -62,17 +65,17 @@ export default function PaymentInstructions({ method }: { method: "bank" | "mobi
               </div>
             ))}
           </div>
-        </div>
+        </Card>
       )}
 
       {config && method === "wallet" && config.debitWallet && (
-        <div className="border rounded p-4">
-          <div className="font-medium">Debit wallet</div>
+        <Card>
+          <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">Debit wallet</p>
           <div className="mt-2 text-sm text-[var(--color-ink-soft)]">
             <div><strong>{config.debitWallet.walletName}</strong> — Wallet ID: {config.debitWallet.walletId}</div>
             {config.debitWallet.instructions && <div className="text-xs text-[var(--color-ink-faint)]">{config.debitWallet.instructions}</div>}
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

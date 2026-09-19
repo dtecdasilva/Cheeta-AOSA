@@ -17,7 +17,7 @@ export function InstitutionCard({
 
   return (
     <div
-      className={`flex flex-col border bg-white p-4 transition-colors ${
+      className={`flex flex-col border bg-[var(--color-surface)] p-4 transition-colors ${
         selected ? "border-[var(--color-brass)]" : "border-[var(--color-line)]"
       }`}
     >

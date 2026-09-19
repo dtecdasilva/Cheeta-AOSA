@@ -1,16 +1,24 @@
 "use client";
 
 import Link from "next/link";
-import { mockUploadRequirements, UploadRequirement } from "@/lib/mockData/uploadRequirements";
-import { PrimaryButton } from "@/components/Form";
 import { useState } from "react";
+import { mockUploadRequirements, UploadRequirement } from "@/lib/mockData/uploadRequirements";
+import { ButtonLinkClass } from "@/components/Form";
+import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
+
+function formatSize(kb: number) {
+  return kb >= 1024 ? `${(kb / 1024).toFixed(kb % 1024 === 0 ? 0 : 1)} MB` : `${kb} KB`;
+}
 
 export default function UploadRequirementsList({ institutionId }: { institutionId: string }) {
-  const initial = mockUploadRequirements.filter((r) => r.institutionId === institutionId);
-  const [items, setItems] = useState<UploadRequirement[]>(initial);
+  const [items, setItems] = useState<UploadRequirement[]>(() =>
+    mockUploadRequirements.filter((r) => r.institutionId === institutionId)
+  );
 
   function toggleStatus(id: string) {
-    setItems((s) => s.map((r) => (r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r)));
+    setItems((s) =>
+      s.map((r) => (r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r))
+    );
   }
 
   function remove(id: string) {
@@ -18,31 +26,54 @@ export default function UploadRequirementsList({ institutionId }: { institutionI
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">Upload requirements</h2>
-        <Link href="/institution/uploads/requirements/add">
-          <PrimaryButton>Add requirement</PrimaryButton>
-        </Link>
-      </div>
+    <div className="space-y-4">
+      <SectionHeading
+        title="Upload requirements"
+        actions={
+          <Link href="/institution/uploads/requirements/add" className={ButtonLinkClass("primary")}>
+            Add requirement
+          </Link>
+        }
+      />
 
-      <div className="space-y-2">
-        {items.map((it) => (
-          <div key={it.id} className="flex items-center justify-between rounded border border-[var(--color-line)] bg-white p-3">
-            <div>
-              <p className="font-medium text-[var(--color-ink)]">{it.name} {it.required && <span className="text-xs text-[var(--color-ink-soft)]">(required)</span>}</p>
-              <p className="text-xs text-[var(--color-ink-soft)]">Types: {it.fileTypes.join(", ")} • Max: {it.maxSizeKB} KB</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Link href={`/institution/uploads/requirements/${it.id}`} className="text-sm text-[var(--color-ink)] underline">View</Link>
-              <Link href={`/institution/uploads/requirements/${it.id}/edit`} className="text-sm text-[var(--color-ink)] underline">Edit</Link>
-              <button onClick={() => toggleStatus(it.id)} className="text-sm text-[var(--color-ink-soft)]">{it.status === "active" ? "Deactivate" : "Activate"}</button>
-              <button onClick={() => remove(it.id)} className="text-sm text-[var(--color-danger)]">Delete</button>
-            </div>
-          </div>
-        ))}
-        {items.length === 0 && <p className="text-sm text-[var(--color-ink-soft)]">No upload requirements configured.</p>}
-      </div>
+      {items.length === 0 ? (
+        <EmptyState
+          message="No upload requirements configured."
+          action={
+            <Link href="/institution/uploads/requirements/add" className={ButtonLinkClass("secondary")}>
+              Add the first requirement
+            </Link>
+          }
+        />
+      ) : (
+        <RowList>
+          {items.map((it) => (
+            <Row
+              key={it.id}
+              title={it.name}
+              subtitle={`${it.fileTypes.join(", ").toUpperCase()} · max ${formatSize(it.maxSizeKB)}`}
+              meta={
+                <div className="flex items-center gap-3">
+                  {it.required ? <Pill>Required</Pill> : <Pill tone="muted">Optional</Pill>}
+                  {it.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+                </div>
+              }
+              actions={
+                <>
+                  <RowAction href={`/institution/uploads/requirements/${it.id}`}>View</RowAction>
+                  <RowAction href={`/institution/uploads/requirements/${it.id}/edit`}>Edit</RowAction>
+                  <RowAction tone="muted" onClick={() => toggleStatus(it.id)}>
+                    {it.status === "active" ? "Deactivate" : "Activate"}
+                  </RowAction>
+                  <RowAction tone="danger" onClick={() => remove(it.id)}>
+                    Delete
+                  </RowAction>
+                </>
+              }
+            />
+          ))}
+        </RowList>
+      )}
     </div>
   );
 }

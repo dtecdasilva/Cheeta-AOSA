@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { useApp } from "@/context/AppContext";
 import { Topbar } from "@/components/Topbar";
 import { formatDateTime } from "@/lib/utils";
@@ -11,13 +12,13 @@ export default function NotificationsPage() {
   return (
     <>
       <Topbar title="Notifications" description="Updates on your applications and account." />
-      <main className="px-8 py-8">
+      <main className={PAGE_MAIN_CLASS}>
         {notifications.length === 0 ? (
           <div className="border border-dashed border-[var(--color-line-strong)] px-6 py-14 text-center text-sm text-[var(--color-ink-soft)]">
             You have no notifications yet.
           </div>
         ) : (
-          <div className="divide-y divide-[var(--color-line)] border border-[var(--color-line)] bg-white">
+          <div className="divide-y divide-[var(--color-line)] border border-[var(--color-line)] bg-[var(--color-surface)]">
             {notifications.map((n) => (
               <button
                 key={n.id}

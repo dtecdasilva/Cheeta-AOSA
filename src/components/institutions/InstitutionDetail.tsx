@@ -27,7 +27,7 @@ export function InstitutionDetail({
         Back to browse
       </button>
 
-      <div className="border border-[var(--color-line)] bg-white p-5 sm:p-6">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center border border-[var(--color-line-strong)] bg-[var(--color-paper)] font-[var(--font-display)] text-2xl text-[var(--color-ink)]">
@@ -79,11 +79,11 @@ export function InstitutionDetail({
         <p className="mt-4 max-w-2xl text-sm text-[var(--color-ink-soft)]">{institution.profile.overview}</p>
 
         <div className="mt-5 grid grid-cols-2 gap-px border border-[var(--color-line)] bg-[var(--color-line)] sm:w-80">
-          <div className="bg-white px-4 py-3">
+          <div className="bg-[var(--color-surface)] px-4 py-3">
             <p className="font-[var(--font-display)] text-xl text-[var(--color-ink)]">{programCount}</p>
             <p className="text-xs text-[var(--color-ink-soft)]">Programs offered</p>
           </div>
-          <div className="bg-white px-4 py-3">
+          <div className="bg-[var(--color-surface)] px-4 py-3">
             <p className="font-[var(--font-display)] text-xl text-[var(--color-ink)]">{spaces}</p>
             <p className="text-xs text-[var(--color-ink-soft)]">Spaces available</p>
           </div>
@@ -93,7 +93,7 @@ export function InstitutionDetail({
       {/* Faculty → Department → Qualification → Study Program hierarchy */}
       <div className="mt-6 space-y-4">
         {institution.profile.faculties.map((faculty) => (
-          <div key={faculty.id} className="border border-[var(--color-line)] bg-white">
+          <div key={faculty.id} className="border border-[var(--color-line)] bg-[var(--color-surface)]">
             <div className="border-b border-[var(--color-line)] px-5 py-3">
               <p className="font-[var(--font-display)] text-base text-[var(--color-ink)]">{faculty.name}</p>
             </div>

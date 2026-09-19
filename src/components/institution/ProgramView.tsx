@@ -1,9 +1,8 @@
-"use client";
-
 import { StudyProgramDef } from "@/lib/mockData/programs";
 import { mockFaculties } from "@/lib/mockData/faculties";
 import { mockDepartments } from "@/lib/mockData/departments";
 import { mockQualifications } from "@/lib/mockData/qualifications";
+import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
 
 export default function ProgramView({ program }: { program: StudyProgramDef }) {
   const faculty = mockFaculties.find((f) => f.id === program.facultyId);
@@ -11,18 +10,20 @@ export default function ProgramView({ program }: { program: StudyProgramDef }) {
   const qualification = mockQualifications.find((q) => q.id === program.qualificationId);
 
   return (
-    <div className="space-y-4">
-      <div className="rounded border border-[var(--color-line)] bg-white p-4">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">{program.name} <span className="text-xs text-[var(--color-ink-soft)]">({program.code})</span></h2>
-        <p className="text-sm text-[var(--color-ink-soft)]">Qualification: {qualification?.name}</p>
-      </div>
-
-      <div className="rounded border border-[var(--color-line)] bg-white p-4 space-y-2">
-        <p><strong>Faculty:</strong> {faculty?.name}</p>
-        <p><strong>Department:</strong> {department?.name}</p>
-        <p><strong>Available spaces:</strong> {program.availableSpaces}</p>
-        <p><strong>Status:</strong> {program.status}</p>
-      </div>
+    <div className="max-w-2xl space-y-4">
+      <Card padded={false}>
+        <CardHeader title={program.name} description={program.code} />
+        <DescriptionList
+          items={[
+            { label: "Qualification", value: qualification?.name },
+            { label: "Faculty", value: faculty?.name },
+            { label: "Department", value: department?.name },
+            { label: "Available spaces", value: program.availableSpaces },
+            { label: "Status", value: program.status === "active" ? "Active" : "Inactive" },
+          ]}
+        />
+      </Card>
+      <RowAction href={`/institution/programs/${program.id}/edit`}>Edit</RowAction>
     </div>
   );
 }

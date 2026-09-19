@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Field, TextInput, PrimaryButton } from "@/components/Form";
+import { Field, TextInput, PrimaryButton, FormError } from "@/components/Form";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -41,7 +41,7 @@ export function ForgotPasswordForm() {
           If an account exists for that email, a password reset link has been sent.
         </p>
         {devResetUrl && (
-          <div className="border border-[var(--color-line)] bg-white p-4">
+          <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
             <p className="text-xs font-medium text-[var(--color-ink-soft)]">
               Development mode — no email service is connected yet, so here is the link that would normally be emailed:
             </p>
@@ -68,11 +68,7 @@ export function ForgotPasswordForm() {
         />
       </Field>
 
-      {error && (
-        <p role="alert" className="border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger)]">
-          {error}
-        </p>
-      )}
+      {error && <FormError>{error}</FormError>}
 
       <PrimaryButton type="submit" disabled={loading} className="w-full">
         {loading ? "Sending…" : "Send reset link"}

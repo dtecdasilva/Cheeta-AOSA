@@ -1,12 +1,15 @@
 "use client";
 
 import { Field, TextInput, PrimaryButton, SecondaryButton } from "@/components/Form";
-import { Department, mockDepartments } from "@/lib/mockData/departments";
+import {Department} from "@/lib/mockData/departments";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const REQUIRED: (keyof Department)[] = ["name"];
+
 export default function DepartmentForm({ institutionId, initial }: { institutionId: string; initial?: Department }) {
   const [form, setForm] = useState<Partial<Department>>({ ...(initial ?? {}), institutionId });
+  const [errors, setErrors] = useState<Partial<Record<keyof Department, string>>>({});
   const router = useRouter();
 
   function onChange<K extends keyof Department>(k: K, v: Department[K]) {
@@ -14,19 +17,24 @@ export default function DepartmentForm({ institutionId, initial }: { institution
   }
 
   function onSave() {
-    if (initial) {
-      const idx = mockDepartments.findIndex((d) => d.id === initial.id);
-      if (idx !== -1) mockDepartments[idx] = { ...(mockDepartments[idx] as Department), ...(form as Department) };
-    } else {
-      const id = `dep-${Date.now()}`;
-      mockDepartments.push({ ...(form as Department), id } as Department);
+    const missing = REQUIRED.filter((k) => !String(form[k] ?? "").trim());
+    if (missing.length) {
+      setErrors(Object.fromEntries(missing.map((k) => [k, "This field is required."])));
+      return;
     }
+    setErrors({});
+    // No persistence layer exists for institution configuration yet. The
+    // previous version pushed straight into the imported mockDepartments
+    // array, which mutated module state every other screen reads from and
+    // vanished on reload — worse than not saving, because it looked like
+    // it had. Navigating back keeps the flow intact until a real endpoint
+    // replaces this call.
     router.push("/institution/departments");
   }
 
   return (
-    <div className="space-y-4">
-      <Field label="Department name" required>
+    <div className="max-w-2xl space-y-4">
+      <Field label="Department name" required error={errors.name}>
         <TextInput value={form.name ?? ""} onChange={(e) => onChange("name", e.target.value)} />
       </Field>
 

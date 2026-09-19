@@ -49,7 +49,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="self-center border border-[var(--color-line)] bg-white">
+          <div className="self-center border border-[var(--color-line)] bg-[var(--color-surface)]">
             <table className="w-full border-collapse text-sm">
               <caption className="border-b border-[var(--color-line)] px-5 py-3 text-left font-[var(--font-display)] text-base text-[var(--color-ink)]">
                 Your application, step by step

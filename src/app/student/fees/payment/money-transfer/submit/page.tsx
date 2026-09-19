@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { Topbar } from "@/components/Topbar";
 import { mockInstitutions } from "@/lib/mockData/institutions";
 import { Field, TextInput, SelectInput, PrimaryButton } from "@/components/Form";
@@ -38,8 +39,8 @@ export default function MoneyTransferSubmitPage() {
   return (
     <>
       <Topbar title="Submit Money Transfer" description="Provide money transfer details and upload the receipt." />
-      <main className="px-4 py-6 sm:px-8 sm:py-8">
-        <div className="max-w-2xl mx-auto bg-white border p-6 rounded">
+      <main className={PAGE_MAIN_CLASS}>
+        <div className="max-w-2xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
           <form onSubmit={handleSubmit} className="space-y-4">
             <Field label="Institution">
               <SelectInput value={institutionId} onChange={(e) => setInstitutionId(e.target.value)}>

@@ -96,7 +96,7 @@ export function InstitutionDiscovery() {
               return (
                 <span
                   key={id}
-                  className="inline-flex items-center gap-2 border border-[var(--color-line-strong)] bg-white px-2.5 py-1 text-xs text-[var(--color-ink)]"
+                  className="inline-flex items-center gap-2 border border-[var(--color-line-strong)] bg-[var(--color-surface)] px-2.5 py-1 text-xs text-[var(--color-ink)]"
                 >
                   {inst.name}
                   <button
@@ -117,7 +117,7 @@ export function InstitutionDiscovery() {
       )}
 
       {/* Search + filters */}
-      <div className="border border-[var(--color-line)] bg-white p-4">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
         <div className="grid gap-3 sm:grid-cols-[1.5fr_1fr_1fr_auto]">
           <div className="relative">
             <Search
@@ -128,7 +128,7 @@ export function InstitutionDiscovery() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search institutions by name…"
-              className="w-full border border-[var(--color-line-strong)] bg-white py-2 pl-9 pr-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-brass)]"
+              className="w-full border border-[var(--color-line-strong)] bg-[var(--color-surface)] py-2 pl-9 pr-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-brass)]"
             />
           </div>
           <SelectInput value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>

@@ -137,7 +137,7 @@ export function CurrencySelector({
             setHighlighted(0);
           }}
           onKeyDown={handleKeyDown}
-          className="w-full border border-[var(--color-line-strong)] bg-white py-2 pl-9 pr-8 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-brass)] disabled:bg-[var(--color-paper)] disabled:text-[var(--color-ink-faint)]"
+          className="w-full border border-[var(--color-line-strong)] bg-[var(--color-surface)] py-2 pl-9 pr-8 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-brass)] disabled:bg-[var(--color-paper)] disabled:text-[var(--color-ink-faint)]"
         />
         <ChevronDown
           className={`pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-ink-faint)] transition-transform ${open ? "rotate-180" : ""}`}
@@ -149,7 +149,7 @@ export function CurrencySelector({
         <ul
           id={listId}
           role="listbox"
-          className="scrollbar-thin absolute z-20 mt-1 max-h-56 w-full overflow-y-auto border border-[var(--color-line-strong)] bg-white shadow-sm"
+          className="scrollbar-thin absolute z-20 mt-1 max-h-56 w-full overflow-y-auto border border-[var(--color-line-strong)] bg-[var(--color-surface)] shadow-sm"
         >
           {filtered.length === 0 ? (
             <li className="px-3 py-2 text-sm text-[var(--color-ink-faint)]">No matching currency</li>

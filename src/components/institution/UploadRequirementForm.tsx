@@ -1,33 +1,40 @@
 "use client";
 
 import { Field, TextInput, SelectInput, PrimaryButton, SecondaryButton } from "@/components/Form";
-import { UploadRequirement, mockUploadRequirements } from "@/lib/mockData/uploadRequirements";
+import {UploadRequirement} from "@/lib/mockData/uploadRequirements";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const REQUIRED: (keyof UploadRequirement)[] = ["name"];
+
 export default function UploadRequirementForm({ institutionId, initial }: { institutionId: string; initial?: UploadRequirement }) {
   const [form, setForm] = useState<Partial<UploadRequirement>>({ ...(initial ?? {}), institutionId });
+  const [errors, setErrors] = useState<Partial<Record<keyof UploadRequirement, string>>>({});
   const router = useRouter();
 
-  function onChange<K extends keyof UploadRequirement>(k: K, v: any) {
+  function onChange<K extends keyof UploadRequirement>(k: K, v: UploadRequirement[K]) {
     setForm((s) => ({ ...s, [k]: v }));
   }
 
   function onSave() {
-    if (initial) {
-      const idx = mockUploadRequirements.findIndex((r) => r.id === initial.id);
-      if (idx !== -1) mockUploadRequirements[idx] = { ...(mockUploadRequirements[idx] as UploadRequirement), ...(form as UploadRequirement) };
-    } else {
-      const id = `ur-${Date.now()}`;
-      const toAdd: UploadRequirement = { ...(form as UploadRequirement), id } as UploadRequirement;
-      mockUploadRequirements.push(toAdd);
+    const missing = REQUIRED.filter((k) => !String(form[k] ?? "").trim());
+    if (missing.length) {
+      setErrors(Object.fromEntries(missing.map((k) => [k, "This field is required."])));
+      return;
     }
+    setErrors({});
+    // No persistence layer exists for institution configuration yet. The
+    // previous version pushed straight into the imported mockUploadRequirements
+    // array, which mutated module state every other screen reads from and
+    // vanished on reload — worse than not saving, because it looked like
+    // it had. Navigating back keeps the flow intact until a real endpoint
+    // replaces this call.
     router.push("/institution/uploads/requirements");
   }
 
   return (
-    <div className="space-y-4 max-w-lg">
-      <Field label="Document name" required>
+    <div className="max-w-2xl space-y-4">
+      <Field label="Document name" required error={errors.name}>
         <TextInput value={form.name ?? ""} onChange={(e) => onChange("name", e.target.value)} />
       </Field>
 
@@ -51,7 +58,7 @@ export default function UploadRequirementForm({ institutionId, initial }: { inst
       </Field>
 
       <Field label="Status">
-        <SelectInput value={form.status ?? "active"} onChange={(e) => onChange("status", e.target.value)}>
+        <SelectInput value={form.status ?? "active"} onChange={(e) => onChange("status", e.target.value as UploadRequirement["status"])}>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </SelectInput>

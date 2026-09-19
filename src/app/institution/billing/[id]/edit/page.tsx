@@ -1,21 +1,25 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../../../InstitutionShell";
+import { resolveInstitutionId } from "@/lib/auth/institution";
 import BillingForm from "@/components/institution/BillingForm";
 import { mockBillingConfigs } from "@/lib/mockData/billing";
+import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
-  const cfg = mockBillingConfigs.find((c) => c.id === params.id && c.institutionId === (user.institutionId ?? ""));
+  const { id } = await params;
+  const institutionId = resolveInstitutionId(user);
+  // Scoped to the caller's own institution — an id belonging to another
+  // institution reads as "not found" rather than being served.
+  const record = mockBillingConfigs.find((r) => r.id === id && r.institutionId === institutionId);
+
   return (
-    <InstitutionShell user={user}>
-      <main className="px-4 py-6 sm:px-8 sm:py-8">
-        <h1 className="mb-4 text-xl font-semibold">Edit fee</h1>
-        {cfg ? (
-          <BillingForm institutionId={user.institutionId ?? "inst-1"} initial={cfg} />
-        ) : (
-          <p className="text-sm text-[var(--color-ink-soft)]">Fee not found.</p>
-        )}
-      </main>
-    </InstitutionShell>
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading title="Edit fee" />
+      {record ? (
+        <BillingForm institutionId={institutionId} initial={record} />
+      ) : (
+        <EmptyState message="This fee doesn't exist, or belongs to another institution." />
+      )}
+    </main>
   );
 }

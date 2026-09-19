@@ -1,14 +1,7 @@
 import { Institution, StudyProgram, ProgramChoice, UploadedDocument, PaymentInfo, Application } from "@/lib/types";
 import { StatusBadge } from "@/components/StatusBadge";
+import { formatCurrency, formatDate } from "@/lib/utils";
 
-function smallDate(d: string | null) {
-  if (!d) return "—";
-  try {
-    return new Date(d).toLocaleDateString();
-  } catch {
-    return d;
-  }
-}
 
 export default function InstitutionSummaryCard({
   institution,
@@ -37,13 +30,13 @@ export default function InstitutionSummaryCard({
   const required = institution.requiredDocuments.length;
   const uploaded = instDocs.filter((d) => d.fileName).length;
 
-  const appStatus = (application.perInstitutionStatus && (application.perInstitutionStatus as any)[institution.id]) || "INCOMPLETE";
+  const appStatus = application.perInstitutionStatus?.[institution.id] ?? "INCOMPLETE";
 
   return (
-    <div className="border border-[var(--color-line)] rounded-lg p-4 mb-4 bg-[var(--color-card)]">
+    <div className="mb-4 border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-[var(--color-line)] flex items-center justify-center font-semibold">{institution.logoInitial}</div>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--color-line-strong)] bg-[var(--color-brass-soft)] font-[var(--font-display)] text-[var(--color-brass-dark)]">{institution.logoInitial}</div>
           <div>
             <div className="text-sm font-semibold">{institution.name}</div>
             <div className="text-xs text-[var(--color-ink-soft)]">{institution.location} · {institution.type}</div>
@@ -51,7 +44,7 @@ export default function InstitutionSummaryCard({
         </div>
 
         <div className="flex items-center gap-4">
-          <StatusBadge status={appStatus as any} />
+          <StatusBadge status={appStatus} />
         </div>
       </div>
 
@@ -87,20 +80,25 @@ export default function InstitutionSummaryCard({
           <div className="text-[var(--color-ink-soft)] text-xs">Uploads</div>
           <div className="mt-1">
             <div className="font-medium">{uploaded}/{required} uploaded</div>
-            <div className="text-[var(--color-ink-soft)] text-xs">Last upload: {smallDate(instDocs.filter(d => d.uploadedAt).slice(-1)[0]?.uploadedAt || null)}</div>
+            <div className="text-[var(--color-ink-soft)] text-xs">Last upload: {formatDate(instDocs.filter(d => d.uploadedAt).slice(-1)[0]?.uploadedAt || null)}</div>
           </div>
         </div>
 
         <div>
           <div className="text-[var(--color-ink-soft)] text-xs">Fee status</div>
-          <div className="mt-1 font-medium">KES {institution.applicationFee} + web {institution.webFee}</div>
+          <div className="mt-1 font-medium text-[var(--color-ink)]">
+            {formatCurrency(institution.applicationFee + institution.webFee)}
+          </div>
+          <div className="text-xs text-[var(--color-ink-soft)]">
+            {formatCurrency(institution.applicationFee)} application + {formatCurrency(institution.webFee)} web
+          </div>
         </div>
 
         <div>
           <div className="text-[var(--color-ink-soft)] text-xs">Payment</div>
           <div className="mt-1">
             {payment ? (
-              <div className="font-medium text-[var(--color-success)]">Paid {smallDate(payment.paidAt)}</div>
+              <div className="font-medium text-[var(--color-success)]">Paid {formatDate(payment.paidAt)}</div>
             ) : (
               <div className="font-medium text-[var(--color-amber)]">Not paid</div>
             )}

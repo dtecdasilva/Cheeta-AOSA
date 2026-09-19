@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/AppContext";
@@ -31,7 +32,7 @@ export default function NewApplicationPage() {
   return (
     <>
       <Topbar title="Start a new application" description="Select one or more institutions. You can apply to several at once." />
-      <main className="px-8 py-8">
+      <main className={PAGE_MAIN_CLASS}>
         <div className="grid gap-3 sm:grid-cols-2">
           {institutions.map((inst) => {
             const active = selected.includes(inst.id);
@@ -40,7 +41,7 @@ export default function NewApplicationPage() {
                 key={inst.id}
                 onClick={() => toggle(inst.id)}
                 className={`flex items-start gap-4 border px-5 py-4 text-left transition-colors ${
-                  active ? "border-[var(--color-brass)] bg-[var(--color-brass-soft)]/40" : "border-[var(--color-line)] bg-white hover:border-[var(--color-line-strong)]"
+                  active ? "border-[var(--color-brass)] bg-[var(--color-brass-soft)]/40" : "border-[var(--color-line)] bg-[var(--color-surface)] hover:border-[var(--color-line-strong)]"
                 }`}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--color-line-strong)] bg-[var(--color-paper)] font-[var(--font-display)] text-lg text-[var(--color-ink)]">

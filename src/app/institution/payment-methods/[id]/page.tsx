@@ -1,20 +1,25 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../../InstitutionShell";
+import { resolveInstitutionId } from "@/lib/auth/institution";
 import PaymentMethodView from "@/components/institution/PaymentMethodView";
 import { mockPaymentMethods } from "@/lib/mockData/paymentMethods";
+import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
-  const pm = mockPaymentMethods.find((p) => p.id === params.id && p.institutionId === (user.institutionId ?? ""));
+  const { id } = await params;
+  const institutionId = resolveInstitutionId(user);
+  // Scoped to the caller's own institution — an id belonging to another
+  // institution reads as "not found" rather than being served.
+  const record = mockPaymentMethods.find((r) => r.id === id && r.institutionId === institutionId);
+
   return (
-    <InstitutionShell user={user}>
-      <main className="px-4 py-6 sm:px-8 sm:py-8">
-        {pm ? (
-          <PaymentMethodView method={pm} />
-        ) : (
-          <p className="text-sm text-[var(--color-ink-soft)]">Payment method not found.</p>
-        )}
-      </main>
-    </InstitutionShell>
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading title="Payment method" />
+      {record ? (
+        <PaymentMethodView method={record} />
+      ) : (
+        <EmptyState message="This payment method doesn't exist, or belongs to another institution." />
+      )}
+    </main>
   );
 }

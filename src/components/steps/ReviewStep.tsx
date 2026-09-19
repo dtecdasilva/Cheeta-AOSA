@@ -12,7 +12,7 @@ export function ReviewStep({ application, onFinalSubmit }: { application: Applic
 
   return (
     <div className="space-y-6">
-      <div className="border border-[var(--color-line)] bg-white p-5">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
         <p className="mb-3 font-[var(--font-display)] text-base text-[var(--color-ink)]">Applicant</p>
         <p className="text-sm text-[var(--color-ink)]">
           {application.personalInfo?.firstName} {application.personalInfo?.lastName}
@@ -20,7 +20,7 @@ export function ReviewStep({ application, onFinalSubmit }: { application: Applic
         <p className="text-sm text-[var(--color-ink-soft)]">{application.personalInfo?.email}</p>
       </div>
 
-      <div className="border border-[var(--color-line)] bg-white p-5">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
         <p className="mb-3 font-[var(--font-display)] text-base text-[var(--color-ink)]">Institutions & program choices</p>
         <div className="space-y-3">
           {application.institutionIds.map((instId) => {
@@ -47,14 +47,14 @@ export function ReviewStep({ application, onFinalSubmit }: { application: Applic
         </div>
       </div>
 
-      <div className="border border-[var(--color-line)] bg-white p-5">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
         <p className="mb-3 font-[var(--font-display)] text-base text-[var(--color-ink)]">Documents</p>
         <p className="text-sm text-[var(--color-ink-soft)]">
           {application.documents.filter((d) => d.fileName).length} of {application.documents.length} required documents uploaded
         </p>
       </div>
 
-      <div className="border border-[var(--color-line)] bg-white p-5">
+      <div className="border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
         <p className="mb-3 font-[var(--font-display)] text-base text-[var(--color-ink)]">Payment</p>
         <p className="text-sm text-[var(--color-ink-soft)]">
           {application.payment?.method} — reference {application.payment?.reference}

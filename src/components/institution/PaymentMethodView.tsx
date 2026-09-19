@@ -1,50 +1,66 @@
-"use client";
-
 import { PaymentMethodConfig } from "@/lib/mockData/paymentMethods";
+import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
+
+const TYPE_LABELS: Record<PaymentMethodConfig["type"], string> = {
+  bank: "Bank account",
+  money_transfer: "Money transfer",
+  mobile_operator: "Mobile operator",
+  debit_wallet: "Debit wallet",
+};
+
+/** The detail rows differ per method type, but the layout does not. */
+function detailsFor(method: PaymentMethodConfig): { label: string; value: React.ReactNode }[] {
+  switch (method.type) {
+    case "bank":
+      return method.bank
+        ? [
+            { label: "Account name", value: method.bank.accountName },
+            { label: "Account number", value: method.bank.accountNumber },
+            { label: "Bank", value: method.bank.bankName },
+            { label: "SWIFT", value: method.bank.swift },
+            { label: "Notes", value: method.bank.notes },
+          ]
+        : [];
+    case "mobile_operator":
+      return method.mobile
+        ? [
+            { label: "Operator", value: method.mobile.operator },
+            { label: "Number", value: method.mobile.number },
+            { label: "Account name", value: method.mobile.accountName },
+            { label: "Notes", value: method.mobile.notes },
+          ]
+        : [];
+    case "money_transfer":
+      return method.money
+        ? [
+            { label: "Provider", value: method.money.provider },
+            { label: "Instructions", value: method.money.instructions },
+          ]
+        : [];
+    case "debit_wallet":
+      return method.wallet
+        ? [
+            { label: "Provider", value: method.wallet.provider },
+            { label: "Wallet ID", value: method.wallet.walletId },
+            { label: "Instructions", value: method.wallet.instructions },
+          ]
+        : [];
+  }
+}
 
 export default function PaymentMethodView({ method }: { method: PaymentMethodConfig }) {
   return (
-    <div className="space-y-4">
-      <div className="rounded border border-[var(--color-line)] bg-white p-4">
-        <h2 className="text-lg font-medium text-[var(--color-ink)]">{method.label}</h2>
-        <p className="text-xs text-[var(--color-ink-soft)]">Type: {method.type}</p>
-      </div>
-
-      <div className="rounded border border-[var(--color-line)] bg-white p-4 space-y-2">
-        {method.type === "bank" && method.bank && (
-          <div>
-            <p><strong>Account name:</strong> {method.bank.accountName}</p>
-            <p><strong>Account number:</strong> {method.bank.accountNumber}</p>
-            <p><strong>Bank:</strong> {method.bank.bankName}</p>
-            {method.bank.swift && <p><strong>SWIFT:</strong> {method.bank.swift}</p>}
-            {method.bank.notes && <p><strong>Notes:</strong> {method.bank.notes}</p>}
-          </div>
-        )}
-
-        {method.type === "mobile_operator" && method.mobile && (
-          <div>
-            <p><strong>Operator:</strong> {method.mobile.operator}</p>
-            <p><strong>Number:</strong> {method.mobile.number}</p>
-            {method.mobile.accountName && <p><strong>Account name:</strong> {method.mobile.accountName}</p>}
-            {method.mobile.notes && <p><strong>Notes:</strong> {method.mobile.notes}</p>}
-          </div>
-        )}
-
-        {method.type === "money_transfer" && method.money && (
-          <div>
-            <p><strong>Provider:</strong> {method.money.provider}</p>
-            <p><strong>Instructions:</strong> {method.money.instructions}</p>
-          </div>
-        )}
-
-        {method.type === "debit_wallet" && method.wallet && (
-          <div>
-            <p><strong>Provider:</strong> {method.wallet.provider}</p>
-            <p><strong>Wallet ID:</strong> {method.wallet.walletId}</p>
-            {method.wallet.instructions && <p><strong>Instructions:</strong> {method.wallet.instructions}</p>}
-          </div>
-        )}
-      </div>
+    <div className="max-w-2xl space-y-4">
+      <Card padded={false}>
+        <CardHeader title={method.label} description={TYPE_LABELS[method.type]} />
+        <DescriptionList
+          items={[
+            ...detailsFor(method),
+            { label: "Status", value: method.active ? "Active" : "Inactive" },
+          ]}
+        />
+      </Card>
+      <RowAction href={`/institution/payment-methods/${method.id}/edit`}>Edit</RowAction>
     </div>
   );
 }

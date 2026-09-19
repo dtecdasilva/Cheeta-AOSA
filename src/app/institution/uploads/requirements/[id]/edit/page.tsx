@@ -1,21 +1,25 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../../../../InstitutionShell";
+import { resolveInstitutionId } from "@/lib/auth/institution";
 import UploadRequirementForm from "@/components/institution/UploadRequirementForm";
 import { mockUploadRequirements } from "@/lib/mockData/uploadRequirements";
+import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
 
-export default async function Page({ params }: { params: { id: string } }) {
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
-  const req = mockUploadRequirements.find((r) => r.id === params.id && r.institutionId === (user.institutionId ?? ""));
+  const { id } = await params;
+  const institutionId = resolveInstitutionId(user);
+  // Scoped to the caller's own institution — an id belonging to another
+  // institution reads as "not found" rather than being served.
+  const record = mockUploadRequirements.find((r) => r.id === id && r.institutionId === institutionId);
+
   return (
-    <InstitutionShell user={user}>
-      <main className="px-4 py-6 sm:px-8 sm:py-8">
-        <h1 className="mb-4 text-xl font-semibold">Edit upload requirement</h1>
-        {req ? (
-          <UploadRequirementForm institutionId={user.institutionId ?? "inst-1"} initial={req} />
-        ) : (
-          <p className="text-sm text-[var(--color-ink-soft)]">Requirement not found.</p>
-        )}
-      </main>
-    </InstitutionShell>
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading title="Edit upload requirement" />
+      {record ? (
+        <UploadRequirementForm institutionId={institutionId} initial={record} />
+      ) : (
+        <EmptyState message="This requirement doesn't exist, or belongs to another institution." />
+      )}
+    </main>
   );
 }

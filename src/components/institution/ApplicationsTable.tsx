@@ -4,111 +4,150 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { findApplicationsForInstitution } from "@/lib/mockData/applications";
 import { StatusBadge } from "@/components/StatusBadge";
-import { TextInput, SelectInput, PrimaryButton } from "@/components/Form";
+import { Field, TextInput, SelectInput, SecondaryButton } from "@/components/Form";
+import { TableFrame, Th, Td, Card } from "@/components/ui";
+import { ApplicationStatus } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
+
+const STATUS_OPTIONS: { value: string; label: string }[] = [
+  { value: "ALL", label: "All statuses" },
+  { value: "INCOMPLETE", label: "Incomplete" },
+  { value: "COMPLETED", label: "Completed" },
+  { value: "SUBMITTED", label: "Submitted" },
+  { value: "A_ACKNOWLEDGED", label: "Acknowledged by applicant" },
+  { value: "I_ACKNOWLEDGED", label: "Acknowledged by institution" },
+  { value: "A_REJECTED", label: "Declined by applicant" },
+  { value: "I_REJECTED", label: "Rejected by institution" },
+  { value: "ACCEPTED", label: "Accepted" },
+  { value: "RESUBMITTED", label: "Resubmitted" },
+];
+
+/** End of the given calendar day, so a "to" filter includes that day. */
+function endOfDay(value: string): number {
+  const d = new Date(value);
+  d.setHours(23, 59, 59, 999);
+  return d.getTime();
+}
 
 export default function ApplicationsTable({ institutionId }: { institutionId: string }) {
   const all = useMemo(() => findApplicationsForInstitution(institutionId), [institutionId]);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("ALL");
-  const [applicant, setApplicant] = useState("");
   const [appId, setAppId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
   const filtered = useMemo(() => {
     return all.filter((a) => {
-      if (status !== "ALL") {
-        if (a.perInstitutionStatus[institutionId] !== status) return false;
-      }
-      if (applicant) {
-        const full = `${a.personalInfo?.firstName ?? ""} ${a.personalInfo?.lastName ?? ""}`.toLowerCase();
-        if (!full.includes(applicant.toLowerCase())) return false;
-      }
-      if (appId) {
-        if (!a.id.includes(appId)) return false;
-      }
-      if (from) {
-        if (new Date(a.createdAt) < new Date(from)) return false;
-      }
-      if (to) {
-        if (new Date(a.createdAt) > new Date(to)) return false;
-      }
+      if (status !== "ALL" && a.perInstitutionStatus[institutionId] !== status) return false;
+      if (appId && !a.id.toLowerCase().includes(appId.trim().toLowerCase())) return false;
+      if (from && new Date(a.createdAt).getTime() < new Date(from).getTime()) return false;
+      // Compare against the END of the "to" day — comparing against
+      // midnight excluded every application created on that date.
+      if (to && new Date(a.createdAt).getTime() > endOfDay(to)) return false;
+
       if (query) {
-        const q = query.toLowerCase();
-        if (!(a.personalInfo?.email?.toLowerCase().includes(q) || a.personalInfo?.firstName?.toLowerCase().includes(q) || a.personalInfo?.lastName?.toLowerCase().includes(q))) return false;
+        const q = query.trim().toLowerCase();
+        const p = a.personalInfo;
+        const haystack = [p?.firstName, p?.lastName, p?.email].filter(Boolean).join(" ").toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
       return true;
     });
-  }, [all, status, applicant, appId, from, to, query, institutionId]);
+  }, [all, status, appId, from, to, query, institutionId]);
+
+  function reset() {
+    setQuery("");
+    setAppId("");
+    setFrom("");
+    setTo("");
+    setStatus("ALL");
+  }
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <TextInput placeholder="Search email or name" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <TextInput placeholder="Applicant name" value={applicant} onChange={(e) => setApplicant(e.target.value)} />
-        <TextInput placeholder="Application ID" value={appId} onChange={(e) => setAppId(e.target.value)} />
-      </div>
+      <Card>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <Field label="Applicant name or email">
+            <TextInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search applicants" />
+          </Field>
+          <Field label="Application ID">
+            <TextInput value={appId} onChange={(e) => setAppId(e.target.value)} placeholder="app-1001" />
+          </Field>
+          <Field label="Created from">
+            <TextInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
+          <Field label="Created to">
+            <TextInput type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </Field>
+          <Field label="Status">
+            <SelectInput value={status} onChange={(e) => setStatus(e.target.value)}>
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+        </div>
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <p className="text-xs text-[var(--color-ink-soft)]">
+            Showing {filtered.length} of {all.length} application{all.length === 1 ? "" : "s"}
+          </p>
+          <SecondaryButton onClick={reset}>Reset filters</SecondaryButton>
+        </div>
+      </Card>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-        <div>
-          <label className="text-xs text-[var(--color-ink-soft)]">From</label>
-          <input type="date" className="w-full border px-3 py-2 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs text-[var(--color-ink-soft)]">To</label>
-          <input type="date" className="w-full border px-3 py-2 text-sm" value={to} onChange={(e) => setTo(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs text-[var(--color-ink-soft)]">Status</label>
-          <SelectInput value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="ALL">All</option>
-            <option value="INCOMPLETE">INCOMPLETE</option>
-            <option value="COMPLETED">COMPLETED</option>
-            <option value="SUBMITTED">SUBMITTED</option>
-            <option value="A_ACKNOWLEDGED">A_ACKNOWLEDGED</option>
-            <option value="I_ACKNOWLEDGED">I_ACKNOWLEDGED</option>
-            <option value="A_REJECTED">A_REJECTED</option>
-            <option value="I_REJECTED">I_REJECTED</option>
-            <option value="ACCEPTED">ACCEPTED</option>
-            <option value="RESUBMITTED">RESUBMITTED</option>
-          </SelectInput>
-        </div>
-        <div className="flex items-end">
-          <PrimaryButton onClick={() => { setQuery(""); setApplicant(""); setAppId(""); setFrom(""); setTo(""); setStatus("ALL"); }}>Reset</PrimaryButton>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full table-fixed">
-          <thead>
-            <tr className="text-left text-xs text-[var(--color-ink-soft)]">
-              <th className="w-32">Application ID</th>
-              <th>Applicant</th>
-              <th>Submitted</th>
-              <th>Status</th>
-              <th>Programs</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((a) => (
-              <tr key={a.id} className="border-t">
-                <td className="py-3 text-sm">{a.id}</td>
-                <td className="py-3 text-sm">{a.personalInfo ? `${a.personalInfo.firstName} ${a.personalInfo.lastName}` : "-"}<div className="text-xs text-[var(--color-ink-soft)]">{a.personalInfo?.email}</div></td>
-                <td className="py-3 text-sm">{a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : '-'}</td>
-                <td className="py-3"><StatusBadge status={a.perInstitutionStatus[institutionId]} /></td>
-                <td className="py-3 text-sm">{a.programChoices.map((p) => p.programId).join(", ")}</td>
-                <td className="py-3 text-right"><Link href={`/institution/applications/${a.id}`} className="text-sm underline">View</Link></td>
+      <TableFrame>
+        <thead>
+          <tr>
+            <Th className="w-32">Application</Th>
+            <Th>Applicant</Th>
+            <Th className="w-28">Submitted</Th>
+            <Th className="w-48">Status</Th>
+            <Th>Programs</Th>
+            <Th className="w-20" />
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.map((a) => {
+            const status = a.perInstitutionStatus[institutionId];
+            return (
+              <tr key={a.id}>
+                <Td className="text-[var(--color-ink-soft)]">{a.id}</Td>
+                <Td>
+                  <p className="text-[var(--color-ink)]">
+                    {a.personalInfo ? `${a.personalInfo.firstName} ${a.personalInfo.lastName}` : "—"}
+                  </p>
+                  {a.personalInfo?.email && (
+                    <p className="text-xs text-[var(--color-ink-soft)]">{a.personalInfo.email}</p>
+                  )}
+                </Td>
+                <Td className="text-[var(--color-ink-soft)]">{formatDate(a.submittedAt)}</Td>
+                <Td>
+                  <StatusBadge status={status as ApplicationStatus} />
+                </Td>
+                <Td className="text-[var(--color-ink-soft)]">
+                  {a.programChoices.length ? a.programChoices.map((p) => p.programId).join(", ") : "—"}
+                </Td>
+                <Td className="text-right">
+                  <Link
+                    href={`/institution/applications/${a.id}`}
+                    className="text-sm text-[var(--color-ink)] underline underline-offset-4"
+                  >
+                    View
+                  </Link>
+                </Td>
               </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-6 text-center text-sm text-[var(--color-ink-soft)]">No applications found.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <Td colSpan={6} className="py-10 text-center text-sm text-[var(--color-ink-soft)]">
+              No applications match these filters.
+            </Td>
+          )}
+        </tbody>
+      </TableFrame>
     </div>
   );
 }
