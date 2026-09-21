@@ -36,6 +36,20 @@ export default function LoginPage() {
           contact your institution or the Cheeta/AOSA administration team if you need one.
         </p>
 
+        <div className="mt-6 border border-[var(--color-line)] bg-[var(--color-surface)] p-4 text-sm">
+          <p className="font-medium mb-2">Demo institution accounts</p>
+          <div className="text-xs space-y-1">
+            <div>
+              <span className="font-medium">Institution Administrator</span>: admin@montfebe.cheeta.local
+              <span className="ml-2 font-mono">Institution123!</span>
+            </div>
+            <div>
+              <span className="font-medium">Institution Admission User</span>: admissions@montfebe.cheeta.local
+              <span className="ml-2 font-mono">Institution123!</span>
+            </div>
+          </div>
+        </div>
+
         <Link href="/" className="mt-6 block text-center text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
           Back to home
         </Link>

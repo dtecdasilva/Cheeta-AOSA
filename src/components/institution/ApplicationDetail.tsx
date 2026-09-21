@@ -4,6 +4,7 @@ import { Card, CardHeader, DescriptionList, RowList, Row, EmptyState, Pill } fro
 import { mockPrograms } from "@/lib/mockData/programs";
 import { mockDocumentStates } from "@/lib/mockData/institutions";
 import { formatDateTime } from "@/lib/utils";
+import InstitutionVerificationPanel from "./InstitutionVerificationPanel";
 
 const REVIEW_TONE = {
   APPROVED: "success",
@@ -123,6 +124,7 @@ export default function ApplicationDetail({
           </RowList>
         )}
       </div>
+      <InstitutionVerificationPanel application={application} institutionId={institutionId} />
     </div>
   );
 }

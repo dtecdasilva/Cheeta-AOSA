@@ -142,9 +142,11 @@ export default function ApplicationsTable({ institutionId }: { institutionId: st
             );
           })}
           {filtered.length === 0 && (
-            <Td colSpan={6} className="py-10 text-center text-sm text-[var(--color-ink-soft)]">
-              No applications match these filters.
-            </Td>
+            <tr>
+              <Td colSpan={6} className="py-10 text-center text-sm text-[var(--color-ink-soft)]">
+                No applications match these filters.
+              </Td>
+            </tr>
           )}
         </tbody>
       </TableFrame>

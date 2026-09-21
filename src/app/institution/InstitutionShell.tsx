@@ -47,6 +47,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Study Programs", href: "/institution/programs", icon: FileText },
   { label: "Billing", href: "/institution/billing", icon: Wallet },
   { label: "Payment Methods", href: "/institution/payment-methods", icon: CreditCard },
+  { label: "Staff", href: "/institution/staff", icon: List },
   { label: "Upload Requirements", href: "/institution/uploads/requirements", icon: Upload },
   { label: "Student Applications", href: "/institution/applications", icon: FileText, badge: "applications" },
 ];
