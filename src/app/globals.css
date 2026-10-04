@@ -1,76 +1,126 @@
 @import "tailwindcss";
 
+/*
+ * Cheeta Academia Online — design tokens.
+ *
+ * Every colour in the platform resolves to one of these. Screens reference
+ * them as `[var(--color-…)]`, so a brand change is an edit here rather than
+ * a search across the codebase.
+ */
 :root {
-  --color-ink: #1b2a41;
-  --color-ink-soft: #47566b;
-  --color-ink-faint: #7c889b;
-  --color-paper: #f6f5f1;
-  --color-surface: #ffffff;
-  --color-line: #e2e0d8;
-  --color-line-strong: #cfccc0;
+  /* Brand */
+  --color-brand: #f7941d; /* Cheeta Orange — primary actions, active states */
+  --color-brand-hover: #e07f0a; /* pressed / hover state of an orange fill */
+  --color-brand-soft: #fef3e2; /* tint behind an active or highlighted item */
+  --color-brand-strong: #9a5204; /* orange as text on a light background */
 
-  --color-brass: #a9782e;
-  --color-brass-dark: #8a611f;
-  --color-brass-soft: #f1e4c9;
+  /* Neutrals */
+  --color-ink: #050505; /* Cheeta Black — headings, body text, dark button */
+  --color-ink-2: #1f1f1f; /* Secondary dark — hover on black, dark surfaces */
+  --color-ink-soft: #4b5563; /* secondary text */
+  --color-ink-faint: #6b7280; /* captions, placeholders, table headings */
+  --color-paper: #f8f9fa; /* page background */
+  --color-surface: #ffffff; /* cards, sidebar, header */
+  --color-line: #e5e7eb; /* hairline borders */
+  --color-line-strong: #d1d5db; /* input borders, dashed empty states */
 
-  --color-success: #2f6f52;
-  --color-success-soft: #e3eee7;
-  --color-danger: #b14432;
-  --color-danger-soft: #f5e4df;
-  --color-info: #2c5f8a;
-  --color-info-soft: #e2ecf3;
-  --color-amber: #b8862e;
-  --color-amber-soft: #f6ecd9;
+  /*
+   * Status. The base value is the brand colour, used for fills, dots, icons
+   * and borders. `-strong` is the same hue darkened for text, and `-soft`
+   * is the tint behind it.
+   */
+  --color-success: #16a34a;
+  --color-success-soft: #dcfce7;
+  --color-success-strong: #166534;
+  --color-warning: #d97706;
+  --color-warning-soft: #fef3c7;
+  --color-warning-strong: #92400e;
+  --color-danger: #dc2626;
+  --color-danger-soft: #fee2e2;
+  --color-danger-strong: #991b1b;
+  --color-info: #2563eb;
+  --color-info-soft: #dbeafe;
+  --color-info-strong: #1e40af;
 
-  --font-display: "Iowan Old Style", "Palatino Linotype", "URW Palladio L", "P052", Georgia, serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Elevation — reserved for things that float (menus, popovers). */
+  --shadow-popover: 0 8px 24px -6px rgb(5 5 5 / 0.12), 0 2px 6px -2px rgb(5 5 5 / 0.06);
 }
 
 @theme inline {
+  --color-brand: var(--color-brand);
+  --color-brand-hover: var(--color-brand-hover);
+  --color-brand-soft: var(--color-brand-soft);
+  --color-brand-strong: var(--color-brand-strong);
   --color-ink: var(--color-ink);
+  --color-ink-2: var(--color-ink-2);
   --color-ink-soft: var(--color-ink-soft);
   --color-ink-faint: var(--color-ink-faint);
   --color-paper: var(--color-paper);
   --color-surface: var(--color-surface);
   --color-line: var(--color-line);
   --color-line-strong: var(--color-line-strong);
-  --color-brass: var(--color-brass);
-  --color-brass-dark: var(--color-brass-dark);
-  --color-brass-soft: var(--color-brass-soft);
   --color-success: var(--color-success);
   --color-success-soft: var(--color-success-soft);
+  --color-success-strong: var(--color-success-strong);
+  --color-warning: var(--color-warning);
+  --color-warning-soft: var(--color-warning-soft);
+  --color-warning-strong: var(--color-warning-strong);
   --color-danger: var(--color-danger);
   --color-danger-soft: var(--color-danger-soft);
+  --color-danger-strong: var(--color-danger-strong);
   --color-info: var(--color-info);
   --color-info-soft: var(--color-info-soft);
-  --color-amber: var(--color-amber);
-  --color-amber-soft: var(--color-amber-soft);
-  --font-display: var(--font-display);
-  --font-sans: var(--font-sans);
+  --color-info-strong: var(--color-info-strong);
+  --shadow-popover: var(--shadow-popover);
+
+  /* Inter is loaded in app/layout.tsx from src/app/fonts: --font-inter, then
+     --font-inter-ext for characters the first file doesn't have. */
+  --font-sans: var(--font-inter), var(--font-inter-ext), ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-}
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
 
-html {
-  -webkit-font-smoothing: antialiased;
-}
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-body {
-  background: var(--color-paper);
-  color: var(--color-ink);
-  font-family: var(--font-sans);
-}
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+  }
 
-::selection {
-  background: var(--color-brass-soft);
-  color: var(--color-ink);
-}
+  /*
+   * Controls are 8px-rounded by default, so a raw <button> or <input>
+   * matches the shared components in components/Form.tsx. Anything that
+   * needs a different shape sets a rounded-* utility, which wins over this.
+   */
+  button,
+  select,
+  textarea,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+    border-radius: 0.5rem;
+  }
 
-:focus-visible {
-  outline: 2px solid var(--color-brass);
-  outline-offset: 2px;
+  input[type="checkbox"],
+  input[type="radio"],
+  input[type="range"] {
+    accent-color: var(--color-brand);
+  }
+
+  ::selection {
+    background: var(--color-brand-soft);
+    color: var(--color-ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -86,7 +136,7 @@ body {
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
   background: var(--color-line-strong);
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
 /*

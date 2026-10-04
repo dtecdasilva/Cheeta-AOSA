@@ -1,54 +1,14 @@
-# Cheeta AOSA Platform — Frontend
+# Cheeta AOSA Platform
 
 Next.js 16 + TypeScript + Tailwind CSS v4.
 
-## Serverless hosting note (Vercel, etc.) — cross-instance persistence
+## Backend
 
-Vercel (and serverless hosting generally) runs this app as multiple
-short-lived function instances rather than one persistent process. A
-plain in-memory store — which is what every store in this codebase was
-originally — only reliably reflects state for whichever instance happens
-to handle a given request. Deployed as-is, that showed up as exactly the
-bug you'd expect: register an account, then get redirected back to
-`/login` right after seemingly signing in, because the Server Component
-checking the session landed on a different instance than the one that
-created the account.
-
-**Fix, scoped deliberately to "make this not matter for a frontend demo"
-rather than "add a database":** account records, demographic profiles,
-and education records are now also written into signed, httpOnly cookies
-(`src/lib/cookieStore.ts`, reusing the same HMAC signing already built for
-sessions) whenever they're created or changed. Cookies travel with the
-browser to whichever instance handles the *next* request, so the
-`globalThis` stores still work as a same-instance fast path, but a
-different instance can now reconstruct what it's missing from the
-cookie instead of simply not finding it.
-
-**Verified, not assumed** — by literally killing the server process and
-starting a brand-new one (simulating a fresh Vercel instance with zero
-shared memory) while reusing only the browser's cookies:
-- ✅ A session created on the killed instance is still recognized as valid,
-  and the protected dashboard renders directly (no redirect) on the new one
-- ✅ Demographic info and an education record saved on the killed instance
-  are both still there on the new one
-- ✅ Registering on one instance, then logging in for the first time on a
-  *different, fresh* instance, succeeds — and the same login attempt with
-  no cookie sent correctly fails with `401`, proving the cookie is what
-  makes the difference, not coincidence
-- ✅ The five seeded demo accounts are unaffected (they're created
-  identically on every instance at startup, so they never needed this)
-- ✅ Password reset works end-to-end across instances too: the old
-  password is rejected and the new one accepted, both checked on a third,
-  never-before-seen instance
-
-**Trade-off, stated plainly:** this puts (hashed) account records and
-applicant-entered data into cookies, which is a reasonable, explicitly
-scoped choice for a frontend demo with no backend infrastructure, and a
-wrong one for anything handling real applicant data at scale. Replacing
-it with a real database means deleting `src/lib/cookieStore.ts` and the
-call sites that reference it (grep for `PERSISTENT_COOKIE_OPTIONS` and
-`readSignedCookie`) — the `globalThis` stores and their shapes don't
-change.
+The API, database, authentication, file storage, logging and validation are
+described in **[docs/BACKEND.md](docs/BACKEND.md)**. In short: route handlers
+under `src/app/api`, services under `src/server`, PostgreSQL through Drizzle
+(an embedded Postgres in development, so there's nothing to install), and the
+frontend's own validators and rules reused on the server.
 
 ## Modules built so far
 
@@ -95,6 +55,10 @@ npm install
 npm run dev
 ```
 
+The first start creates the local database in `.data/pglite`, applies the
+migrations and loads the demo data. See [docs/BACKEND.md](docs/BACKEND.md) to
+use a real PostgreSQL instead.
+
 Open http://localhost:3000 — you'll land on the marketing page. Register a
 new applicant account at `/register`, or sign in with one of the seeded
 demo accounts below (useful for the institution/admin roles, which have
@@ -102,13 +66,10 @@ no self-registration).
 
 ## Demo accounts
 
-There is no real database yet — accounts live in `src/lib/auth/users.ts` as
-an in-memory array (kept on `globalThis` so it's shared correctly across
-Next.js's separate module graphs for Route Handlers vs Server Components —
-see the comment in that file if you're curious why that matters), seeded
-with **scrypt-hashed** passwords (not plaintext). This resets whenever the
-dev/prod server restarts. New accounts created via `/register` are added
-to the same store and behave identically to the seeded ones.
+Accounts live in the `users` table with **scrypt-hashed** passwords. These
+demo accounts are created by the development seed (`SEED_DEMO_DATA`, on by
+default outside production); `npm run db:reset` restores them. Accounts
+created through `/register` are stored the same way.
 
 | Role | Email | Password | Status |
 |---|---|---|---|
@@ -232,7 +193,7 @@ refresh, same as Examination/Results Information before it.
   their choice, using all six components together. This is a display
   feature only: it doesn't change what's actually owed or process
   anything, per "do not implement real payment conversion yet".
-- **Database structure documented, not just implied** — `db/schema.sql`
+- **Database structure documented, not just implied** — `src/server/db/schema`
   gained `currencies` and `exchange_rates` tables (the latter one row per
   currency *per date*, preserving history, rather than overwriting a
   single rate column).
@@ -356,7 +317,7 @@ wired up or left half-finished in the codebase.
 - **Qualification options are genuinely database-backed, not hard-coded
   in the frontend.** `src/lib/education/configStore.ts` is a
   `globalThis`-backed store (documented target schema:
-  `education_levels` / `education_qualifications` in `db/schema.sql`)
+  `education_levels` / `education_qualifications` in `src/server/db/schema`)
   seeded with exactly the options given in the spec — Secondary School
   (No Qualification, GCE O Level, BEPC, Probatoire), High School (No
   Qualification, GCE A Level, Baccalaureate/BAC), and Primary School
@@ -461,7 +422,7 @@ wired up or left half-finished in the codebase.
   — no new/parallel auth path. Verified: no session → 401; authenticated
   but non-STUDENT role → 403; one student's data is fully isolated from
   another's.
-- **Database structure documented**, not invented as a one-off — `db/schema.sql`
+- **Database structure documented**, not invented as a one-off — `src/server/db/schema`
   gained a `demographic_profiles` table with no email/phone columns, for
   the same reason the store doesn't duplicate them.
 
@@ -577,7 +538,7 @@ silently leaving two competing application flows in the codebase.
   existing application data model (`AppContext.createApplication`), which
   appends a new `Application` record per call rather than limiting an
   account to one; registration doesn't change or constrain this.
-- **Database structures** — `db/schema.sql` documents the target relational
+- **Database structures** — `src/server/db/schema` documents the target relational
   schema (`users`, `applicant_profiles`, `institution_staff_profiles`,
   `credential_deliveries`) that the current in-memory store is deliberately
   shaped to mirror, so swapping in a real database later is an
@@ -729,8 +690,8 @@ register → login → dashboard sequence end-to-end against a live server.
   `institutionType` — it's captured and stored, but nothing reads it yet
 - Institution portal content beyond a guarded placeholder dashboard
 - Admin portal content beyond a guarded placeholder dashboard
-- A real database — `users.ts` is an in-memory (`globalThis`-backed) array
-  and resets on restart; `db/schema.sql` documents the intended target
+- Wiring the remaining screens to the API — many still read mock data or
+  their local stores; see "Connecting the screens" in docs/BACKEND.md
 - Real email/SMS delivery — both are logged stand-ins (`src/lib/notifications/`)
   until a provider is connected
 - Changing the temporary login code after first sign-in (no
@@ -738,12 +699,13 @@ register → login → dashboard sequence end-to-end against a live server.
 
 ## Project structure (auth-relevant parts)
 
+Backend files (`src/server`, `db/migrations`, `scripts`) are mapped in
+[docs/BACKEND.md](docs/BACKEND.md#layout).
+
 ```
-db/schema.sql                     Target relational schema (see "database structures" above)
 src/
   proxy.ts                        Edge route guard (was middleware.ts)
   lib/
-    cookieStore.ts                 Generic signed-cookie persistence — cross-instance durability, see below
     validation.ts                 Isomorphic email/mobile/institution-type validators
     data.ts                       INSTITUTION_TYPES canonical list (+ mock institutions/programs)
     processFlow.ts                5-step process definitions, shared by Dashboard + Process Flow
@@ -760,15 +722,14 @@ src/
     demographic/
       types.ts                   DemographicProfile shape (incl. countryOfBirth)
       options.ts                 Controlled dropdown lists (regions, divisions; COUNTRIES re-exported from lib/countries)
-      validation.ts               Save (partial) vs. Submit (full) validation
-      store.ts                    globalThis-backed server store, one row per applicant
+      validation.ts               Save (partial) vs. Submit (full) validation — used by the API
     education/
       configTypes.ts              EducationLevelConfig / QualificationOption shape
-      configStore.ts              globalThis-backed, admin-manageable school-type/qualification store
+      levels.ts                   Initial school types and qualifications (seeded into the database)
       types.ts                    EducationRecord shape (incl. country)
-      validation.ts               Logical date checks + dependent school-type/qualification check
-      store.ts                    globalThis-backed server store, many records per applicant
-      cookieSync.ts                Cross-instance hydrate/persist helpers for education records
+      validation.ts               Logical date checks + dependent school-type/qualification check — used by the API
+    applications/
+      statusFlow.ts               Which status can follow which, and who may move it — enforced by the API
     examination/
       mockConfig.ts                Frontend-only mock exam-type config (subjects, grades, pass criteria)
     notifications/
@@ -779,7 +740,7 @@ src/
       password.ts                 scrypt hashing + generateTemporaryCode() — Node-only
       token.ts                    HMAC signing/verification — Edge-safe
       session.ts                  Session + reset token creation/reading
-      users.ts                    In-memory user directory (mock DB), globalThis + cookie-backed
+      users.ts                    Account directory over the users table; demo account list for the seed
       guard.ts                    Server-side getSessionUser() / requireRole()
   app/
     api/

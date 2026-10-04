@@ -44,7 +44,12 @@ export function LoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      // An answer that isn't JSON means the server failed before it could reply properly.
+      const data = await res.json().catch(() => null);
+      if (!data) {
+        setError(`The server couldn't sign you in (error ${res.status}). Please try again in a moment.`);
+        return;
+      }
       if (!res.ok) {
         setError(data.error ?? "Could not sign in.");
         return;
@@ -52,7 +57,8 @@ export function LoginForm() {
       router.push(safeNext(next) ?? data.redirectTo);
       router.refresh();
     } catch {
-      setError("Something went wrong. Check your connection and try again.");
+      // The request never got an answer: the server isn't reachable.
+      setError("Couldn't reach the server. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
