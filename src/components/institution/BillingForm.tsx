@@ -1,80 +1,91 @@
 "use client";
 
-import { Field, TextInput, SelectInput, PrimaryButton, SecondaryButton } from "@/components/Form";
-import { FeeConfig, FeeCategory } from "@/lib/mockData/billing";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Field, FormError, PrimaryButton, SecondaryButton, SelectInput, TextInput } from "@/components/Form";
+import { useOptions } from "@/lib/institution/api";
+import { FEE_CATEGORIES, FEE_CATEGORY_LABELS, FEE_TYPES, FEE_TYPE_LABELS, type Fee, type FeeCategory, type FeeType } from "@/lib/institution/fees";
+import { useRecordForm } from "./useRecordForm";
 
-const REQUIRED: (keyof FeeConfig)[] = ["name"];
-
-export default function BillingForm({ institutionId, initial }: { institutionId: string; initial?: FeeConfig }) {
-  const [form, setForm] = useState<Partial<FeeConfig>>({ ...(initial ?? {}), institutionId });
-  const [errors, setErrors] = useState<Partial<Record<keyof FeeConfig, string>>>({});
-  const router = useRouter();
-
-  function onChange<K extends keyof FeeConfig>(k: K, v: FeeConfig[K]) {
-    setForm((s) => ({ ...s, [k]: v }));
-  }
-
-  function onSave() {
-    const missing = REQUIRED.filter((k) => !String(form[k] ?? "").trim());
-    if (missing.length) {
-      setErrors(Object.fromEntries(missing.map((k) => [k, "This field is required."])));
-      return;
-    }
-    setErrors({});
-    // No persistence layer exists for institution configuration yet. The
-    // previous version pushed straight into the imported mockBillingConfigs
-    // array, which mutated module state every other screen reads from and
-    // vanished on reload — worse than not saving, because it looked like
-    // it had. Navigating back keeps the flow intact until a real endpoint
-    // replaces this call.
-    router.push("/institution/billing");
-  }
+/**
+ * Adds a fee to the institution's schedule, or edits one. A change of
+ * price is best added as a new fee with its own start date, so the
+ * earlier one stays on record. Saved through /api/institution/fees.
+ */
+export default function BillingForm({ initial }: { initial?: Fee }) {
+  const currencies = useOptions<{ code: string; name: string }>("/api/reference/currencies");
+  const { form, set, errors, formError, saving, save, back } = useRecordForm(
+    "fees",
+    "/institution/billing",
+    {
+      name: initial?.name ?? "",
+      type: (initial?.type ?? "application") as FeeType,
+      category: (initial?.category ?? "national") as FeeCategory,
+      currency: initial?.currency ?? "XAF",
+      amount: initial ? String(initial.amount) : "",
+      effectiveDate: initial?.effectiveDate ?? "",
+      effectiveTo: initial?.effectiveTo ?? "",
+      notes: initial?.notes ?? "",
+    },
+    initial?.id
+  );
+  // Until the list arrives, at least the fee's own currency is there to show.
+  const offered = currencies.length ? currencies : [{ code: form.currency, name: "" }];
 
   return (
     <div className="max-w-2xl space-y-4">
       <Field label="Fee name" required error={errors.name}>
-        <TextInput value={form.name ?? ""} onChange={(e) => onChange("name", e.target.value)} />
+        <TextInput value={form.name} onChange={(e) => set("name", e.target.value)} placeholder="e.g. Application fee 2026/2027" />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Type" required error={errors.type}>
+          <SelectInput value={form.type} onChange={(e) => set("type", e.target.value as FeeType)}>
+            {FEE_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {FEE_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <Field label="Applies to" required error={errors.category} hint="National or international applicants.">
+          <SelectInput value={form.category} onChange={(e) => set("category", e.target.value as FeeCategory)}>
+            {FEE_CATEGORIES.map((c) => (
+              <option key={c} value={c}>
+                {FEE_CATEGORY_LABELS[c]}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <Field label="Currency" required error={errors.currency}>
+          <SelectInput value={form.currency} onChange={(e) => set("currency", e.target.value)}>
+            {offered.map((c) => (
+              <option key={c.code} value={c.code}>
+                {c.name ? `${c.code} — ${c.name}` : c.code}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <Field label="Amount" required error={errors.amount}>
+          <TextInput type="number" min={0} step={1} value={form.amount} onChange={(e) => set("amount", e.target.value)} />
+        </Field>
+        <Field label="Effective from" required error={errors.effectiveDate} hint="First day the fee applies.">
+          <TextInput type="date" value={form.effectiveDate} onChange={(e) => set("effectiveDate", e.target.value)} />
+        </Field>
+        <Field label="Effective until" error={errors.effectiveTo} hint="Last day it applies. Leave empty for no end date.">
+          <TextInput type="date" value={form.effectiveTo} onChange={(e) => set("effectiveTo", e.target.value)} />
+        </Field>
+      </div>
+      <Field label="Notes" error={errors.notes}>
+        <TextInput value={form.notes} onChange={(e) => set("notes", e.target.value)} />
       </Field>
 
-      <Field label="Type">
-        <SelectInput value={form.type ?? ""} onChange={(e) => onChange("type", e.target.value)}>
-          <option value="application">Application</option>
-          <option value="web">Web</option>
-          <option value="other">Other</option>
-        </SelectInput>
-      </Field>
-
-      <Field label="Category">
-        <SelectInput value={form.category ?? "national"} onChange={(e) => onChange("category", e.target.value as FeeCategory)}>
-          <option value="national">National</option>
-          <option value="international">International</option>
-        </SelectInput>
-      </Field>
-
-      <Field label="Currency">
-        <TextInput value={form.currency ?? ""} onChange={(e) => onChange("currency", e.target.value)} />
-      </Field>
-
-      <Field label="Amount">
-        <TextInput type="number" value={String(form.amount ?? "")} onChange={(e) => onChange("amount", Number(e.target.value))} />
-      </Field>
-
-      <Field label="Effective date">
-        <TextInput type="date" value={form.effectiveDate ?? ""} onChange={(e) => onChange("effectiveDate", e.target.value)} />
-      </Field>
-
-      <Field label="Status">
-        <SelectInput value={form.status ?? "active"} onChange={(e) => onChange("status", e.target.value as FeeConfig["status"])}>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-        </SelectInput>
-      </Field>
-
+      {formError && <FormError>{formError}</FormError>}
       <div className="flex items-center gap-2">
-        <PrimaryButton onClick={onSave}>Save</PrimaryButton>
-        <SecondaryButton onClick={() => router.back()}>Cancel</SecondaryButton>
+        <PrimaryButton
+          disabled={saving}
+          onClick={() => save({ name: "Enter a name for the fee.", amount: "Enter the amount.", effectiveDate: "Enter the date the fee starts to apply." }, { ...form, amount: Number(form.amount), effectiveTo: form.effectiveTo || null })}
+        >
+          {saving ? "Saving…" : "Save"}
+        </PrimaryButton>
+        <SecondaryButton onClick={back}>Cancel</SecondaryButton>
       </div>
     </div>
   );

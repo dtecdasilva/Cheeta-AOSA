@@ -1,9 +1,18 @@
-export type PaymentMethodType = "bank" | "money_transfer" | "mobile_operator" | "debit_wallet";
+import type { PaymentMethodType } from "@/lib/institution/paymentMethods";
+
+/**
+ * Sample payment methods, one of each kind. They are no longer what the
+ * screens read: payment methods are stored in the database, and this list
+ * is only what an empty database is first filled from (through
+ * src/lib/admin/paymentMethods.ts, which flattens each into one record).
+ */
+export type { PaymentMethodType };
 
 export interface BankDetails {
   accountName: string;
   accountNumber: string;
   bankName: string;
+  branch?: string;
   swift?: string;
   notes?: string;
 }
@@ -17,11 +26,17 @@ export interface MobileOperatorDetails {
 
 export interface MoneyTransferDetails {
   provider: string;
+  /** The person or office the transfer is sent to. */
+  recipientName: string;
+  recipientPhone?: string;
+  /** Town the transfer is collected in. */
+  town?: string;
   instructions: string;
 }
 
 export interface DebitWalletDetails {
   provider: string;
+  walletName: string;
   walletId: string;
   instructions?: string;
 }
@@ -49,6 +64,7 @@ export const mockPaymentMethods: PaymentMethodConfig[] = [
       accountName: "Mont Fébé University — Applications",
       accountNumber: "CM21 10005 00012 09876543210 88",
       bankName: "Afriland First Bank",
+      branch: "Yaoundé Hippodrome",
       swift: "CCEICMCX",
       notes: "Use your application ID as the deposit reference.",
     },
@@ -74,6 +90,7 @@ export const mockPaymentMethods: PaymentMethodConfig[] = [
     active: true,
     wallet: {
       provider: "Orange Money",
+      walletName: "Sanaga Polytechnic Fees",
       walletId: "SNG-ACCT-001",
       instructions: "Send with the applicant's full name.",
     },
@@ -86,7 +103,10 @@ export const mockPaymentMethods: PaymentMethodConfig[] = [
     active: false,
     money: {
       provider: "Express Union",
-      instructions: "Send to account name: Sanaga Polytechnic Finance.",
+      recipientName: "Sanaga Polytechnic Finance",
+      recipientPhone: "+237 699 000 210",
+      town: "Douala",
+      instructions: "Keep the transfer code; you will be asked for it when you record the payment.",
     },
   },
 ];

@@ -1,42 +1,64 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { CheckCircle2, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { Field, TextInput, SelectInput, PrimaryButton, SecondaryButton } from "@/components/Form";
-import { useExamConfiguration, groupByFamily, computeResult, type ExamConfiguration } from "@/lib/examination/mockConfig";
+import { useExamConfiguration, computeResult, type ExamConfiguration, type ExamTypeConfig } from "@/lib/examination/mockConfig";
+import { sittingLabel, type ExaminationView, type ResultView, type SittingView } from "@/lib/examination/records";
+import { buttonClass } from "@/lib/ui/button";
 
-interface ResultEntry {
-  id: string;
-  qualification: string;
-  subject: string;
-  value: string; // a grade label, or a numeric score as a string
-  /** Set when the applicant recorded a not-graded result (e.g. Absent) instead of a grade. */
-  resultTypeId: string;
+const EXAMINATIONS_HREF = "/student/application/examinations";
+
+/** One entry of the examination dropdown: a sitting of an examination the applicant created. */
+interface Choice {
+  sittingId: string;
+  label: string;
+  sitting: SittingView;
+  /** The qualification's configuration; undefined if it has since been removed. */
+  config: ExamTypeConfig | undefined;
 }
 
-export function ResultsForm() {
-  // Results are the applicant's own, kept by the API (/api/student/results).
-  // Qualifications, subjects, grades, pass criteria and result labels all
-  // come from the examination parameters administrators manage — the same
-  // configuration the Examination Information form uses, served by
-  // /api/config/examinations. The Result shown while typing is worked out
-  // here from that configuration; the server checks every save against it.
+export function ResultsForm({ examination }: { examination?: string }) {
+  // Results are added to an examination the applicant has already created
+  // on the Examinations Information form: it is picked from the dropdown
+  // here, and the subjects and grades offered are that examination's.
+  // Nothing on this form creates an examination or names a qualification
+  // of its own.
+  //
+  // Examinations come from /api/student/examinations and results from
+  // /api/student/results. Subjects, grades, pass criteria and result
+  // labels come from the examination parameters administrators manage
+  // (/api/config/examinations). The Result shown while typing is worked
+  // out here from that configuration; the server checks every save.
   const exam = useExamConfiguration();
-  const [results, setResults] = useState<ResultEntry[]>([]);
+  const [examinations, setExaminations] = useState<ExaminationView[]>([]);
+  const [results, setResults] = useState<ResultView[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  const [chosen, setChosen] = useState<string | null>(null);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [subject, setSubject] = useState("");
+  const [value, setValue] = useState("");
+  const [resultTypeId, setResultTypeId] = useState("");
+  /** The subject just saved, shown while the form stays open for the next one. */
+  const [lastSaved, setLastSaved] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/student/results", { cache: "no-store" })
-      .then(async (res) => {
-        const data = await res.json();
+    Promise.all([fetch("/api/student/examinations", { cache: "no-store" }), fetch("/api/student/results", { cache: "no-store" })])
+      .then(async ([examRes, resultRes]) => {
+        const [examData, resultData] = [await examRes.json(), await resultRes.json()];
         if (cancelled) return;
-        if (res.ok) setResults(data.results);
-        else setListError(data.error ?? "Could not load your results.");
+        if (!examRes.ok || !resultRes.ok) return setListError(examData.error ?? resultData.error ?? "Could not load your results.");
+        setExaminations(examData.records);
+        setResults(resultData.results);
       })
       .catch(() => !cancelled && setListError("Could not load your results. Check your connection."))
       .finally(() => !cancelled && setLoading(false));
@@ -45,43 +67,53 @@ export function ResultsForm() {
     };
   }, []);
 
+  const choices: Choice[] = useMemo(
+    () =>
+      examinations.flatMap((e) => {
+        const config = exam.get(e.qualification);
+        return e.sittings.map((sitting) => ({ sittingId: sitting.id, label: sittingLabel(config?.qualification ?? e.qualification, sitting, e.sittings.length), sitting, config }));
+      }),
+    [examinations, exam]
+  );
+  // The examination asked for in the link, or the one picked here, or the first.
+  const choice = choices.find((c) => c.sittingId === (chosen ?? examination)) ?? choices[0];
+  const config = choice?.config;
+  const own = choice ? results.filter((r) => r.sittingId === choice.sittingId) : [];
+  const unattached = results.filter((r) => !r.sittingId);
+  const editing = editingId ? results.find((r) => r.id === editingId) : undefined;
+
+  const scoreError = config?.resultMode === "score" && value.trim() && !isValidScore(value, config.maxScore) ? `Enter a score from 0 to ${config.maxScore}.` : undefined;
+  const livePreview = config && value && !scoreError ? computeResult(config, value) : null;
+  // A subject already recorded for this examination isn't offered again.
+  const taken = new Set(own.filter((r) => r.id !== editingId).map((r) => r.subject));
+  const subjectOptions = config ? withCurrent(config.subjects.filter((s) => !taken.has(s)), subject) : [];
+
   function clearProblems() {
     setFormError(null);
     setErrors({});
   }
-  const [formOpen, setFormOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  const [qualification, setQualification] = useState("");
-  const [subject, setSubject] = useState("");
-  const [value, setValue] = useState("");
-  const [resultTypeId, setResultTypeId] = useState("");
-
-  const config = qualification ? exam.get(qualification) : undefined;
-  const scoreError =
-    config?.resultMode === "score" && value.trim() && !isValidScore(value, config.maxScore)
-      ? `Enter a score from 0 to ${config.maxScore}.`
-      : undefined;
-  const livePreview = config && value && !scoreError ? computeResult(config, value) : null;
+  function resetFields() {
+    setSubject("");
+    setValue("");
+    setResultTypeId("");
+  }
 
   function openAddForm() {
     clearProblems();
     setEditingId(null);
-    setQualification("");
-    setSubject("");
-    setValue("");
-    setResultTypeId("");
+    resetFields();
+    setLastSaved(null);
     setFormOpen(true);
   }
 
-  function openEditForm(entry: ResultEntry) {
+  function openEditForm(entry: ResultView) {
     clearProblems();
     setEditingId(entry.id);
-    setQualification(entry.qualification);
     setSubject(entry.subject);
     setValue(entry.value);
     setResultTypeId(entry.resultTypeId);
+    setLastSaved(null);
     setFormOpen(true);
   }
 
@@ -89,42 +121,43 @@ export function ResultsForm() {
     clearProblems();
     setFormOpen(false);
     setEditingId(null);
-    setQualification("");
-    setSubject("");
-    setValue("");
-    setResultTypeId("");
+    resetFields();
+    setLastSaved(null);
   }
 
-  function handleQualificationChange(next: string) {
-    setQualification(next);
-    // Subject pool and grade/score shape both depend on qualification, so
-    // clear whatever was chosen for the old one rather than carry over a
-    // subject or grade that might not even exist for the new type.
-    setSubject("");
-    setValue("");
+  function chooseExamination(sittingId: string) {
+    // The subjects and grades on offer belong to the examination, so a form half filled in for another one is closed.
+    closeForm();
+    setConfirmDeleteId(null);
+    setChosen(sittingId);
   }
 
-  const canSave = !!qualification && !!subject && (!!resultTypeId || (!!value.trim() && !scoreError));
+  const canSave = !!choice && !!config && !!subject && (!!resultTypeId || (!!value.trim() && !scoreError));
 
   async function saveResult() {
-    if (!canSave || saving) return;
+    if (!canSave || saving || !choice) return;
     clearProblems();
     setSaving(true);
     try {
       const res = await fetch(editingId ? `/api/student/results/${editingId}` : "/api/student/results", {
         method: editingId ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ qualification, subject, value: resultTypeId ? "" : value, resultTypeId }),
+        body: JSON.stringify({ sittingId: choice.sittingId, subject, value: resultTypeId ? "" : value, resultTypeId }),
       });
       const data = await res.json();
       if (!res.ok) {
         setErrors(data.fieldErrors ?? {});
-        setFormError(data.error ?? "Could not save this result.");
+        setFormError(data.fieldErrors?.sittingId ?? data.error ?? "Could not save this result.");
         return;
       }
-      const saved: ResultEntry = data.result;
+      const saved: ResultView = data.result;
       setResults((prev) => (editingId ? prev.map((r) => (r.id === editingId ? saved : r)) : [...prev, saved]));
-      closeForm();
+      if (editingId) closeForm();
+      else {
+        // Results are entered one subject after another, so the form stays open, ready for the next.
+        resetFields();
+        setLastSaved(saved.subject);
+      }
     } catch {
       setFormError("Could not save this result. Check your connection and try again.");
     } finally {
@@ -150,16 +183,73 @@ export function ResultsForm() {
     }
   }
 
+  if (loading) return <p className="text-sm text-[var(--color-ink-soft)]">Loading your results…</p>;
+
+  if (choices.length === 0) {
+    return (
+      <div className="max-w-3xl space-y-6">
+        {listError && <Alert>{listError}</Alert>}
+        <div className="rounded-xl border border-dashed border-[var(--color-line-strong)] bg-[var(--color-surface)] px-6 py-12 text-center">
+          <p className="text-sm font-medium text-[var(--color-ink)]">Add your examination first</p>
+          <p className="mx-auto mt-1 max-w-md text-sm text-[var(--color-ink-soft)]">
+            Results are recorded against an examination you have added. Create the examination under Examinations Information, then come back here to add the results you obtained in it.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <Link href={EXAMINATIONS_HREF} className={buttonClass("primary")}>
+              Add an examination
+            </Link>
+          </div>
+        </div>
+        {unattached.length > 0 && <Unattached results={unattached} exam={exam} canAttach={false} onEdit={openEditForm} onDelete={deleteResult} />}
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-3xl space-y-6">
-      {/* View results */}
+      {/* Which examination */}
+      <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
+        <Field label="Examination" hint="The examinations you added under Examinations Information.">
+          <SelectInput value={choice.sittingId} onChange={(e) => chooseExamination(e.target.value)}>
+            {choices.map((c) => (
+              <option key={c.sittingId} value={c.sittingId}>
+                {c.label}
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+          {[
+            ["Examination year", choice.sitting.examinationYear],
+            ["Candidate number", choice.sitting.candidateNumber],
+            ["Centre number", choice.sitting.centreNumber],
+          ].map(([label, text]) => (
+            <div key={label}>
+              <dt className="text-xs text-[var(--color-ink-faint)]">{label}</dt>
+              <dd className="text-[var(--color-ink)]">{text}</dd>
+            </div>
+          ))}
+        </dl>
+        <p className="mt-4 text-xs text-[var(--color-ink-faint)]">
+          Not in the list?{" "}
+          <Link href={EXAMINATIONS_HREF} className="underline underline-offset-4">
+            Add the examination
+          </Link>{" "}
+          first, then record its results here.
+        </p>
+      </div>
+
+      {/* The results recorded for it */}
       <div className="overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
-        <div className="flex items-center justify-between border-b border-[var(--color-line)] px-5 py-3.5">
-          <p className="font-semibold text-base text-[var(--color-ink)]">Your results</p>
-          {!formOpen && (
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-3.5">
+          <div className="min-w-0">
+            <p className="font-semibold text-base text-[var(--color-ink)]">Results</p>
+            <p className="truncate text-xs text-[var(--color-ink-soft)]">{choice.label}</p>
+          </div>
+          {!formOpen && config && (
             <button
               onClick={openAddForm}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-ink)] px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-ink)] hover:text-white"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[var(--color-ink)] px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-ink)] hover:text-white"
             >
               <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
               Add result
@@ -167,142 +257,74 @@ export function ResultsForm() {
           )}
         </div>
 
-        {listError && (
-          <p role="alert" className="border-b border-[var(--color-line)] bg-[var(--color-danger-soft)] px-5 py-2.5 text-sm text-[var(--color-danger-strong)]">
-            {listError}
-          </p>
-        )}
+        {listError && <Alert flush>{listError}</Alert>}
+        {!config && <Alert flush>This examination&apos;s qualification is no longer set up, so results can&apos;t be added to it.</Alert>}
 
-        {loading ? (
-          <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">Loading your results…</p>
-        ) : results.length === 0 ? (
-          <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">
-            No results added yet. Use &quot;Add result&quot; to get started.
-          </p>
+        {own.length === 0 ? (
+          <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">No results recorded for this examination yet. Use &quot;Add result&quot; to add the subjects and grades you obtained.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--color-line)] text-left text-xs text-[var(--color-ink-faint)]">
-                  <th className="px-5 py-2.5 font-normal">Qualification</th>
                   <th className="px-5 py-2.5 font-normal">Subject</th>
-                  <th className="px-5 py-2.5 font-normal">Grade</th>
+                  <th className="px-5 py-2.5 font-normal">{config?.resultMode === "score" ? "Score" : "Grade"}</th>
                   <th className="px-5 py-2.5 font-normal">Result</th>
                   <th className="px-5 py-2.5 font-normal">&nbsp;</th>
                 </tr>
               </thead>
               <tbody>
-                {results.map((r) => {
-                  const rConfig = exam.get(r.qualification);
-                  return (
-                    <tr key={r.id} className="border-b border-[var(--color-line)] last:border-0">
-                      <td className="px-5 py-3 text-[var(--color-ink-soft)]">{rConfig?.qualification ?? r.qualification}</td>
-                      <td className="px-5 py-3 text-[var(--color-ink)]">{r.subject}</td>
-                      <td className="px-5 py-3 text-[var(--color-ink-soft)]">
-                        {r.value || "—"}
-                        {r.value && rConfig?.resultMode === "score" ? ` / ${rConfig.maxScore}` : ""}
-                      </td>
-                      <td className="px-5 py-3">
-                        <SavedResult entry={r} exam={exam} />
-                      </td>
-                      <td className="px-5 py-3">
-                        {confirmDeleteId === r.id ? (
-                          <div className="flex items-center gap-2 whitespace-nowrap">
-                            <span className="text-xs text-[var(--color-ink-soft)]">Remove?</span>
-                            <button
-                              onClick={() => deleteResult(r.id)}
-                              className="text-xs font-medium text-[var(--color-danger)] underline underline-offset-4"
-                            >
-                              Yes
-                            </button>
-                            <button
-                              onClick={() => setConfirmDeleteId(null)}
-                              className="text-xs font-medium text-[var(--color-ink-soft)] underline underline-offset-4"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-3 whitespace-nowrap">
-                            <button
-                              onClick={() => openEditForm(r)}
-                              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-ink)] hover:underline"
-                            >
-                              <Pencil className="h-3 w-3" strokeWidth={2} />
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => setConfirmDeleteId(r.id)}
-                              className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-danger)] hover:underline"
-                            >
-                              <Trash2 className="h-3 w-3" strokeWidth={2} />
-                              Delete
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {own.map((r) => (
+                  <tr key={r.id} className="border-b border-[var(--color-line)] last:border-0">
+                    <td className="px-5 py-3 text-[var(--color-ink)]">{r.subject}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">
+                      {r.value || "—"}
+                      {r.value && config?.resultMode === "score" ? ` / ${config.maxScore}` : ""}
+                    </td>
+                    <td className="px-5 py-3">
+                      <SavedResult entry={r} exam={exam} />
+                    </td>
+                    <td className="px-5 py-3">
+                      <RowActions confirming={confirmDeleteId === r.id} onEdit={() => openEditForm(r)} onAskDelete={() => setConfirmDeleteId(r.id)} onCancelDelete={() => setConfirmDeleteId(null)} onDelete={() => deleteResult(r.id)} />
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         )}
       </div>
 
-      {/* Add / edit result — dynamic subject/result entry */}
-      {formOpen && (
+      {/* Add / edit a result of the chosen examination */}
+      {formOpen && config && (
         <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
-          <p className="mb-4 font-semibold text-base text-[var(--color-ink)]">
-            {editingId ? "Edit result" : "Add a result"}
+          <p className="font-semibold text-base text-[var(--color-ink)]">{editingId ? "Edit result" : "Add a result"}</p>
+          <p className="mb-4 mt-0.5 text-xs text-[var(--color-ink-soft)]">
+            {editing && !editing.sittingId ? `This result will be added to ${choice.label}.` : choice.label}
           </p>
 
-          {formError && (
-            <p role="alert" className="mb-4 rounded-lg border border-[var(--color-danger)]/25 bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-strong)]">
-              {formError}
+          {lastSaved && !formError && (
+            <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
+              {lastSaved} saved. Add the next subject, or close when you have finished.
             </p>
           )}
+          {formError && <Alert>{formError}</Alert>}
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Qualification" required error={errors.qualification}>
-              <SelectInput value={qualification} onChange={(e) => handleQualificationChange(e.target.value)}>
+            <Field label="Subject" required error={errors.subject} hint={config.subjects.length === 0 ? "No subjects are set up for this examination yet." : subjectOptions.length === 0 ? "Every subject of this examination has a result recorded." : undefined}>
+              <SelectInput value={subject} onChange={(e) => setSubject(e.target.value)}>
                 <option value="">Select…</option>
-                {groupByFamily(exam.types).map((g) => (
-                  <optgroup key={g.label} label={g.label}>
-                    {g.types.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.qualification}
-                      </option>
-                    ))}
-                  </optgroup>
+                {subjectOptions.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
                 ))}
-                {config && !config.active && (
-                  <option value={config.id}>{config.qualification} (no longer offered)</option>
-                )}
               </SelectInput>
             </Field>
 
-            {config && (
-              <Field
-                label="Subject"
-                required
-                error={errors.subject}
-                hint={config.subjects.length === 0 ? "No subjects are set up for this qualification yet." : undefined}
-              >
-                <SelectInput value={subject} onChange={(e) => setSubject(e.target.value)}>
-                  <option value="">Select…</option>
-                  {withCurrent(config.subjects, subject).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </SelectInput>
-              </Field>
-            )}
-
             {/* Not-graded results (Absent, Withheld…) are admin-managed
                 result types; choosing one replaces the grade/score. */}
-            {config && exam.notGradedTypes.length > 0 && (
+            {exam.notGradedTypes.length > 0 && (
               <Field label="Result recorded as" error={errors.resultTypeId}>
                 <SelectInput value={resultTypeId} onChange={(e) => setResultTypeId(e.target.value)}>
                   <option value="">A {config.resultMode === "grade" ? "grade" : "score"}</option>
@@ -311,17 +333,15 @@ export function ResultsForm() {
                       {t.label}
                     </option>
                   ))}
-                  {resultTypeId && !exam.notGradedTypes.some((t) => t.id === resultTypeId) && (
-                    <option value={resultTypeId}>{exam.resultType(resultTypeId)?.label ?? "Retired result type"}</option>
-                  )}
+                  {resultTypeId && !exam.notGradedTypes.some((t) => t.id === resultTypeId) && <option value={resultTypeId}>{exam.resultType(resultTypeId)?.label ?? "Retired result type"}</option>}
                 </SelectInput>
               </Field>
             )}
 
-            {/* The field itself changes shape based on examination type:
-                a Grade dropdown for GCE levels, a score input for
-                BEPC/Probatoire/BAC, out of the type's configured maximum. */}
-            {config && !resultTypeId && config.resultMode === "grade" && (
+            {/* The field changes shape with the examination: a Grade
+                dropdown for GCE levels, a score input for BEPC/Probatoire/BAC,
+                out of the type's configured maximum. */}
+            {!resultTypeId && config.resultMode === "grade" && (
               <Field label="Grade" required error={errors.value}>
                 <SelectInput value={value} onChange={(e) => setValue(e.target.value)}>
                   <option value="">Select…</option>
@@ -333,26 +353,19 @@ export function ResultsForm() {
                 </SelectInput>
               </Field>
             )}
-            {config && !resultTypeId && config.resultMode === "score" && (
+            {!resultTypeId && config.resultMode === "score" && (
               <Field label={`Score (out of ${config.maxScore})`} required error={scoreError ?? errors.value}>
-                <TextInput
-                  inputMode="numeric"
-                  placeholder="e.g. 14"
-                  value={value}
-                  onChange={(e) => setValue(e.target.value)}
-                />
+                <TextInput inputMode="numeric" placeholder="e.g. 14" value={value} onChange={(e) => setValue(e.target.value)} />
               </Field>
             )}
 
-            {config && !resultTypeId && (
+            {!resultTypeId && (
               <Field label="Result">
                 <div className="flex h-[42px] items-center">
                   {livePreview ? (
                     <ResultBadge tone={livePreview === "Pass" ? "pass" : "fail"} label={exam.resultLabel(livePreview)} />
                   ) : (
-                    <span className="text-sm text-[var(--color-ink-faint)]">
-                      Enter a {config.resultMode === "grade" ? "grade" : "score"} to see the result
-                    </span>
+                    <span className="text-sm text-[var(--color-ink-faint)]">Enter a {config.resultMode === "grade" ? "grade" : "score"} to see the result</span>
                   )}
                 </div>
               </Field>
@@ -361,7 +374,7 @@ export function ResultsForm() {
 
           <div className="mt-6 flex items-center gap-3 border-t border-[var(--color-line)] pt-5">
             <SecondaryButton type="button" onClick={closeForm}>
-              Cancel
+              {lastSaved ? "Close" : "Cancel"}
             </SecondaryButton>
             <PrimaryButton type="button" onClick={saveResult} disabled={!canSave || saving}>
               {saving ? "Saving…" : "Save"}
@@ -369,11 +382,100 @@ export function ResultsForm() {
           </div>
         </div>
       )}
+
+      {unattached.length > 0 && <Unattached results={unattached} exam={exam} canAttach={!!config} attachTo={choice.label} onEdit={openEditForm} onDelete={deleteResult} />}
     </div>
   );
 }
 
-function SavedResult({ entry, exam }: { entry: ResultEntry; exam: ExamConfiguration }) {
+/**
+ * Results recorded before results were tied to an examination, for a
+ * qualification the applicant never created an examination for. They are
+ * shown so nothing is lost: each can be added to the examination chosen
+ * above (Edit, then Save), or removed.
+ */
+function Unattached({ results, exam, canAttach, attachTo, onEdit, onDelete }: { results: ResultView[]; exam: ExamConfiguration; canAttach: boolean; attachTo?: string; onEdit: (r: ResultView) => void; onDelete: (id: string) => void }) {
+  return (
+    <div className="overflow-hidden rounded-xl border border-[var(--color-warning-soft)] bg-[var(--color-surface)]">
+      <div className="border-b border-[var(--color-line)] bg-[var(--color-warning-soft)] px-5 py-3">
+        <p className="text-sm font-semibold text-[var(--color-warning-strong)]">Results not linked to an examination</p>
+        <p className="mt-0.5 text-xs text-[var(--color-warning-strong)]">
+          These were recorded earlier without an examination. {canAttach ? `Use Edit to add one to ${attachTo}, or remove it.` : "Add the examination they belong to, then use Edit to link each one, or remove it."}
+        </p>
+      </div>
+      <ul className="divide-y divide-[var(--color-line)] text-sm">
+        {results.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+            <span className="text-[var(--color-ink)]">
+              {r.subject}
+              <span className="text-[var(--color-ink-soft)]">
+                {" "}
+                · {exam.get(r.qualification)?.qualification ?? r.qualification} · {r.value || exam.resultType(r.resultTypeId)?.label || "—"}
+              </span>
+            </span>
+            <span className="flex items-center gap-3 whitespace-nowrap">
+              {canAttach && (
+                <button onClick={() => onEdit(r)} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-ink)] hover:underline">
+                  <Pencil className="h-3 w-3" strokeWidth={2} />
+                  Edit
+                </button>
+              )}
+              <button onClick={() => onDelete(r.id)} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-danger)] hover:underline">
+                <Trash2 className="h-3 w-3" strokeWidth={2} />
+                Remove
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function RowActions({ confirming, onEdit, onAskDelete, onCancelDelete, onDelete }: { confirming: boolean; onEdit: () => void; onAskDelete: () => void; onCancelDelete: () => void; onDelete: () => void }) {
+  if (confirming) {
+    return (
+      <div className="flex items-center gap-2 whitespace-nowrap">
+        <span className="text-xs text-[var(--color-ink-soft)]">Remove?</span>
+        <button onClick={onDelete} className="text-xs font-medium text-[var(--color-danger)] underline underline-offset-4">
+          Yes
+        </button>
+        <button onClick={onCancelDelete} className="text-xs font-medium text-[var(--color-ink-soft)] underline underline-offset-4">
+          Cancel
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex items-center gap-3 whitespace-nowrap">
+      <button onClick={onEdit} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-ink)] hover:underline">
+        <Pencil className="h-3 w-3" strokeWidth={2} />
+        Edit
+      </button>
+      <button onClick={onAskDelete} className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-danger)] hover:underline">
+        <Trash2 className="h-3 w-3" strokeWidth={2} />
+        Delete
+      </button>
+    </div>
+  );
+}
+
+function Alert({ children, flush }: { children: React.ReactNode; flush?: boolean }) {
+  return (
+    <p
+      role="alert"
+      className={
+        flush
+          ? "border-b border-[var(--color-line)] bg-[var(--color-danger-soft)] px-5 py-2.5 text-sm text-[var(--color-danger-strong)]"
+          : "mb-4 rounded-lg border border-[var(--color-danger)]/25 bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-strong)]"
+      }
+    >
+      {children}
+    </p>
+  );
+}
+
+function SavedResult({ entry, exam }: { entry: ResultView; exam: ExamConfiguration }) {
   if (entry.resultTypeId) {
     return <ResultBadge tone="neutral" label={exam.resultType(entry.resultTypeId)?.label ?? "Not graded"} />;
   }

@@ -186,11 +186,13 @@ export function DescriptionList({ items }: { items: { label: string; value: Reac
 }
 
 /** Small pill for an active/inactive style flag. */
-export function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "success" | "muted" }) {
+export function Pill({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "success" | "muted" | "warning" | "danger" }) {
   const tones = {
     neutral: "border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-ink-soft)]",
     success: "border-[var(--color-success-soft)] bg-[var(--color-success-soft)] text-[var(--color-success-strong)]",
     muted: "border-[var(--color-line)] bg-[var(--color-line)]/40 text-[var(--color-ink-faint)]",
+    warning: "border-[var(--color-warning-soft)] bg-[var(--color-warning-soft)] text-[var(--color-warning-strong)]",
+    danger: "border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] text-[var(--color-danger-strong)]",
   } as const;
   return (
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${tones[tone]}`}>

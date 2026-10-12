@@ -1,19 +1,25 @@
+"use client";
+
 import { MapPin, Check } from "lucide-react";
-import { InstitutionWithProfile, totalAvailableSpaces, totalProgramCount } from "@/lib/institutionDiscovery/data";
+import type { InstitutionListing } from "@/lib/institutionDiscovery/data";
+import { useMoneyFormat } from "@/lib/currency/useCurrencies";
 
 export function InstitutionCard({
   institution,
   selected,
+  busy,
   onViewDetails,
-  onToggleSelect,
+  onSelect,
 }: {
-  institution: InstitutionWithProfile;
+  institution: InstitutionListing;
+  /** The applicant has already added this institution to their application. */
   selected: boolean;
+  busy: boolean;
   onViewDetails: () => void;
-  onToggleSelect: () => void;
+  onSelect: () => void;
 }) {
-  const spaces = totalAvailableSpaces(institution.profile);
-  const programCount = totalProgramCount(institution.profile);
+  const format = useMoneyFormat();
+  const { programCount, availableSpaces: spaces } = institution;
 
   return (
     <div
@@ -40,6 +46,11 @@ export function InstitutionCard({
       <p className="mt-2 text-xs text-[var(--color-ink-soft)]">
         {programCount} program{programCount === 1 ? "" : "s"} · {spaces} space{spaces === 1 ? "" : "s"} available
       </p>
+      <p className="mt-1 flex-1 text-xs text-[var(--color-ink-soft)]">
+        {institution.applicationFee === null
+          ? `Application fee ${format(institution.fee.amount, institution.fee.currency)}`
+          : `Application fee ${format(institution.applicationFee, institution.currency)} + web fee ${format(institution.webFee, institution.currency)}`}
+      </p>
 
       <div className="mt-3 flex items-center gap-2 border-t border-[var(--color-line)] pt-3">
         <button
@@ -48,16 +59,17 @@ export function InstitutionCard({
         >
           View details
         </button>
-        <button
-          onClick={onToggleSelect}
-          className={`flex-1 px-2.5 py-1.5 text-xs font-medium transition-colors ${
-            selected
-              ? "rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
-              : "bg-[var(--color-brand)] text-white hover:bg-[var(--color-brand-hover)]"
-          }`}
-        >
-          {selected ? "Selected" : "Select"}
-        </button>
+        {selected ? (
+          <span className="flex-1 rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand-soft)] px-2.5 py-1.5 text-center text-xs font-medium text-[var(--color-brand-strong)]">Added</span>
+        ) : (
+          <button
+            onClick={onSelect}
+            disabled={busy}
+            className="flex-1 rounded-lg bg-[var(--color-brand)] px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[var(--color-brand-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {busy ? "Adding…" : "Select"}
+          </button>
+        )}
       </div>
     </div>
   );

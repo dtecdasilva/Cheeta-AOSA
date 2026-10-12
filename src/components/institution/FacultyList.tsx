@@ -1,63 +1,38 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
-import { mockFaculties, Faculty } from "@/lib/mockData/faculties";
-import { ButtonLinkClass } from "@/components/Form";
-import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
+import { useAuth } from "@/context/AuthContext";
+import { useInstitutionList } from "@/lib/institution/api";
+import type { Faculty } from "@/lib/institution/types";
+import { Pill, Row, RowAction } from "@/components/ui";
+import { InstitutionListShell } from "./InstitutionListShell";
 
-export default function FacultyList({ institutionId }: { institutionId: string }) {
-  const [items, setItems] = useState<Faculty[]>(() =>
-    mockFaculties.filter((f) => f.institutionId === institutionId)
-  );
-
-  function toggleStatus(id: string) {
-    setItems((s) =>
-      s.map((f) => (f.id === id ? { ...f, status: f.status === "active" ? "inactive" : "active" } : f))
-    );
-  }
+/** The institution's faculties and schools, from /api/institution/faculties. */
+export default function FacultyList() {
+  const { user } = useAuth();
+  const canEdit = user?.role === "INSTITUTION_ADMIN";
+  const { items, error, setStatus } = useInstitutionList<Faculty>("faculties");
 
   return (
-    <div className="space-y-4">
-      <SectionHeading
-        title="Faculties"
-        actions={
-          <Link href="/institution/faculty/add" className={ButtonLinkClass("primary")}>
-            Add faculty
-          </Link>
-        }
-      />
-
-      {items.length === 0 ? (
-        <EmptyState
-          message="No faculties yet."
-          action={
-            <Link href="/institution/faculty/add" className={ButtonLinkClass("secondary")}>
-              Add the first faculty
-            </Link>
+    <InstitutionListShell title="Faculties" addHref="/institution/faculty/add" addLabel="Add faculty" emptyMessage="No faculties yet." canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0}>
+      {(items ?? []).map((f) => (
+        <Row
+          key={f.id}
+          title={f.name}
+          subtitle={[f.code, f.dean && `Dean: ${f.dean}`].filter(Boolean).join(" · ")}
+          meta={f.status === "ACTIVE" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+          actions={
+            <>
+              <RowAction href={`/institution/faculty/${f.id}`}>View</RowAction>
+              {canEdit && <RowAction href={`/institution/faculty/${f.id}/edit`}>Edit</RowAction>}
+              {canEdit && (
+                <RowAction tone="muted" onClick={() => setStatus(f.id, f.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")}>
+                  {f.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                </RowAction>
+              )}
+            </>
           }
         />
-      ) : (
-        <RowList>
-          {items.map((f) => (
-            <Row
-              key={f.id}
-              title={f.name}
-              subtitle={`Dean: ${f.dean}`}
-              meta={f.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
-              actions={
-                <>
-                  <RowAction href={`/institution/faculty/${f.id}`}>View</RowAction>
-                  <RowAction href={`/institution/faculty/${f.id}/edit`}>Edit</RowAction>
-                  <RowAction tone="muted" onClick={() => toggleStatus(f.id)}>
-                    {f.status === "active" ? "Deactivate" : "Activate"}
-                  </RowAction>
-                </>
-              }
-            />
-          ))}
-        </RowList>
-      )}
-    </div>
+      ))}
+    </InstitutionListShell>
   );
 }

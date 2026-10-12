@@ -1,27 +1,22 @@
-import { Department } from "@/lib/mockData/departments";
-import { mockFaculties } from "@/lib/mockData/faculties";
+import type { Department } from "@/lib/institution/types";
 import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
 
-export default function DepartmentView({ department }: { department: Department }) {
-  const faculty = mockFaculties.find((f) => f.id === department.facultyId);
+export default function DepartmentView({ department, facultyName, canEdit }: { department: Department; facultyName?: string; canEdit: boolean }) {
   return (
     <div className="max-w-2xl space-y-4">
       <Card padded={false}>
-        <CardHeader title={department.name} description={`Head: ${department.head}`} />
+        <CardHeader title={department.name} description={department.head ? `Head: ${department.head}` : undefined} />
         <DescriptionList
           items={[
-            { label: "Faculty", value: faculty?.name },
-            { label: "Address", value: department.address },
-            { label: "Town", value: department.town },
-            { label: "Region", value: department.region },
-            { label: "Location", value: department.location },
+            { label: "Code", value: department.code },
+            { label: "Faculty", value: facultyName },
             { label: "Phone", value: department.phone },
             { label: "Email", value: department.email },
-            { label: "Status", value: department.status === "active" ? "Active" : "Inactive" },
+            { label: "Status", value: department.status === "ACTIVE" ? "Active" : "Inactive" },
           ]}
         />
       </Card>
-      <RowAction href={`/institution/departments/${department.id}/edit`}>Edit</RowAction>
+      {canEdit && <RowAction href={`/institution/departments/${department.id}/edit`}>Edit</RowAction>}
     </div>
   );
 }

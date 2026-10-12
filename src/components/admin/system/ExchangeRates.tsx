@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ArrowRightLeft } from "lucide-react";
 import { Card, EmptyState, PageHeading, SectionHeading, TableFrame, Td, Th } from "@/components/ui";
 import { Field, PrimaryButton, SecondaryButton, SelectInput, TextInput } from "@/components/Form";
 import { StatStrip, SubNav, ToneBadge } from "@/components/admin/ui";
 import { SYSTEM_NAV } from "./ReferenceManagers";
-import { BASE_CURRENCY, currencyStore, rateHistoryStore, rateStore, type AdminCurrency, type AdminExchangeRate } from "@/lib/admin/reference";
-import { newId } from "@/lib/admin/store";
+import { BASE_CURRENCY, currencyStore, rateStore, type AdminCurrency, type AdminExchangeRate, type RateRecord } from "@/lib/admin/reference";
 import { formatDate, formatDateTime } from "@/lib/utils";
 
 const DAY = 86_400_000;
@@ -21,18 +20,61 @@ function format(amount: number, c: AdminCurrency | undefined, code: string) {
   return c.symbolPosition === "prefix" ? `${c.symbol}${n}` : `${n} ${c.symbol}`;
 }
 
+const API = "/api/admin/exchange-rates";
+
+/**
+ * Rates are stored in the database and are a record: a rate is never
+ * edited or deleted. "Update" adds a new rate that takes over from the
+ * one before it; a rate entered by mistake can be withdrawn, which leaves
+ * it in the history and hands back to the previous one.
+ */
 export function ExchangeRates() {
   const rates = rateStore.useItems();
   const currencies = currencyStore.useItems();
-  const history = [...rateHistoryStore.useItems()].sort((a, b) => b.at.localeCompare(a.at));
+  const [history, setHistory] = useState<RateRecord[]>([]);
   const [editing, setEditing] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
   const [now] = useState(() => Date.now());
+
+  const loadHistory = useCallback(async () => {
+    try {
+      const res = await fetch(API, { cache: "no-store" });
+      if (res.ok) setHistory(((await res.json()) as { history: RateRecord[] }).history);
+    } catch {
+      // The table of current rates still shows; the history just stays as it was.
+    }
+  }, []);
+  useEffect(() => {
+    void loadHistory();
+  }, [loadHistory]);
+
+  /** After any change: read the current rates and the history again. */
+  const refresh = useCallback(() => {
+    rateStore.reset();
+    void loadHistory();
+  }, [loadHistory]);
+
+  async function setStatus(rate: RateRecord, status: "ACTIVE" | "INACTIVE") {
+    setError("");
+    setNotice("");
+    try {
+      const res = await fetch(`${API}/${encodeURIComponent(rate.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return setError(body.fieldErrors?.status ?? body.error ?? "That could not be saved.");
+      setNotice(status === "INACTIVE" ? `${rate.fromCurrency} rate of ${rate.rate} withdrawn. It stays in the history.` : `${rate.fromCurrency} rate of ${rate.rate} restored.`);
+      refresh();
+    } catch {
+      setError("That could not be saved. Check your connection and try again.");
+    }
+  }
 
   const currency = (code: string) => currencies.find((c) => c.code === code);
   const rateFor = (code: string) => (code === BASE_CURRENCY ? 1 : rates.find((r) => r.code === code)?.xafPerUnit ?? 0);
-  const rows = [...rates].filter((r) => r.code !== BASE_CURRENCY).sort((a, b) => a.code.localeCompare(b.code));
-  const stale = rows.filter((r) => r.xafPerUnit <= 0 || now - new Date(r.asOf).getTime() > STALE_DAYS * DAY);
+  // Every currency on the list has a row here, whether or not a rate has been set for it yet.
+  const codes = [...new Set([...currencies.filter((c) => c.status === "ACTIVE").map((c) => c.code), ...rates.map((r) => r.code)])].filter((c) => c !== BASE_CURRENCY).sort();
+  const rows: AdminExchangeRate[] = codes.map((code) => rates.find((r) => r.code === code) ?? { id: code, code, xafPerUnit: 0, source: "Not set", asOf: "", updatedBy: "" });
+  const stale = rows.filter((r) => r.xafPerUnit <= 0 || !r.asOf || now - new Date(r.asOf).getTime() > STALE_DAYS * DAY);
   const latest = rows.reduce((max, r) => (r.asOf > max ? r.asOf : max), "");
 
   return (
@@ -54,6 +96,11 @@ export function ExchangeRates() {
         />
       </div>
 
+      {error && (
+        <p role="alert" className="mb-4 rounded-lg border border-[var(--color-danger)]/25 bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-strong)]">
+          {error}
+        </p>
+      )}
       {notice && (
         <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
           {notice}
@@ -88,7 +135,9 @@ export function ExchangeRates() {
                       onCancel={() => setEditing(null)}
                       onSaved={(msg) => {
                         setEditing(null);
+                        setError("");
                         setNotice(msg);
+                        refresh();
                       }}
                     />
                   ) : (
@@ -103,7 +152,7 @@ export function ExchangeRates() {
                       <Td className="text-right tabular-nums text-[var(--color-ink-soft)]">{r.xafPerUnit > 0 ? format(10000 / r.xafPerUnit, currency(r.code), r.code) : "—"}</Td>
                       <Td className="text-[var(--color-ink-soft)]">{r.source}</Td>
                       <Td>
-                        <p className="whitespace-nowrap text-[var(--color-ink)]">{formatDate(r.asOf)}</p>
+                        <p className="whitespace-nowrap text-[var(--color-ink)]">{r.asOf ? formatDate(r.asOf) : "—"}</p>
                         {stale.includes(r) && (
                           <span className="mt-1 inline-block">
                             <ToneBadge tone="amber">{r.xafPerUnit > 0 ? "Out of date" : "Missing"}</ToneBadge>
@@ -134,37 +183,54 @@ export function ExchangeRates() {
       </div>
 
       <section className="mt-10">
-        <SectionHeading title="Rate changes" description="Every update, newest first." />
+        <SectionHeading title="Rate history" description="Every rate ever recorded, newest first. Rates are never edited or deleted; one entered by mistake can be withdrawn." />
         {history.length === 0 ? (
-          <EmptyState message="No rate has been changed yet." />
+          <EmptyState message="No rate has been recorded yet." />
         ) : (
           <TableFrame>
             <thead>
               <tr>
-                <Th>When</Th>
-                <Th>Currency</Th>
-                <Th className="text-right">From</Th>
-                <Th className="text-right">To</Th>
-                <Th className="text-right">Change</Th>
+                <Th>Pair</Th>
+                <Th className="text-right">Rate</Th>
+                <Th>Effective from</Th>
+                <Th>Until</Th>
+                <Th>Source</Th>
+                <Th>Status</Th>
                 <Th>By</Th>
+                <Th>
+                  <span className="sr-only">Actions</span>
+                </Th>
               </tr>
             </thead>
             <tbody>
-              {history.map((h) => {
-                const pct = h.from > 0 ? ((h.to - h.from) / h.from) * 100 : null;
-                return (
-                  <tr key={h.id}>
-                    <Td className="whitespace-nowrap">{formatDateTime(h.at)}</Td>
-                    <Td className="font-medium text-[var(--color-ink)]">{h.code}</Td>
-                    <Td className="text-right tabular-nums text-[var(--color-ink-soft)]">{h.from > 0 ? h.from.toLocaleString("en-GB", { maximumFractionDigits: 4 }) : "Not set"}</Td>
-                    <Td className="text-right tabular-nums">{h.to.toLocaleString("en-GB", { maximumFractionDigits: 4 })}</Td>
-                    <Td className={`text-right tabular-nums ${pct === null ? "" : pct >= 0 ? "text-[var(--color-success-strong)]" : "text-[var(--color-danger)]"}`}>
-                      {pct === null ? "New" : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`}
-                    </Td>
-                    <Td className="text-[var(--color-ink-soft)]">{h.by}</Td>
-                  </tr>
-                );
-              })}
+              {history.map((h) => (
+                <tr key={h.id} className={h.status === "INACTIVE" ? "text-[var(--color-ink-faint)]" : ""}>
+                  <Td className="whitespace-nowrap font-medium text-[var(--color-ink)]">
+                    {h.fromCurrency} → {h.toCurrency}
+                  </Td>
+                  <Td className="text-right tabular-nums">{h.rate.toLocaleString("en-GB", { maximumFractionDigits: 6 })}</Td>
+                  <Td className="whitespace-nowrap">{formatDateTime(h.effectiveFrom)}</Td>
+                  <Td className="whitespace-nowrap text-[var(--color-ink-soft)]">{h.status === "INACTIVE" ? "—" : h.appliesUntil ? formatDateTime(h.appliesUntil) : "Open-ended"}</Td>
+                  <Td className="text-[var(--color-ink-soft)]">{h.source}</Td>
+                  <Td>
+                    {h.status === "INACTIVE" ? (
+                      <ToneBadge tone="neutral">Withdrawn</ToneBadge>
+                    ) : h.current ? (
+                      <ToneBadge tone="success">In force</ToneBadge>
+                    ) : new Date(h.effectiveFrom).getTime() > now ? (
+                      <ToneBadge tone="info">Scheduled</ToneBadge>
+                    ) : (
+                      <ToneBadge tone="neutral">Past</ToneBadge>
+                    )}
+                  </Td>
+                  <Td className="text-[var(--color-ink-soft)]">{h.createdBy ?? "—"}</Td>
+                  <Td className="text-right">
+                    <button type="button" onClick={() => setStatus(h, h.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
+                      {h.status === "ACTIVE" ? "Withdraw" : "Restore"}
+                    </button>
+                  </Td>
+                </tr>
+              ))}
             </tbody>
           </TableFrame>
         )}
@@ -176,9 +242,12 @@ export function ExchangeRates() {
 function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchangeRate; currency?: AdminCurrency; onCancel: () => void; onSaved: (msg: string) => void }) {
   const [value, setValue] = useState(rate.xafPerUnit > 0 ? String(rate.xafPerUnit) : "");
   const [source, setSource] = useState(rate.source === "Not set" ? "BEAC reference rate" : rate.source);
+  // Empty means "from now". A later date schedules the rate; an earlier one back-dates it.
+  const [from, setFrom] = useState("");
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  function save() {
+  async function save() {
     const n = Number(value);
     if (!value || Number.isNaN(n) || n <= 0) {
       setError("Enter a rate above 0.");
@@ -189,10 +258,26 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
       return;
     }
     if (rate.xafPerUnit > 0 && Math.abs(n - rate.xafPerUnit) / rate.xafPerUnit > 0.25 && !window.confirm(`That's more than a 25% change from ${rate.xafPerUnit}. Save it anyway?`)) return;
-    const at = new Date().toISOString();
-    rateStore.update(rate.id, { xafPerUnit: n, source: source.trim(), asOf: at, updatedBy: "AOSA administrator" });
-    if (n !== rate.xafPerUnit) rateHistoryStore.add({ id: newId("rc"), code: rate.code, from: rate.xafPerUnit, to: n, at, by: "AOSA administrator" });
-    onSaved(`${rate.code} rate set to ${n.toLocaleString("en-GB", { maximumFractionDigits: 4 })} ${BASE_CURRENCY}.`);
+    // A new rate is a new record; the one it takes over from is left exactly as it was.
+    setSaving(true);
+    try {
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromCurrency: rate.code, toCurrency: BASE_CURRENCY, rate: n, source: source.trim(), ...(from ? { effectiveFrom: new Date(from).toISOString() } : {}) }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(Object.values((body.fieldErrors ?? {}) as Record<string, string>)[0] ?? body.error ?? "The rate could not be saved.");
+        return;
+      }
+      const when = from && new Date(from).getTime() > Date.now() ? ` from ${formatDateTime(new Date(from).toISOString())}` : "";
+      onSaved(`${rate.code} rate set to ${n.toLocaleString("en-GB", { maximumFractionDigits: 4 })} ${BASE_CURRENCY}${when}.`);
+    } catch {
+      setError("The rate could not be saved. Check your connection and try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -216,7 +301,7 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
                 setError("");
               }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") save();
+                if (e.key === "Enter") void save();
                 if (e.key === "Escape") onCancel();
               }}
             />
@@ -224,12 +309,15 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
           <Field label="Source">
             <TextInput value={source} onChange={(e) => setSource(e.target.value)} />
           </Field>
+          <Field label="Effective from" hint="Leave empty to start now.">
+            <TextInput type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </Field>
         </div>
       </Td>
       <Td>
         <div className="flex flex-col gap-2">
-          <PrimaryButton type="button" onClick={save}>
-            Save
+          <PrimaryButton type="button" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save"}
           </PrimaryButton>
           <SecondaryButton type="button" onClick={onCancel}>
             Cancel

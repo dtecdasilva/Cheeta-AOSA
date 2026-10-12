@@ -18,6 +18,8 @@ import { templateStore } from "@/lib/admin/templates";
 import { seedAdminRecords } from "@/lib/admin/students";
 import { feePaymentStore } from "@/lib/payments/applicationFees";
 import { mockUploadRequirements } from "@/lib/mockData/uploadRequirements";
+import { documentTypeForName } from "@/server/modules/applications/legacyRecords";
+import { documentTypeMaxKb, supportedFileTypes } from "@/lib/institution/uploadRequirements";
 import { mockBillingConfigs } from "@/lib/mockData/billing";
 import { logger } from "@/server/logging/logger";
 import type { Db, Executor } from "./client";
@@ -95,7 +97,7 @@ async function seedReference(db: Executor) {
     rateStore
       .getAll()
       .filter((r) => r.code !== "XAF")
-      .map((r) => ({ id: `rate-seed-${r.code}`, currencyCode: r.code, xafPerUnit: r.xafPerUnit, source: r.source, asOf: new Date(r.asOf) }))
+      .map((r) => ({ id: `rate-seed-${r.code}`, fromCurrency: r.code, toCurrency: "XAF", rate: r.xafPerUnit, source: r.source, effectiveFrom: new Date(r.asOf) }))
   );
 
   for (const [i, level] of EDUCATION_LEVEL_SEED.entries()) {
@@ -143,16 +145,26 @@ async function seedInstitutions(db: Executor) {
   await insertChunks(db, t.faculties, facultyStore.getAll().map((f) => ({ ...f, updatedAt: new Date(f.updatedAt) })));
   await insertChunks(db, t.departments, departmentStore.getAll().map((d) => ({ ...d, updatedAt: new Date(d.updatedAt) })));
   await insertChunks(db, t.programs, programStore.getAll().map((p) => ({ ...p, updatedAt: new Date(p.updatedAt) })));
-  await insertChunks(db, t.institutionPaymentMethods, paymentMethodStore.getAll().map((m) => ({ ...m, updatedAt: new Date(m.updatedAt) })));
+  await insertChunks(db, t.institutionPaymentMethods, paymentMethodStore.getAll().map((m) => ({ ...m, verifiedAt: m.verifiedAt ? new Date(m.verifiedAt) : null, updatedAt: new Date(m.updatedAt) })));
 
-  // Upload requirements: the institution portal's, plus the documents each
-  // sample institution lists (src/lib/data.ts) where it has none of its own.
-  const requirements = mockUploadRequirements.map((r) => ({ id: r.id, institutionId: r.institutionId, name: r.name, description: r.description ?? "", required: r.required, fileTypes: r.fileTypes, maxSizeKb: r.maxSizeKB, status: status(r.status) }));
+  // Upload requirements: the institution portal's, plus the documents each sample institution lists
+  // (src/lib/data.ts) where it has none of its own. Each is for a document type from the "Upload types"
+  // list and carries that type's name; an institution asks for a type once.
+  const uploadTypes = parameterStore.getAll().filter((p) => p.category === "upload-types");
+  const requirements: (typeof t.uploadRequirements.$inferInsert)[] = [];
+  const addRequirement = (r: { id: string; institutionId: string; name: string; description: string; required: boolean; fileTypes: string[]; maxSizeKb: number; status: "ACTIVE" | "INACTIVE" }) => {
+    const type = documentTypeForName(r.name, uploadTypes);
+    if (type && requirements.some((x) => x.institutionId === r.institutionId && x.documentTypeId === type.id)) return;
+    if (!type && requirements.some((x) => x.institutionId === r.institutionId && x.name === r.name)) return;
+    // Within the limits its document type sets, as the portal would hold it to.
+    const allowed = type ? supportedFileTypes(type.attrs.formats) : [];
+    const fileTypes = type ? (r.fileTypes.filter((f) => (allowed as string[]).includes(f)).length ? r.fileTypes.filter((f) => (allowed as string[]).includes(f)) : allowed) : r.fileTypes;
+    const maxSizeKb = type ? Math.min(r.maxSizeKb, documentTypeMaxKb(type.attrs.maxSizeMb, 10 * 1024)) : r.maxSizeKb;
+    requirements.push({ ...r, fileTypes, maxSizeKb, documentTypeId: type?.id ?? null, name: type?.label ?? r.name });
+  };
+  for (const r of mockUploadRequirements) addRequirement({ id: r.id, institutionId: r.institutionId, name: r.name, description: r.description ?? "", required: r.required, fileTypes: r.fileTypes, maxSizeKb: r.maxSizeKB, status: status(r.status) });
   for (const inst of portalInstitutions) {
-    for (const [i, name] of inst.requiredDocuments.entries()) {
-      if (requirements.some((r) => r.institutionId === inst.id && r.name === name)) continue;
-      requirements.push({ id: `ur-${inst.id}-${i + 1}`, institutionId: inst.id, name, description: "", required: true, fileTypes: ["pdf", "jpg", "png"], maxSizeKb: 2048, status: "ACTIVE" });
-    }
+    for (const [i, name] of inst.requiredDocuments.entries()) addRequirement({ id: `ur-${inst.id}-${i + 1}`, institutionId: inst.id, name, description: "", required: true, fileTypes: ["pdf", "jpg", "png"], maxSizeKb: 2048, status: "ACTIVE" });
   }
   await insertChunks(db, t.uploadRequirements, requirements);
 
@@ -162,7 +174,12 @@ async function seedInstitutions(db: Executor) {
     if (fees.some((f) => f.institutionId === inst.id && f.type === "application" && f.category === "national")) continue;
     fees.push({ id: `fee-${inst.id}-app`, institutionId: inst.id, name: "Application fee", type: "application", category: "national", currency: "XAF", amount: inst.applicationFee, effectiveDate: "2026-01-01", notes: "", status: "ACTIVE" });
   }
-  await insertChunks(db, t.feeConfigs, fees);
+  // The web fee is the platform's charge (Payment configuration), not part of an institution's schedule.
+  await insertChunks(
+    db,
+    t.feeConfigs,
+    fees.filter((f) => f.type !== "web")
+  );
 }
 
 async function seedAccounts(db: Executor) {
@@ -314,6 +331,7 @@ async function seedApplications(db: Executor) {
   );
 
   const seeded = new Set(applications.map((a) => a.id));
+  const verifierId = DEMO_ACCOUNTS.find((a) => a.role === "AOSA_ADMIN")?.id ?? null;
   await insertChunks(
     db,
     t.feePayments,
@@ -332,8 +350,11 @@ async function seedApplications(db: Executor) {
         submittedAt: new Date(f.submittedAt),
         approval: f.approval,
         bankCode: f.bankCode,
+        // Sample payments already decided are shown as verified by the sample administrator.
         reviewedAt: f.reviewedAt ? new Date(f.reviewedAt) : null,
-        note: f.note,
+        reviewedBy: f.reviewedAt ? verifierId : null,
+        rejectionReason: f.approval === "REJECTED" ? f.note : null,
+        note: f.approval === "REJECTED" ? "" : f.note,
       }))
   );
 
@@ -373,6 +394,26 @@ async function seedApplications(db: Executor) {
   return { students: students.length, applications: applications.length };
 }
 
+/**
+ * Two applications for the demo applicant account, to Mont Fébé and
+ * Sanaga, neither paid for. They give the fee and payment screens
+ * something to show when signed in with the demo account, since choosing
+ * institutions is not yet saved from the applicant portal.
+ */
+async function seedDemoApplicant(db: Executor) {
+  const student = DEMO_ACCOUNTS.find((a) => a.role === "STUDENT");
+  const academicYearId = parameterStore.getAll().find((p) => p.category === "academic-years" && p.attrs.current === true)?.id ?? null;
+  if (!student || !academicYearId) return;
+  const bundleId = `bundle-${student.id}`;
+  await db.insert(t.applications).values({ id: bundleId, applicantId: student.id, academicYearId, reference: "AOSA-DEMO-00001" }).onConflictDoNothing();
+  const webFeeOf = new Map(SEED_INSTITUTIONS.map((i) => [i.id, i.webFee]));
+  for (const [n, institutionId] of ["inst-1", "inst-2"].entries()) {
+    const id = `ai-demo-${n + 1}`;
+    await db.insert(t.applicationInstitutions).values({ id, applicationId: bundleId, institutionId, reference: `APP-DEMO-${String(n + 1).padStart(4, "0")}` }).onConflictDoNothing();
+    await assessApplicationFee(db, { id, institutionId, webFee: webFeeOf.get(institutionId) ?? null });
+  }
+}
+
 export async function isDatabaseEmpty(db: Executor) {
   const [{ n }] = await db.select({ n: count() }).from(t.parameters);
   return n === 0;
@@ -388,6 +429,7 @@ export async function seedDatabase(db: Db, opts: { demo: boolean }) {
       await seedInstitutions(tx);
       await seedAccounts(tx);
       const counts = await seedApplications(tx);
+      await seedDemoApplicant(tx);
       log.info("Demo data loaded", counts);
     }
   });

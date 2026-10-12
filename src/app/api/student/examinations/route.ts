@@ -6,9 +6,13 @@ import { createExamination, listExaminations } from "@/server/modules/student/ex
 /**
  * The applicant's own examinations.
  *
- *   GET   every examination recorded, each with its sittings and subjects.
+ *   GET   every examination created, each with its sittings and how many
+ *         results have been recorded against each sitting.
  *   POST  { qualification, sittings: [{ examinationYear, candidateNumber,
- *         centreNumber, subjectEntries: [{ subject, value }] }] }
+ *         centreNumber }] }
+ *
+ * An examination has no subjects. The results obtained in it are added
+ * afterwards, to one of its sittings, through /api/student/results.
  *
  * One record per qualification: a second one for the same qualification
  * is a 409. A rejected record is a 400 with `fieldErrors` keyed by where

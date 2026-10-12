@@ -1,4 +1,4 @@
-import { createCollection } from "./store";
+import { createApiCollection } from "./store";
 import { paramId, type ParamStatus } from "./parameters";
 
 /**
@@ -27,8 +27,12 @@ export interface AdminInstitution {
   email: string;
   website: string;
   status: ParamStatus;
-  /** Platform web fee charged per application, in XAF. */
-  webFee: number;
+  /**
+   * This institution's own web fee, in XAF, charged on every application
+   * to it. Null means it uses the platform web fee set under Payment
+   * configuration.
+   */
+  webFee: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -93,7 +97,42 @@ function seedInstitutions(): AdminInstitution[] {
   );
 }
 
-export const institutionStore = createCollection<AdminInstitution>("institutions", seedInstitutions);
+const str = (v: unknown) => (typeof v === "string" ? v : "");
+
+/**
+ * Institutions are stored in the database: this collection reads and
+ * writes /api/admin/institutions. The seed list is what an empty database
+ * is first filled from, and what is shown until the API answers.
+ */
+export const institutionStore = createApiCollection<AdminInstitution>("institutions", seedInstitutions, {
+  url: "/api/admin/institutions",
+  fromApi: (r) => ({
+    id: str(r.id),
+    typeId: str(r.typeId),
+    accreditationBodyId: str(r.accreditationBodyId),
+    accreditationCode: str(r.accreditationCode),
+    name: str(r.name),
+    address: str(r.address),
+    location: str(r.location),
+    regionId: str(r.regionId),
+    townId: str(r.townId),
+    quarterId: str(r.quarterId),
+    contactName: str(r.contactName),
+    phone: str(r.phone),
+    email: str(r.email),
+    website: str(r.website),
+    status: r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    webFee: typeof r.webFee === "number" ? r.webFee : null,
+    createdAt: str(r.createdAt),
+    updatedAt: str(r.updatedAt),
+  }),
+  toApi: (i) => {
+    const { id: _id, createdAt: _c, updatedAt: _u, quarterId, ...rest } = i;
+    void _id, _c, _u;
+    // "No quarter" is an empty choice on the form and a null in the database.
+    return { ...rest, ...(quarterId !== undefined ? { quarterId: quarterId || null } : {}) };
+  },
+});
 
 /**
  * The seed institutions in the minimal form the mock student generator

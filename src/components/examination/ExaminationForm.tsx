@@ -1,29 +1,23 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Pencil, Plus, Trash2 } from "lucide-react";
 import { Field, TextInput, SelectInput, PrimaryButton, SecondaryButton } from "@/components/Form";
 import { useExamConfiguration, groupByFamily } from "@/lib/examination/mockConfig";
+import type { ExaminationView } from "@/lib/examination/records";
 
-interface SubjectEntry {
-  id: string;
-  subject: string;
-  value: string; // a grade label, or a numeric score (0-20) as a string
-}
-
+/** A sitting as the form holds it: the three things that identify it. */
 interface Sitting {
   id: string;
   examinationYear: string;
   candidateNumber: string;
   centreNumber: string;
-  subjectEntries: SubjectEntry[];
 }
 
-interface ExaminationRecord {
-  id: string;
-  qualification: string;
-  sittings: Sitting[];
-}
+type ExaminationRecord = ExaminationView;
+
+const RESULTS_HREF = "/student/application/results";
 
 let idCounter = 0;
 function nextId(prefix: string) {
@@ -32,19 +26,18 @@ function nextId(prefix: string) {
 }
 
 function blankSitting(): Sitting {
-  return { id: nextId("sitting"), examinationYear: "", candidateNumber: "", centreNumber: "", subjectEntries: [] };
-}
-
-function ErrorText({ message }: { message?: string }) {
-  if (!message) return null;
-  return <p className="mt-1 text-xs text-[var(--color-danger)]">{message}</p>;
+  return { id: nextId("sitting"), examinationYear: "", candidateNumber: "", centreNumber: "" };
 }
 
 export function ExaminationForm() {
+  // This form only creates the examination: its qualification, and the
+  // year, candidate number and centre number of each sitting. No subjects
+  // or grades are entered here. Those are the results, added afterwards on
+  // the Results Information form to an examination created here.
+  //
   // Records are the applicant's own, kept by the API (/api/student/examinations).
-  // Qualifications, subjects, grades and sitting limits all come from the
-  // examination parameters administrators manage, served by
-  // /api/config/examinations — none are written into this form.
+  // Qualifications and sitting limits come from the examination parameters
+  // administrators manage, served by /api/config/examinations.
   // `qualification` holds the configured type's id. The server checks every
   // save against that configuration and reports problems field by field.
   const exam = useExamConfiguration();
@@ -76,6 +69,8 @@ export function ExaminationForm() {
   const [qualification, setQualification] = useState("");
   const [sittings, setSittings] = useState<Sitting[]>([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  /** The examination just created, so the way on to its results can be offered. */
+  const [justAdded, setJustAdded] = useState<ExaminationRecord | null>(null);
 
   const config = qualification ? exam.get(qualification) : undefined;
 
@@ -86,6 +81,7 @@ export function ExaminationForm() {
 
   function openAddForm() {
     clearProblems();
+    setJustAdded(null);
     setEditingId(null);
     setQualification("");
     setSittings([]);
@@ -94,9 +90,10 @@ export function ExaminationForm() {
 
   function openEditForm(record: ExaminationRecord) {
     clearProblems();
+    setJustAdded(null);
     setEditingId(record.id);
     setQualification(record.qualification);
-    setSittings(record.sittings);
+    setSittings(record.sittings.map((s) => ({ id: s.id, examinationYear: s.examinationYear, candidateNumber: s.candidateNumber, centreNumber: s.centreNumber })));
     setFormOpen(true);
   }
 
@@ -110,15 +107,18 @@ export function ExaminationForm() {
 
   function handleQualificationChange(value: string) {
     setQualification(value);
-    // Different qualifications have different result shapes (letter
-    // grades vs. a score out of 20) and subject pools, so switching type
-    // starts sittings fresh rather than carrying over mismatched data.
+    // Each qualification has its own limit on sittings. What has been
+    // typed is kept where it still fits; the count starts at the
+    // qualification's usual number.
     const next = value ? exam.get(value) : undefined;
     if (!next) {
       setSittings([]);
       return;
     }
-    setSittings(Array.from({ length: next.defaultSittings }, () => blankSitting()));
+    setSittings((prev) => {
+      const count = Math.min(Math.max(prev.length, next.defaultSittings), next.maxSittings);
+      return Array.from({ length: count }, (_, i) => prev[i] ?? blankSitting());
+    });
   }
 
   function setSittingCount(count: number) {
@@ -132,37 +132,6 @@ export function ExaminationForm() {
     setSittings((prev) => prev.map((s) => (s.id === sittingId ? { ...s, [key]: value } : s)));
   }
 
-  function addSubjectEntry(sittingId: string) {
-    setSittings((prev) =>
-      prev.map((s) =>
-        s.id === sittingId
-          ? { ...s, subjectEntries: [...s.subjectEntries, { id: nextId("subj"), subject: "", value: "" }] }
-          : s
-      )
-    );
-  }
-
-  function updateSubjectEntry(sittingId: string, entryId: string, patch: Partial<SubjectEntry>) {
-    setSittings((prev) =>
-      prev.map((s) =>
-        s.id !== sittingId
-          ? s
-          : {
-              ...s,
-              subjectEntries: s.subjectEntries.map((e) => (e.id === entryId ? { ...e, ...patch } : e)),
-            }
-      )
-    );
-  }
-
-  function removeSubjectEntry(sittingId: string, entryId: string) {
-    setSittings((prev) =>
-      prev.map((s) =>
-        s.id !== sittingId ? s : { ...s, subjectEntries: s.subjectEntries.filter((e) => e.id !== entryId) }
-      )
-    );
-  }
-
   const canSave =
     !!qualification &&
     sittings.length > 0 &&
@@ -171,11 +140,6 @@ export function ExaminationForm() {
   async function saveRecord() {
     if (!canSave || saving) return;
     clearProblems();
-    // Rows added and left empty aren't entries. Dropping them here keeps this
-    // form's row numbers in step with the ones the server reports problems against.
-    const cleaned = sittings.map((st) => ({ ...st, subjectEntries: st.subjectEntries.filter((e) => e.subject || e.value.trim()) }));
-    setSittings(cleaned);
-
     setSaving(true);
     try {
       const res = await fetch(editingId ? `/api/student/examinations/${editingId}` : "/api/student/examinations", {
@@ -183,12 +147,7 @@ export function ExaminationForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           qualification,
-          sittings: cleaned.map((st) => ({
-            examinationYear: st.examinationYear,
-            candidateNumber: st.candidateNumber,
-            centreNumber: st.centreNumber,
-            subjectEntries: st.subjectEntries.map((e) => ({ subject: e.subject, value: e.value })),
-          })),
+          sittings: sittings.map((st) => ({ examinationYear: st.examinationYear, candidateNumber: st.candidateNumber, centreNumber: st.centreNumber })),
         }),
       });
       const data = await res.json();
@@ -199,7 +158,9 @@ export function ExaminationForm() {
       }
       const saved: ExaminationRecord = data.record;
       setRecords((prev) => (editingId ? prev.map((r) => (r.id === editingId ? saved : r)) : [...prev, saved]));
+      const created = !editingId;
       closeForm();
+      setJustAdded(created ? saved : null);
     } catch {
       setFormError("Could not save this examination. Check your connection and try again.");
     } finally {
@@ -217,6 +178,7 @@ export function ExaminationForm() {
       } else {
         setRecords((prev) => prev.filter((r) => r.id !== id));
         if (editingId === id) closeForm();
+        if (justAdded?.id === id) setJustAdded(null);
       }
     } catch {
       setListError("Could not remove this examination. Check your connection and try again.");
@@ -264,6 +226,7 @@ export function ExaminationForm() {
                   <th className="px-5 py-2.5 font-normal">Year(s)</th>
                   <th className="px-5 py-2.5 font-normal">Candidate no.</th>
                   <th className="px-5 py-2.5 font-normal">Centre no.</th>
+                  <th className="px-5 py-2.5 font-normal">Results</th>
                   <th className="px-5 py-2.5 font-normal">&nbsp;</th>
                 </tr>
               </thead>
@@ -281,10 +244,15 @@ export function ExaminationForm() {
                     <td className="px-5 py-3 text-[var(--color-ink-soft)]">
                       {r.sittings.map((s) => s.centreNumber).join(", ")}
                     </td>
+                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">
+                      <Link href={`${RESULTS_HREF}?examination=${encodeURIComponent(r.sittings[0]?.id ?? "")}`} className="whitespace-nowrap text-xs font-medium text-[var(--color-ink)] underline underline-offset-4">
+                        {resultCount(r) === 0 ? "Add results" : `${resultCount(r)} recorded`}
+                      </Link>
+                    </td>
                     <td className="px-5 py-3">
                       {confirmDeleteId === r.id ? (
                         <div className="flex items-center gap-2 whitespace-nowrap">
-                          <span className="text-xs text-[var(--color-ink-soft)]">Remove?</span>
+                          <span className="text-xs text-[var(--color-ink-soft)]">{resultCount(r) > 0 ? `Remove, with its ${resultCount(r)} result${resultCount(r) === 1 ? "" : "s"}?` : "Remove?"}</span>
                           <button
                             onClick={() => deleteRecord(r.id)}
                             className="text-xs font-medium text-[var(--color-danger)] underline underline-offset-4"
@@ -325,6 +293,18 @@ export function ExaminationForm() {
         )}
       </div>
 
+      {justAdded && !formOpen && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-5 py-3.5">
+          <p className="text-sm text-[var(--color-success-strong)]">
+            {exam.get(justAdded.qualification)?.qualification ?? "Examination"} added. Next, record the results you obtained in it.
+          </p>
+          <Link href={`${RESULTS_HREF}?examination=${encodeURIComponent(justAdded.sittings[0]?.id ?? "")}`} className="inline-flex items-center gap-1 text-sm font-semibold text-[var(--color-success-strong)] underline underline-offset-4">
+            Add its results
+            <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />
+          </Link>
+        </div>
+      )}
+
       {/* Add / edit form */}
       {formOpen && (
         <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
@@ -339,7 +319,7 @@ export function ExaminationForm() {
           )}
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Qualification" required>
+            <Field label="Qualification" required error={errors.qualification}>
               <SelectInput value={qualification} onChange={(e) => handleQualificationChange(e.target.value)}>
                 <option value="">Select…</option>
                 {groupByFamily(exam.types).map((g) => (
@@ -355,11 +335,10 @@ export function ExaminationForm() {
                   <option value={config.id}>{config.qualification} (no longer offered)</option>
                 )}
               </SelectInput>
-              <ErrorText message={errors.qualification} />
             </Field>
 
             {config && (
-              <Field label="Number of sittings" required hint={`Up to ${config.maxSittings} for this qualification.`}>
+              <Field label="Number of sittings" required hint={`Up to ${config.maxSittings} for this qualification.`} error={errors.sittings}>
                 <SelectInput value={String(sittings.length)} onChange={(e) => setSittingCount(Number(e.target.value))}>
                   {Array.from({ length: config.maxSittings }, (_, i) => i + 1).map((n) => (
                     <option key={n} value={n}>
@@ -367,13 +346,12 @@ export function ExaminationForm() {
                     </option>
                   ))}
                 </SelectInput>
-                <ErrorText message={errors.sittings} />
               </Field>
             )}
           </div>
 
-          {/* One block per sitting — this is what changes based on
-              "Number of sittings" per the spec. */}
+          {/* One block per sitting: when it was sat, and the candidate and
+              centre numbers on that sitting's slip. */}
           {config &&
             sittings.map((sitting, i) => (
               <div key={sitting.id} className="mt-5 rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] p-4">
@@ -382,116 +360,36 @@ export function ExaminationForm() {
                   {sittings.length > 1 ? ` of ${sittings.length}` : ""}
                 </p>
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <Field label="Examination year" required>
+                  <Field label="Examination year" required error={errors[`sittings.${i}.examinationYear`]}>
                     <TextInput
                       inputMode="numeric"
                       placeholder="e.g. 2023"
                       value={sitting.examinationYear}
                       onChange={(e) => updateSitting(sitting.id, "examinationYear", e.target.value)}
                     />
-                    <ErrorText message={errors[`sittings.${i}.examinationYear`]} />
                   </Field>
-                  <Field label="Candidate number" required>
+                  <Field label="Candidate number" required error={errors[`sittings.${i}.candidateNumber`]}>
                     <TextInput
                       value={sitting.candidateNumber}
                       onChange={(e) => updateSitting(sitting.id, "candidateNumber", e.target.value)}
                     />
-                    <ErrorText message={errors[`sittings.${i}.candidateNumber`]} />
                   </Field>
-                  <Field label="Centre number" required>
+                  <Field label="Centre number" required error={errors[`sittings.${i}.centreNumber`]}>
                     <TextInput
                       value={sitting.centreNumber}
                       onChange={(e) => updateSitting(sitting.id, "centreNumber", e.target.value)}
                     />
-                    <ErrorText message={errors[`sittings.${i}.centreNumber`]} />
                   </Field>
                 </div>
 
-                {/* Subject entry — shape depends on the qualification's
-                    result mode: letter grade vs. a score out of 20. This
-                    is the other axis of "dynamic based on examination
-                    type", alongside the sitting count above. */}
-                <div className="mt-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-[var(--color-ink-soft)]">
-                      Subjects &amp; {config.resultMode === "grade" ? "grades" : `scores (out of ${config.maxScore})`}
-                    </p>
-                    <button
-                      onClick={() => addSubjectEntry(sitting.id)}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-ink)] underline underline-offset-4"
-                    >
-                      <Plus className="h-3 w-3" strokeWidth={2.5} />
-                      Add subject
-                    </button>
-                  </div>
-
-                  {config.subjects.length === 0 && (
-                    <p className="mt-2 text-xs text-[var(--color-ink-faint)]">
-                      No subjects are set up for this qualification yet. An administrator can add them under
-                      Examination parameters.
-                    </p>
-                  )}
-
-                  {sitting.subjectEntries.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {sitting.subjectEntries.map((entry, j) => (
-                        <div key={entry.id}>
-                        <div className="flex items-center gap-2">
-                          <SelectInput
-                            value={entry.subject}
-                            onChange={(e) => updateSubjectEntry(sitting.id, entry.id, { subject: e.target.value })}
-                          >
-                            <option value="">Select subject…</option>
-                            {withCurrent(config.subjects, entry.subject).map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </SelectInput>
-
-                          {config.resultMode === "grade" ? (
-                            <div className="w-28 shrink-0">
-                              <SelectInput
-                                value={entry.value}
-                                onChange={(e) => updateSubjectEntry(sitting.id, entry.id, { value: e.target.value })}
-                              >
-                                <option value="">Grade…</option>
-                                {withCurrent(config.grades, entry.value).map((g) => (
-                                  <option key={g} value={g}>
-                                    {g}
-                                  </option>
-                                ))}
-                              </SelectInput>
-                            </div>
-                          ) : (
-                            <div className="w-20 shrink-0">
-                              <TextInput
-                                inputMode="numeric"
-                                placeholder={`/${config.maxScore}`}
-                                value={entry.value}
-                                onChange={(e) => updateSubjectEntry(sitting.id, entry.id, { value: e.target.value })}
-                              />
-                            </div>
-                          )}
-
-                          <button
-                            onClick={() => removeSubjectEntry(sitting.id, entry.id)}
-                            aria-label="Remove subject"
-                            className="text-[var(--color-danger)]"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" strokeWidth={2} />
-                          </button>
-                        </div>
-                        <ErrorText message={errors[`sittings.${i}.subjectEntries.${j}.subject`] ?? errors[`sittings.${i}.subjectEntries.${j}.value`]} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
               </div>
             ))}
 
-          <div className="mt-6 flex items-center gap-3 border-t border-[var(--color-line)] pt-5">
+          <p className="mt-5 text-xs text-[var(--color-ink-faint)]">
+            Subjects and grades aren&apos;t entered here. Once the examination is saved, add them under Results Information.
+          </p>
+
+          <div className="mt-4 flex items-center gap-3 border-t border-[var(--color-line)] pt-5">
             <SecondaryButton type="button" onClick={closeForm}>
               Cancel
             </SecondaryButton>
@@ -505,7 +403,7 @@ export function ExaminationForm() {
   );
 }
 
-/** Keeps a saved value selectable even if the admin has since retired it. */
-function withCurrent(options: string[], current: string): string[] {
-  return current && !options.includes(current) ? [...options, current] : options;
+/** How many results have been recorded against an examination, across its sittings. */
+function resultCount(record: ExaminationRecord): number {
+  return record.sittings.reduce((n, s) => n + s.resultCount, 0);
 }

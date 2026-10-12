@@ -1,25 +1,23 @@
 import { requireRole } from "@/lib/auth/guard";
-import { resolveInstitutionId } from "@/lib/auth/institution";
 import UploadRequirementForm from "@/components/institution/UploadRequirementForm";
-import { mockUploadRequirements } from "@/lib/mockData/uploadRequirements";
+import type { UploadRequirement } from "@/lib/institution/uploadRequirements";
+import { getDb } from "@/server/db/client";
+import { documentTypeOptions, uploadRequirementResource } from "@/server/modules/institutions/institutions.resources";
+import { findOwn } from "@/server/modules/institutions/portal";
 import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
+  const user = await requireRole(["INSTITUTION_ADMIN"]);
   const { id } = await params;
-  const institutionId = resolveInstitutionId(user);
-  // Scoped to the caller's own institution — an id belonging to another
-  // institution reads as "not found" rather than being served.
-  const record = mockUploadRequirements.find((r) => r.id === id && r.institutionId === institutionId);
+  // Read from the database, confined to the caller's own institution: an id that
+  // belongs to another institution is "not found", exactly as if it didn't exist.
+  const record = await findOwn<UploadRequirement>(uploadRequirementResource, user, id);
+  const documentTypes = record && user.institutionId ? await documentTypeOptions(getDb(), user.institutionId) : [];
 
   return (
     <main className={PAGE_MAIN_CLASS}>
       <PageHeading title="Edit upload requirement" />
-      {record ? (
-        <UploadRequirementForm institutionId={institutionId} initial={record} />
-      ) : (
-        <EmptyState message="This requirement doesn't exist, or belongs to another institution." />
-      )}
+      {record ? <UploadRequirementForm initial={record} documentTypes={documentTypes} /> : <EmptyState message="This requirement doesn't exist, or belongs to another institution." />}
     </main>
   );
 }

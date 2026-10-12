@@ -1,14 +1,14 @@
 import { requireRole } from "@/lib/auth/guard";
-import { resolveInstitutionId } from "@/lib/auth/institution";
 import ProgramForm from "@/components/institution/ProgramForm";
 import { PageHeading, PAGE_MAIN_CLASS } from "@/components/ui";
 
 export default async function Page() {
-  const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
+  // Only an institution administrator can change the institution's records; the API enforces the same.
+  await requireRole(["INSTITUTION_ADMIN"]);
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title="Add study program" description="Create a new programme." />
-      <ProgramForm institutionId={resolveInstitutionId(user)} />
+      <PageHeading title="Add study program" description="Add a study program under a department, with its code and available spaces." />
+      <ProgramForm />
     </main>
   );
 }

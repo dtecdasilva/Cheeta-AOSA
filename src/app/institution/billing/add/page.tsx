@@ -1,14 +1,14 @@
 import { requireRole } from "@/lib/auth/guard";
-import { resolveInstitutionId } from "@/lib/auth/institution";
 import BillingForm from "@/components/institution/BillingForm";
 import { PageHeading, PAGE_MAIN_CLASS } from "@/components/ui";
 
 export default async function Page() {
-  const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
+  // Only an institution administrator can change the institution's records; the API enforces the same.
+  await requireRole(["INSTITUTION_ADMIN"]);
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title="Add fee" description="Configure a new application or processing fee." />
-      <BillingForm institutionId={resolveInstitutionId(user)} />
+      <PageHeading title="Add fee" description="Add a fee to your schedule: what it is for, who pays it, and from when." />
+      <BillingForm />
     </main>
   );
 }

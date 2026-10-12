@@ -1,58 +1,42 @@
 "use client";
 
-import Link from "next/link";
-import { mockPrograms } from "@/lib/mockData/programs";
-import { mockDepartments } from "@/lib/mockData/departments";
-import { ButtonLinkClass } from "@/components/Form";
-import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
+import { useAuth } from "@/context/AuthContext";
+import { useInstitutionList, useOptions } from "@/lib/institution/api";
+import type { Department, Program } from "@/lib/institution/types";
+import { Pill, Row, RowAction } from "@/components/ui";
+import { InstitutionListShell } from "./InstitutionListShell";
 
-export default function ProgramList({ institutionId }: { institutionId: string }) {
-  const items = mockPrograms.filter((p) => p.institutionId === institutionId);
-
-  function departmentName(departmentId?: string) {
-    return mockDepartments.find((d) => d.id === departmentId)?.name;
-  }
+/** The institution's study programs, from /api/institution/programs. */
+export default function ProgramList() {
+  const { user } = useAuth();
+  const canEdit = user?.role === "INSTITUTION_ADMIN";
+  const { items, error, setStatus } = useInstitutionList<Program>("programs");
+  const { items: departments } = useInstitutionList<Department>("departments");
+  const qualifications = useOptions<{ id: string; label: string }>("/api/reference/parameters?category=qualification-types");
+  const departmentName = (id: string) => departments?.find((d) => d.id === id)?.name;
+  const qualificationName = (id: string) => qualifications.find((q) => q.id === id)?.label;
 
   return (
-    <div className="space-y-4">
-      <SectionHeading
-        title="Study programs"
-        actions={
-          <Link href="/institution/programs/add" className={ButtonLinkClass("primary")}>
-            Add program
-          </Link>
-        }
-      />
-
-      {items.length === 0 ? (
-        <EmptyState
-          message="No study programs yet."
-          action={
-            <Link href="/institution/programs/add" className={ButtonLinkClass("secondary")}>
-              Add the first program
-            </Link>
+    <InstitutionListShell title="Study programs" addHref="/institution/programs/add" addLabel="Add program" emptyMessage="No study programs yet." canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0}>
+      {(items ?? []).map((p) => (
+        <Row
+          key={p.id}
+          title={p.name}
+          subtitle={[p.code, qualificationName(p.qualificationId), departmentName(p.departmentId), `${p.availableSpaces} space${p.availableSpaces === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
+          meta={p.status === "ACTIVE" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+          actions={
+            <>
+              <RowAction href={`/institution/programs/${p.id}`}>View</RowAction>
+              {canEdit && <RowAction href={`/institution/programs/${p.id}/edit`}>Edit</RowAction>}
+              {canEdit && (
+                <RowAction tone="muted" onClick={() => setStatus(p.id, p.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")}>
+                  {p.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                </RowAction>
+              )}
+            </>
           }
         />
-      ) : (
-        <RowList>
-          {items.map((p) => (
-            <Row
-              key={p.id}
-              title={`${p.name} (${p.code})`}
-              subtitle={[departmentName(p.departmentId), `${p.availableSpaces ?? 0} spaces`]
-                .filter(Boolean)
-                .join(" · ")}
-              meta={p.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
-              actions={
-                <>
-                  <RowAction href={`/institution/programs/${p.id}`}>View</RowAction>
-                  <RowAction href={`/institution/programs/${p.id}/edit`}>Edit</RowAction>
-                </>
-              }
-            />
-          ))}
-        </RowList>
-      )}
-    </div>
+      ))}
+    </InstitutionListShell>
   );
 }

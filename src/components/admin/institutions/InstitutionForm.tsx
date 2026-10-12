@@ -7,7 +7,7 @@ import { Card, EmptyState } from "@/components/ui";
 import { Field, FormError, PrimaryButton, SecondaryButton, SelectInput, TextArea, TextInput, ButtonLinkClass } from "@/components/Form";
 import { institutionStore, type AdminInstitution } from "@/lib/admin/institutions";
 import { selectableParams, useParameters, type ParamItem } from "@/lib/admin/parameters";
-import { newId, useHydrated } from "@/lib/admin/store";
+import { useHydrated } from "@/lib/admin/store";
 import { LocationSelect, type LocationValue } from "@/components/location/LocationSelect";
 
 type Draft = Omit<AdminInstitution, "id" | "createdAt" | "updatedAt" | "webFee"> & { webFee: string };
@@ -58,8 +58,10 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
   const types = useParameters("institution-types");
   const bodies = useParameters("accreditation-bodies");
 
-  const [form, setForm] = useState<Draft>(() => (initial ? { ...initial, webFee: String(initial.webFee) } : EMPTY));
+  const [form, setForm] = useState<Draft>(() => (initial ? { ...initial, webFee: initial.webFee === null ? "" : String(initial.webFee) } : EMPTY));
   const [errors, setErrors] = useState<Errors>({});
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   function set<K extends keyof Draft>(key: K, value: Draft[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -85,7 +87,6 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
       ["contactName", "Enter a contact name."],
       ["phone", "Enter a phone number."],
       ["email", "Enter an email address."],
-      ["webFee", "Enter the web fee, or 0 for none."],
     ];
     for (const [k, msg] of required) if (!String(form[k]).trim()) e[k] = msg;
 
@@ -103,28 +104,32 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
     return e;
   }
 
-  function save() {
+  // Institutions are stored in the database, so saving waits for the server:
+  // it assigns a new institution's id, and it has the last word on what is valid.
+  async function save() {
     const e = validate();
     setErrors(e);
-    if (Object.keys(e).length) return;
+    setSaveError(null);
+    if (Object.keys(e).length || saving) return;
 
-    const now = new Date().toISOString();
     const clean = {
       ...form,
       name: form.name.trim(),
       accreditationCode: form.accreditationCode.trim(),
       email: form.email.trim(),
       website: form.website.trim(),
-      webFee: Math.round(Number(form.webFee)),
+      // Left empty, the institution uses the platform web fee.
+      webFee: form.webFee.trim() ? Math.round(Number(form.webFee)) : null,
     };
-    if (initial) {
-      institutionStore.update(initial.id, { ...clean, updatedAt: now });
-      router.push(`/admin/institutions/${initial.id}`);
-    } else {
-      const id = newId("inst");
-      institutionStore.add({ ...clean, id, createdAt: now, updatedAt: now });
-      router.push(`/admin/institutions/${id}`);
+    setSaving(true);
+    const result = await institutionStore.save!(clean, initial?.id);
+    setSaving(false);
+    if (!result.ok) {
+      setErrors(result.fieldErrors as Errors);
+      setSaveError(result.error);
+      return;
     }
+    router.push(`/admin/institutions/${result.item.id}`);
   }
 
   const errorCount = Object.values(errors).filter(Boolean).length;
@@ -135,7 +140,7 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
       noValidate
       onSubmit={(ev) => {
         ev.preventDefault();
-        save();
+        void save();
       }}
     >
       <Section title="Institution">
@@ -199,7 +204,7 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
 
       <Section title="Platform settings">
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label="Web fee (XAF)" required error={errors.webFee} hint="Charged on every application to this institution, on top of its own fee.">
+          <Field label="Web fee (XAF)" error={errors.webFee} hint="Leave empty to use the platform web fee from Payment configuration. Charged on every application to this institution, on top of its own fee.">
             <TextInput inputMode="numeric" value={form.webFee} onChange={(e) => set("webFee", e.target.value)} placeholder="2500" />
           </Field>
           <Field label="Status">
@@ -212,9 +217,12 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
       </Section>
 
       {errorCount > 0 && <FormError>Fix the {errorCount === 1 ? "field" : `${errorCount} fields`} marked above to save.</FormError>}
+      {saveError && errorCount === 0 && <FormError>Not saved. {saveError}</FormError>}
 
       <div className="flex items-center gap-3">
-        <PrimaryButton type="submit">{initial ? "Save changes" : "Add institution"}</PrimaryButton>
+        <PrimaryButton type="submit" disabled={saving}>
+          {saving ? "Saving…" : initial ? "Save changes" : "Add institution"}
+        </PrimaryButton>
         <SecondaryButton type="button" onClick={() => router.back()}>
           Cancel
         </SecondaryButton>

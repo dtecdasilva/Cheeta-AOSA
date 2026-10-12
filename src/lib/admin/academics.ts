@@ -1,4 +1,4 @@
-import { createCollection } from "./store";
+import { createApiCollection, type RemoteSpec } from "./store";
 import { paramId, type ParamStatus } from "./parameters";
 import { mockFaculties } from "@/lib/mockData/faculties";
 import { mockDepartments } from "@/lib/mockData/departments";
@@ -8,10 +8,12 @@ import { mockPrograms } from "@/lib/mockData/programs";
  * Faculties, departments and study programs across every institution, as
  * the Administration portal manages them.
  *
- * Seeded from the institution portal's mock data (src/lib/mockData) so
- * both portals start from the same records and ids. Each record points at
- * its parent by id (program → department → faculty → institution), which
- * is the shape the db tables will take.
+ * Stored in the database: these collections read and write
+ * /api/admin/faculties, /api/admin/departments and /api/admin/programs.
+ * Each record points at its parent by id (program → department → faculty
+ * → institution). The seed lists come from the institution portal's
+ * sample data (src/lib/mockData); they are what an empty database is
+ * first filled from, and what is shown until the API answers.
  */
 
 export interface AdminFaculty {
@@ -73,6 +75,24 @@ export const LANGUAGE_LABELS: Record<TeachingLanguage, string> = {
 };
 
 const SEEDED_AT = "2026-01-10T09:00:00.000Z";
+
+/**
+ * These records have the same fields in the API as on the screens, so
+ * they pass straight through; only the id and timestamps, which the
+ * server owns, are left out of what is sent.
+ */
+function remoteFor<T extends { id: string; updatedAt: string }>(url: string): RemoteSpec<T> {
+  return {
+    url,
+    fromApi: (row) => row as unknown as T,
+    toApi: (item) => {
+      const { id: _id, updatedAt: _u, ...rest } = item as Record<string, unknown>;
+      void _id, _u;
+      delete rest.createdAt;
+      return rest;
+    },
+  };
+}
 const toStatus = (s: "active" | "inactive"): ParamStatus => (s === "active" ? "ACTIVE" : "INACTIVE");
 const initials = (name: string) =>
   name
@@ -84,7 +104,7 @@ const initials = (name: string) =>
     .toUpperCase()
     .slice(0, 4);
 
-export const facultyStore = createCollection<AdminFaculty>("faculties", () =>
+export const facultyStore = createApiCollection<AdminFaculty>("faculties", () =>
   mockFaculties.map((f) => ({
     id: f.id,
     institutionId: f.institutionId,
@@ -96,10 +116,11 @@ export const facultyStore = createCollection<AdminFaculty>("faculties", () =>
     address: f.address ?? "",
     status: toStatus(f.status),
     updatedAt: SEEDED_AT,
-  }))
+  })),
+  remoteFor<AdminFaculty>("/api/admin/faculties")
 );
 
-export const departmentStore = createCollection<AdminDepartment>("departments", () =>
+export const departmentStore = createApiCollection<AdminDepartment>("departments", () =>
   mockDepartments.map((d) => ({
     id: d.id,
     institutionId: d.institutionId,
@@ -111,13 +132,14 @@ export const departmentStore = createCollection<AdminDepartment>("departments", 
     phone: d.phone ?? "",
     status: toStatus(d.status),
     updatedAt: SEEDED_AT,
-  }))
+  })),
+  remoteFor<AdminDepartment>("/api/admin/departments")
 );
 
 /** The institution portal's qualification ids, mapped onto the parameter list. */
 const QUALIFICATION_CODES: Record<string, string> = { "q-bsc": "BSC", "q-msc": "MSC", "q-bcom": "BCOM", "q-hnd": "HND" };
 
-export const programStore = createCollection<AdminProgram>("programs", () =>
+export const programStore = createApiCollection<AdminProgram>("programs", () =>
   mockPrograms.map((p) => {
     const qual = QUALIFICATION_CODES[p.qualificationId ?? ""] ?? "BSC";
     return {
@@ -135,5 +157,6 @@ export const programStore = createCollection<AdminProgram>("programs", () =>
       status: toStatus(p.status),
       updatedAt: SEEDED_AT,
     };
-  })
+  }),
+  remoteFor<AdminProgram>("/api/admin/programs")
 );

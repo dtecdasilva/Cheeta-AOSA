@@ -3,7 +3,7 @@ import { ok } from "@/server/http/respond";
 import { readJson } from "@/server/http/validate";
 import { deleteResult, updateResult } from "@/server/modules/student/examinations.service";
 
-/** One of the applicant's own results. */
+/** One of the applicant's own results. PATCH takes the same fields as creating one, and can move the result to another of the applicant's examinations. */
 export const PATCH = handler<{ id: string }>({ auth: ["STUDENT"] }, async ({ req, params, user }) => ok({ ok: true, result: await updateResult(user, params.id, await readJson(req)) }));
 
 export const DELETE = handler<{ id: string }>({ auth: ["STUDENT"] }, async ({ params, user }) => {

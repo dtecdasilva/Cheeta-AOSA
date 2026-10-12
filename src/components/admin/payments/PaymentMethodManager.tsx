@@ -3,6 +3,7 @@
 import { RecordManager } from "@/components/admin/RecordManager";
 import { ToneBadge } from "@/components/admin/ui";
 import { institutionStore } from "@/lib/admin/institutions";
+import { PAYMENT_METHOD_FIELDS, validatePaymentMethodDetails } from "@/lib/institution/paymentMethods";
 import {
   ACCOUNT_NUMBER_LABEL,
   METHOD_TYPE_LABELS,
@@ -18,9 +19,11 @@ const typeOptions = (Object.keys(METHOD_TYPE_LABELS) as PaymentMethodType[]).map
 const verificationOptions = (Object.keys(VERIFICATION_META) as MethodVerification[]).map((v) => ({ value: v, label: VERIFICATION_META[v].label }));
 
 /**
- * Every account institutions collect money into. AOSA checks each one
- * before applicants are shown it: a new or edited account goes back to
- * "Awaiting check".
+ * Every account institutions collect money into, from
+ * /api/admin/payment-methods. AOSA checks each one before applicants are
+ * shown it: a new or edited account goes back to "Awaiting check", and
+ * this screen is the only place one is verified or rejected. A rejection
+ * carries a reason the institution can read.
  */
 export function PaymentMethodManager() {
   const institutions = institutionStore.useItems();
@@ -28,7 +31,14 @@ export function PaymentMethodManager() {
   const institutionOptions = [...institutions].sort((a, b) => a.name.localeCompare(b.name)).map((i) => ({ value: i.id, label: i.name }));
 
   function setVerification(m: AdminPaymentMethod, verification: MethodVerification, notify: (s: string) => void) {
-    paymentMethodStore.update(m.id, { verification, updatedAt: new Date().toISOString() });
+    let verificationNote = "";
+    if (verification === "REJECTED") {
+      // The institution is shown this, so it knows what to correct.
+      const reason = window.prompt(`Why is "${m.label}" rejected? ${institutionName(m.institutionId)} will see this.`);
+      if (reason === null) return;
+      verificationNote = reason.trim();
+    }
+    paymentMethodStore.update(m.id, { verification, verificationNote });
     notify(`${m.label} at ${institutionName(m.institutionId)} marked ${VERIFICATION_META[verification].label.toLowerCase()}.`);
   }
 
@@ -65,28 +75,34 @@ export function PaymentMethodManager() {
         type: "bank",
         label: "",
         provider: "",
+        branch: "",
         accountName: "",
         accountNumber: "",
         swift: "",
         instructions: "",
         acceptsTuition: false,
         verification: "PENDING",
+        verificationNote: "",
+        verifiedAt: null,
         status: "ACTIVE",
         updatedAt: "",
       })}
+      // What each kind of method needs, by the same rules the API applies.
+      validate={(m) => validatePaymentMethodDetails(m)}
       fields={[
         { key: "institutionId", label: "Institution", kind: "select", required: true, options: institutionOptions, lockedOnEdit: true },
         { key: "type", label: "Type", kind: "select", required: true, options: typeOptions },
         { key: "label", label: "Label shown to applicants", kind: "text", required: true, placeholder: "Main bank account" },
         { key: "provider", label: "Provider", kind: "text", required: true, hint: "Bank, mobile operator, transfer agency or wallet provider." },
-        { key: "accountName", label: "Account name", kind: "text", required: true },
-        { key: "accountNumber", label: "Account number, phone or wallet id", kind: "text", required: true },
+        { key: "branch", label: "Branch or pay-out town", kind: "text", showIf: (m) => !!PAYMENT_METHOD_FIELDS[m.type]?.branch, hint: "The bank branch, or the town a transfer is collected in." },
+        { key: "accountName", label: "Account or recipient name", kind: "text", required: true },
+        { key: "accountNumber", label: "Account number, phone or wallet id", kind: "text", hint: "Required, except for a money transfer." },
         { key: "swift", label: "SWIFT / BIC", kind: "text", uppercase: true, showIf: (m) => m.type === "bank" },
         { key: "instructions", label: "Instructions for payers", kind: "textarea", placeholder: "Use your application reference as the payment reference." },
         { key: "acceptsTuition", label: "Tuition", kind: "checkbox", checkboxLabel: "Also accept tuition payments into this account" },
       ]}
       // Changing where money goes needs a fresh check.
-      beforeSave={(m) => ({ ...m, verification: "PENDING" })}
+      beforeSave={(m) => ({ ...m, verification: "PENDING", verificationNote: "" })}
       rowActions={(m, notify) => (
         <>
           {m.verification !== "VERIFIED" && (
@@ -122,14 +138,25 @@ export function PaymentMethodManager() {
               <p className="text-[var(--color-ink)]">
                 {PROVIDER_LABEL[m.type]}: {m.provider}
               </p>
-              <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{m.accountName}</p>
+              <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
+                {m.accountName}
+                {m.branch ? ` · ${m.branch}` : ""}
+              </p>
               <p className="mt-0.5 font-mono text-xs text-[var(--color-ink-soft)]" title={ACCOUNT_NUMBER_LABEL[m.type]}>
                 {m.accountNumber}
               </p>
             </>
           ),
         },
-        { label: "Verification", render: (m) => <ToneBadge tone={VERIFICATION_META[m.verification].tone}>{VERIFICATION_META[m.verification].label}</ToneBadge> },
+        {
+          label: "Verification",
+          render: (m) => (
+            <>
+              <ToneBadge tone={VERIFICATION_META[m.verification].tone}>{VERIFICATION_META[m.verification].label}</ToneBadge>
+              {m.verification === "REJECTED" && m.verificationNote && <p className="mt-1 max-w-56 text-xs text-[var(--color-ink-soft)]">{m.verificationNote}</p>}
+            </>
+          ),
+        },
       ]}
     />
   );

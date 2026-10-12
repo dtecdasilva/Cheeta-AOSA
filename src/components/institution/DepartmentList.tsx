@@ -1,68 +1,40 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
-import { mockDepartments, Department } from "@/lib/mockData/departments";
-import { mockFaculties } from "@/lib/mockData/faculties";
-import { ButtonLinkClass } from "@/components/Form";
-import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
+import { useAuth } from "@/context/AuthContext";
+import { useInstitutionList } from "@/lib/institution/api";
+import type { Department, Faculty } from "@/lib/institution/types";
+import { Pill, Row, RowAction } from "@/components/ui";
+import { InstitutionListShell } from "./InstitutionListShell";
 
-export default function DepartmentList({ institutionId }: { institutionId: string }) {
-  const [items, setItems] = useState<Department[]>(() =>
-    mockDepartments.filter((d) => d.institutionId === institutionId)
-  );
-
-  function toggleStatus(id: string) {
-    setItems((s) =>
-      s.map((d) => (d.id === id ? { ...d, status: d.status === "active" ? "inactive" : "active" } : d))
-    );
-  }
-
-  function facultyName(facultyId?: string) {
-    return mockFaculties.find((f) => f.id === facultyId)?.name;
-  }
+/** The institution's departments, each under its faculty, from /api/institution/departments. */
+export default function DepartmentList() {
+  const { user } = useAuth();
+  const canEdit = user?.role === "INSTITUTION_ADMIN";
+  const { items, error, setStatus } = useInstitutionList<Department>("departments");
+  const { items: faculties } = useInstitutionList<Faculty>("faculties");
+  const facultyName = (id: string) => faculties?.find((f) => f.id === id)?.name;
 
   return (
-    <div className="space-y-4">
-      <SectionHeading
-        title="Departments"
-        actions={
-          <Link href="/institution/departments/add" className={ButtonLinkClass("primary")}>
-            Add department
-          </Link>
-        }
-      />
-
-      {items.length === 0 ? (
-        <EmptyState
-          message="No departments yet."
-          action={
-            <Link href="/institution/departments/add" className={ButtonLinkClass("secondary")}>
-              Add the first department
-            </Link>
+    <InstitutionListShell title="Departments" addHref="/institution/departments/add" addLabel="Add department" emptyMessage="No departments yet." canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0}>
+      {(items ?? []).map((d) => (
+        <Row
+          key={d.id}
+          title={d.name}
+          subtitle={[d.code, facultyName(d.facultyId), d.head && `Head: ${d.head}`].filter(Boolean).join(" · ")}
+          meta={d.status === "ACTIVE" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+          actions={
+            <>
+              <RowAction href={`/institution/departments/${d.id}`}>View</RowAction>
+              {canEdit && <RowAction href={`/institution/departments/${d.id}/edit`}>Edit</RowAction>}
+              {canEdit && (
+                <RowAction tone="muted" onClick={() => setStatus(d.id, d.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")}>
+                  {d.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                </RowAction>
+              )}
+            </>
           }
         />
-      ) : (
-        <RowList>
-          {items.map((d) => (
-            <Row
-              key={d.id}
-              title={d.name}
-              subtitle={[facultyName(d.facultyId), `Head: ${d.head}`].filter(Boolean).join(" · ")}
-              meta={d.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
-              actions={
-                <>
-                  <RowAction href={`/institution/departments/${d.id}`}>View</RowAction>
-                  <RowAction href={`/institution/departments/${d.id}/edit`}>Edit</RowAction>
-                  <RowAction tone="muted" onClick={() => toggleStatus(d.id)}>
-                    {d.status === "active" ? "Deactivate" : "Activate"}
-                  </RowAction>
-                </>
-              }
-            />
-          ))}
-        </RowList>
-      )}
-    </div>
+      ))}
+    </InstitutionListShell>
   );
 }

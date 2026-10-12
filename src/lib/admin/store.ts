@@ -46,7 +46,16 @@ export interface Collection<T extends { id: string }> {
   clearError(): void;
   /** The records can be deleted (API-backed collections whose API allows it). */
   canRemove?: boolean;
+  /**
+   * API-backed collections only: create a record (no `id`) or update one,
+   * and wait for the server's answer. For forms that need to know the
+   * outcome before moving on — the id the server gave a new record, or
+   * which fields it refused.
+   */
+  save?(values: Partial<T>, id?: string): Promise<SaveResult<T>>;
 }
+
+export type SaveResult<T> = { ok: true; item: T } | { ok: false; error: string; fieldErrors: Record<string, string> };
 
 const registry: Collection<{ id: string }>[] = [];
 
@@ -273,9 +282,113 @@ export function createApiCollection<T extends { id: string }>(name: string, seed
       notify();
     },
     canRemove: remote.canRemove,
+    async save(values, id) {
+      try {
+        const res = await fetch(id ? itemUrl(id) : remote.url, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(remote.toApi(values)) });
+        const body = (await res.json().catch(() => ({}))) as { data?: Record<string, unknown>; error?: string; fieldErrors?: Record<string, string> };
+        if (!res.ok || !body.data) return { ok: false, error: body.error ?? "The change could not be saved.", fieldErrors: body.fieldErrors ?? {} };
+        const item = remote.fromApi(body.data);
+        items = id ? current().map((i) => (i.id === id ? item : i)) : [...current(), item];
+        notify();
+        return { ok: true, item };
+      } catch {
+        return { ok: false, error: "The change could not be saved. Check your connection and try again.", fieldErrors: {} };
+      }
+    },
   };
 
   void name;
+  registry.push(collection as unknown as Collection<{ id: string }>);
+  return collection;
+}
+
+/**
+ * A single settings record stored in the database, behind the Collection
+ * interface the settings editor already uses (a collection of one).
+ *
+ * `url` answers GET with `{ data }` and accepts PUT with the changed
+ * values. Until the first load finishes, and for anyone not allowed to
+ * read it, the defaults are shown. A save is applied on screen at once; if
+ * the server refuses it, the previous values come back and the reason is
+ * available through `useError`.
+ */
+export function createApiSettings<T extends { id: string; updatedAt: string }>(url: string, defaults: T): Collection<T> {
+  const fallback = [defaults];
+  let items: T[] | null = null;
+  let started = false;
+  let error: string | null = null;
+  const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach((l) => l());
+  const current = () => items ?? fallback;
+  const fromApi = (data: Partial<T>): T[] => [{ ...defaults, ...data, id: defaults.id }];
+
+  function ensureLoaded() {
+    if (started || typeof window === "undefined") return;
+    started = true;
+    fetch(url, { cache: "no-store" })
+      .then(async (res) => {
+        if (!res.ok) return;
+        items = fromApi(((await res.json()) as { data: Partial<T> }).data);
+        notify();
+      })
+      .catch(() => undefined);
+  }
+
+  function save(next: T) {
+    const before = items;
+    items = [next];
+    notify();
+    // The record's own id and timestamp are the server's business, not settings.
+    const { id: _id, updatedAt: _updatedAt, ...values } = next;
+    void _id, _updatedAt;
+    fetch(url, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values) })
+      .then(async (res) => {
+        const body = (await res.json().catch(() => ({}))) as { data?: Partial<T>; error?: string; fieldErrors?: Record<string, string> };
+        if (res.ok && body.data) {
+          items = fromApi(body.data);
+          error = null;
+        } else {
+          const details = Object.values(body.fieldErrors ?? {}).filter(Boolean);
+          error = details.length ? details.join(" ") : body.error ?? "The settings could not be saved.";
+          items = before;
+        }
+      })
+      .catch(() => {
+        error = "The settings could not be saved. Check your connection and try again.";
+        items = before;
+      })
+      .finally(notify);
+  }
+
+  function subscribe(listener: () => void) {
+    listeners.add(listener);
+    ensureLoaded();
+    return () => {
+      listeners.delete(listener);
+    };
+  }
+
+  const collection: Collection<T> = {
+    useItems: () => React.useSyncExternalStore(subscribe, current, () => fallback),
+    getAll() {
+      ensureLoaded();
+      return current();
+    },
+    add: save,
+    update(_id, patch) {
+      save({ ...current()[0], ...patch });
+    },
+    remove() {},
+    reset() {
+      started = false;
+      ensureLoaded();
+    },
+    useError: () => React.useSyncExternalStore(subscribe, () => error, () => null),
+    clearError() {
+      error = null;
+      notify();
+    },
+  };
   registry.push(collection as unknown as Collection<{ id: string }>);
   return collection;
 }

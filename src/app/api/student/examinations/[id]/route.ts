@@ -3,7 +3,14 @@ import { ok } from "@/server/http/respond";
 import { readJson } from "@/server/http/validate";
 import { deleteExamination, getExamination, updateExamination } from "@/server/modules/student/examinations.service";
 
-/** One of the applicant's own examinations. PATCH replaces its qualification and sittings with what is sent. */
+/**
+ * One of the applicant's own examinations.
+ *
+ *   PATCH   changes its qualification and sittings to what is sent. Sittings are matched by position, so results
+ *           already recorded stay with their sitting. Changing the qualification, or dropping a sitting, is refused
+ *           while results are recorded against it.
+ *   DELETE  removes the examination, its sittings and their results.
+ */
 export const GET = handler<{ id: string }>({ auth: ["STUDENT"] }, async ({ params, user }) => ok({ record: await getExamination(user, params.id) }));
 
 export const PATCH = handler<{ id: string }>({ auth: ["STUDENT"] }, async ({ req, params, user }) => ok({ ok: true, record: await updateExamination(user, params.id, await readJson(req)) }));

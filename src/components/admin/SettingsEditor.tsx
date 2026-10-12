@@ -66,6 +66,8 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
 }: EditorProps<T> & { saved: T; notice: string; setNotice: (s: string) => void }) {
   const [draft, setDraft] = useState<T>(saved);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // For settings kept in the database: why the server refused the last save, if it did.
+  const storeError = store.useError();
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
   function set<K extends keyof T>(key: K, value: T[K]) {
@@ -93,6 +95,7 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
       return;
     }
     const next = { ...draft, updatedAt: new Date().toISOString() };
+    store.clearError();
     if (store.getAll().length) store.update(next.id, next);
     else store.add(next);
     setNotice("Settings saved.");
@@ -165,7 +168,12 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
           <p className="font-semibold text-base text-[var(--color-ink)]">Save changes</p>
           <p className="mt-1 text-xs text-[var(--color-ink-faint)]">Last saved {formatDateTime(saved.updatedAt)}</p>
           {dirty && <p className="mt-3 text-sm text-[var(--color-warning-strong)]">You have unsaved changes.</p>}
-          {notice && !dirty && (
+          {storeError && (
+            <div className="mt-3">
+              <FormError>Not saved. {storeError}</FormError>
+            </div>
+          )}
+          {notice && !dirty && !storeError && (
             <p role="status" className="mt-3 text-sm text-[var(--color-success-strong)]">
               {notice}
             </p>

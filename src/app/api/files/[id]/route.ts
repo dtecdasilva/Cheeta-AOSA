@@ -1,30 +1,26 @@
 import { NextResponse } from "next/server";
 import { handler } from "@/server/http/handler";
-import { ForbiddenError, UnauthorizedError } from "@/server/http/errors";
 import { noContent } from "@/server/http/respond";
-import { getDb } from "@/server/db/client";
-import { canRead, deleteFile, getFile, openFile, verifyDownloadToken } from "@/server/storage/files.service";
+import { deleteFile, openFileFor } from "@/server/storage/files.service";
 
 /**
- * Download. Allowed with a valid signed link (?t=..., issued only to
- * someone who may read the file) or a session that may read it.
+ * Opens a file. Only for a signed-in account that may read it, checked
+ * now, against what the file is attached to: an applicant gets their own
+ * documents and receipts, an institution the documents of applications
+ * made to it, Cheeta administration any. Anything else is "not found".
  */
-export const GET = handler<{ id: string }>({ auth: "public" }, async ({ req, params, user }) => {
-  const file = await getFile(getDb(), params.id);
-  const signed = await verifyDownloadToken(file.id, req.nextUrl.searchParams.get("t"));
-  if (!signed) {
-    if (!user) throw new UnauthorizedError();
-    if (!canRead(user, file)) throw new ForbiddenError();
-  }
-  const stream = await openFile(file);
+export const GET = handler<{ id: string }>({ auth: "authenticated" }, async ({ params, user }) => {
+  const { file, stream } = await openFileFor(user, params.id);
   const inline = file.mimeType === "application/pdf" || file.mimeType.startsWith("image/");
   return new NextResponse(stream, {
     headers: {
       "Content-Type": file.mimeType,
       "Content-Length": String(file.sizeBytes),
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
+      // Served as exactly the type its content was checked to be when it was uploaded (PDF, JPEG or PNG), never guessed by the browser.
       "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "private, max-age=300",
+      // Not kept by the browser or anything between: the next request is checked again.
+      "Cache-Control": "private, no-store",
     },
   });
 });

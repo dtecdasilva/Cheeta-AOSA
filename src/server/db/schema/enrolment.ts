@@ -73,6 +73,80 @@ export const deliberationRuns = pgTable(
   (t) => [index("deliberation_runs_institution_idx").on(t.institutionId)]
 );
 
+// ---------------------------------------------------------------------------
+// Deliberation as a paid service
+// ---------------------------------------------------------------------------
+
+/**
+ * Deliberation is not automatic and is not included by default. Every
+ * institution can see its Deliberation List (the applicants it has
+ * acknowledged and not yet decided on) and can always reject an
+ * application. Admitting applicants through the platform is the paid part:
+ * it needs a subscription, renewed every year, and each applicant name on
+ * the list is charged for while the subscription runs.
+ *
+ * One row per subscription request. The two fees are copied from the
+ * platform's settings when the subscription is requested (the
+ * administrator sets them under Payment configuration), so a later change
+ * of price doesn't alter a year that has already been agreed.
+ */
+export const deliberationSubscriptions = pgTable(
+  "deliberation_subscriptions",
+  {
+    id: id(),
+    institutionId: text("institution_id")
+      .notNull()
+      .references(() => institutions.id),
+    /** PENDING until the administrator confirms payment; ACTIVE runs from starts_at to ends_at. */
+    status: text("status", { enum: ["PENDING", "ACTIVE", "REJECTED", "CANCELLED"] }).notNull().default("PENDING"),
+    /** Annual fee, in XAF. */
+    subscriptionFee: integer("subscription_fee").notNull(),
+    /** Fee for each applicant name on the list, in XAF. */
+    perNameFee: integer("per_name_fee").notNull(),
+    /** How the institution says it paid the annual fee; checked by the administrator. */
+    paymentReference: text("payment_reference").notNull().default(""),
+    note: text("note").notNull().default(""),
+    requestedBy: text("requested_by").references(() => users.id),
+    decidedBy: text("decided_by").references(() => users.id),
+    decidedAt: ts("decided_at"),
+    decisionNote: text("decision_note").notNull().default(""),
+    startsAt: ts("starts_at"),
+    endsAt: ts("ends_at"),
+    ...timestamps,
+  },
+  (t) => [index("deliberation_subscriptions_institution_idx").on(t.institutionId, t.status)]
+);
+
+/**
+ * The per-name charge: one row for each applicant whose name is on an
+ * institution's Deliberation List while its subscription is active.
+ * Charged once per applicant per subscription, at that subscription's
+ * per-name fee.
+ */
+export const deliberationNameCharges = pgTable(
+  "deliberation_name_charges",
+  {
+    id: id(),
+    subscriptionId: text("subscription_id")
+      .notNull()
+      .references(() => deliberationSubscriptions.id, { onDelete: "cascade" }),
+    institutionId: text("institution_id")
+      .notNull()
+      .references(() => institutions.id),
+    applicationInstitutionId: text("application_institution_id")
+      .notNull()
+      .references(() => applicationInstitutions.id, { onDelete: "cascade" }),
+    fee: integer("fee").notNull(),
+    chargedAt: ts("charged_at").notNull().defaultNow(),
+    /** Set when the administrator records that the institution has paid it. */
+    paidAt: ts("paid_at"),
+  },
+  (t) => [
+    uniqueIndex("deliberation_name_charges_unique").on(t.subscriptionId, t.applicationInstitutionId),
+    index("deliberation_name_charges_institution_idx").on(t.institutionId),
+  ]
+);
+
 /**
  * What a deliberation run decided for one application. The per-application
  * record of deliberation: `deliberation_runs.results` keeps the run's

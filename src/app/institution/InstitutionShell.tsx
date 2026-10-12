@@ -18,6 +18,7 @@ import {
   Award,
   Printer,
   BarChart3,
+  ListChecks,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -58,6 +59,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Staff", href: "/institution/staff", icon: List },
   { label: "Upload Requirements", href: "/institution/uploads/requirements", icon: Upload },
   { label: "Student Applications", href: "/institution/applications", icon: FileText, badge: "applications" },
+  { label: "Deliberation", href: "/institution/deliberations", icon: ListChecks },
   { label: "Admissions", href: "/institution/admissions", icon: FileText },
   { label: "Application Fees", href: "/institution/payments", icon: Receipt },
   { label: "Tuition Verification", href: "/institution/tuition", icon: BadgeCheck },

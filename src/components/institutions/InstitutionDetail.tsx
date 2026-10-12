@@ -1,21 +1,34 @@
-import { ArrowLeft, MapPin, Globe, Calendar } from "lucide-react";
-import { InstitutionWithProfile, totalAvailableSpaces, totalProgramCount } from "@/lib/institutionDiscovery/data";
+"use client";
+
+import { ArrowLeft, MapPin, Globe, Mail, Phone } from "lucide-react";
+import type { InstitutionDetails } from "@/lib/institutionDiscovery/data";
+import { useMoneyFormat } from "@/lib/currency/useCurrencies";
 
 export function InstitutionDetail({
   institution,
   selected,
+  busy,
+  canRemove,
   onBack,
-  onToggleSelect,
+  onSelect,
+  onRemove,
   onChoosePrograms,
 }: {
-  institution: InstitutionWithProfile;
+  institution: InstitutionDetails;
+  /** The applicant has already added this institution to their application. */
   selected: boolean;
+  busy: boolean;
+  /** It can still be taken off the application (not submitted, no payment recorded). */
+  canRemove: boolean;
   onBack: () => void;
-  onToggleSelect: () => void;
+  onSelect: () => void;
+  onRemove: () => void;
   onChoosePrograms: () => void;
 }) {
-  const spaces = totalAvailableSpaces(institution.profile);
-  const programCount = totalProgramCount(institution.profile);
+  const format = useMoneyFormat();
+  const { programCount, availableSpaces: spaces } = institution;
+  const required = institution.requirements.filter((r) => r.required);
+  const optional = institution.requirements.filter((r) => !r.required);
 
   return (
     <div>
@@ -39,60 +52,84 @@ export function InstitutionDetail({
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-ink-faint)]">
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" strokeWidth={1.75} />
-                  {institution.location}
+                  {[institution.address, institution.location].filter(Boolean).join(" · ")}
+                </span>
+                {institution.website && (
+                  <span className="flex items-center gap-1">
+                    <Globe className="h-3 w-3" strokeWidth={1.75} />
+                    {institution.website}
+                  </span>
+                )}
+                <span className="flex items-center gap-1">
+                  <Phone className="h-3 w-3" strokeWidth={1.75} />
+                  {institution.phone}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" strokeWidth={1.75} />
-                  Established {institution.profile.establishedYear}
-                </span>
-                <span className="flex items-center gap-1">
-                  <Globe className="h-3 w-3" strokeWidth={1.75} />
-                  {institution.profile.website}
+                  <Mail className="h-3 w-3" strokeWidth={1.75} />
+                  {institution.email}
                 </span>
               </div>
             </div>
           </div>
 
-          <button
-            onClick={onToggleSelect}
-            className={`shrink-0 px-4 py-2 text-sm font-medium transition-colors ${
-              selected
-                ? "rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand-soft)] text-[var(--color-brand-strong)]"
-                : "bg-[var(--color-brand)] text-white hover:bg-[var(--color-brand-hover)]"
-            }`}
-          >
-            {selected ? "Selected" : "Select this institution"}
-          </button>
+          {selected ? (
+            <span className="shrink-0 rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand-soft)] px-4 py-2 text-sm font-medium text-[var(--color-brand-strong)]">Added to your application</span>
+          ) : (
+            <button
+              onClick={onSelect}
+              disabled={busy}
+              className="shrink-0 rounded-lg bg-[var(--color-brand)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brand-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {busy ? "Adding…" : "Select this institution"}
+            </button>
+          )}
         </div>
 
         {selected && (
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <button
               onClick={onChoosePrograms}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-ink)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-ink)] hover:text-white"
             >
               Choose study programs
             </button>
+            {canRemove && (
+              <button onClick={onRemove} disabled={busy} className="text-xs font-medium text-[var(--color-danger)] underline underline-offset-4 disabled:opacity-50">
+                Remove from my application
+              </button>
+            )}
           </div>
         )}
 
-        <p className="mt-4 max-w-2xl text-sm text-[var(--color-ink-soft)]">{institution.profile.overview}</p>
+        {institution.accreditation && <p className="mt-4 max-w-2xl text-sm text-[var(--color-ink-soft)]">Accredited by {institution.accreditation}.</p>}
 
-        <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)] sm:w-80">
-          <div className="bg-[var(--color-surface)] px-4 py-3">
-            <p className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{programCount}</p>
-            <p className="text-xs text-[var(--color-ink-soft)]">Programs offered</p>
-          </div>
-          <div className="bg-[var(--color-surface)] px-4 py-3">
-            <p className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{spaces}</p>
-            <p className="text-xs text-[var(--color-ink-soft)]">Spaces available</p>
-          </div>
+        <div className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-4">
+          <Fact value={String(programCount)} label="Programs offered" />
+          <Fact value={String(spaces)} label="Spaces available" />
+          <Fact value={String(institution.maxProgramChoices)} label={institution.maxProgramChoices === 1 ? "Program choice allowed" : "Program choices allowed"} />
+          <Fact
+            value={institution.applicationFee === null ? format(institution.fee.amount, institution.fee.currency) : format(institution.applicationFee + institution.webFee, institution.currency)}
+            label={institution.applicationFee === null ? "Application fee" : `To apply: ${format(institution.applicationFee, institution.currency)} fee + ${format(institution.webFee, institution.currency)} web fee`}
+          />
         </div>
+
+        {institution.requirements.length > 0 && (
+          <div className="mt-5">
+            <p className="text-sm font-medium text-[var(--color-ink)]">Documents you will be asked for</p>
+            <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+              {required.map((r) => r.name).join(", ") || "None required"}
+              {optional.length > 0 && <span className="text-[var(--color-ink-faint)]"> · Optional: {optional.map((r) => r.name).join(", ")}</span>}
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Faculty → Department → Qualification → Study Program hierarchy */}
       <div className="mt-6 space-y-4">
-        {institution.profile.faculties.map((faculty) => (
+        {institution.faculties.length === 0 && (
+          <p className="rounded-xl border border-dashed border-[var(--color-line-strong)] px-6 py-10 text-center text-sm text-[var(--color-ink-soft)]">This institution hasn&apos;t published its study programs yet.</p>
+        )}
+        {institution.faculties.map((faculty) => (
           <div key={faculty.id} className="overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
             <div className="border-b border-[var(--color-line)] px-5 py-3">
               <p className="font-semibold text-base text-[var(--color-ink)]">{faculty.name}</p>
@@ -133,6 +170,15 @@ export function InstitutionDetail({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function Fact({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="bg-[var(--color-surface)] px-4 py-3">
+      <p className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{value}</p>
+      <p className="text-xs text-[var(--color-ink-soft)]">{label}</p>
     </div>
   );
 }

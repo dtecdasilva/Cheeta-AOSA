@@ -1,42 +1,44 @@
-import { convertAmount, formatAmount } from "@/lib/currency/data";
+"use client";
+
+import { useMoneyFormat } from "@/lib/currency/useCurrencies";
 
 /**
- * Shows an amount converted from one currency to another using the mock
- * exchange rates — "12,000 FCFA ≈ $19.65". Renders just the original
- * amount if the two currencies are the same, and a plain-language
- * fallback if either currency has no mock rate on file, rather than a
- * wrong or NaN-looking number.
+ * Shows an amount with its equivalent in another currency —
+ * "12,000 FCFA ≈ $19.65".
+ *
+ * It does no arithmetic. `converted` is the figure the server worked out
+ * (from the exchange rate on record, or from the rate stored with a
+ * payment) and it is shown exactly as given, so a screen can never
+ * disagree with what was calculated or recorded. With no converted figure
+ * (the two currencies are the same, or there is no rate) only the
+ * original amount is shown.
  */
 export function ConvertedAmount({
   amount,
   fromCode,
   toCode,
+  converted,
+  stacked,
   className,
 }: {
   amount: number;
   fromCode: string;
-  toCode: string;
+  /** The currency of `converted`. */
+  toCode?: string | null;
+  /** The amount in `toCode`, as calculated by the server. */
+  converted?: number | null;
+  /** Put the converted figure on its own line under the amount, for narrow table cells. */
+  stacked?: boolean;
   className?: string;
 }) {
-  if (fromCode === toCode) {
-    return <span className={className}>{formatAmount(amount, fromCode)}</span>;
+  const format = useMoneyFormat();
+  if (!toCode || toCode === fromCode || converted === null || converted === undefined) {
+    return <span className={`whitespace-nowrap ${className ?? ""}`}>{format(amount, fromCode)}</span>;
   }
-
-  const converted = convertAmount(amount, fromCode, toCode);
-
-  if (converted === null) {
-    return (
-      <span className={className}>
-        {formatAmount(amount, fromCode)}{" "}
-        <span className="text-[var(--color-ink-faint)]">(conversion to {toCode} unavailable)</span>
-      </span>
-    );
-  }
-
   return (
     <span className={className}>
-      {formatAmount(amount, fromCode)} <span className="text-[var(--color-ink-faint)]">≈</span>{" "}
-      {formatAmount(converted, toCode)}
+      <span className="whitespace-nowrap">{format(amount, fromCode)}</span>{stacked ? "" : " "}
+      <span className={`whitespace-nowrap font-normal text-[var(--color-ink-faint)] ${stacked ? "block text-xs" : ""}`}>≈ {format(converted, toCode)}</span>
     </span>
   );
 }

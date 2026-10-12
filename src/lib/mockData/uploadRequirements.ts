@@ -10,9 +10,10 @@ export interface UploadRequirement {
 }
 
 /**
- * These mirror each institution's `requiredDocuments` in src/lib/data.ts —
- * what the institution configures here is exactly what an applicant is
- * asked to upload, so the two lists must not drift apart.
+ * What an empty database's upload requirements are seeded from
+ * (src/server/db/seed.ts). The screens don't read this: they read each
+ * institution's requirements from /api/institution/upload-requirements,
+ * and the types they use are in src/lib/institution/uploadRequirements.ts.
  */
 export const mockUploadRequirements: UploadRequirement[] = [
   {

@@ -3,13 +3,19 @@ import { createReadStream } from "node:fs";
 import { mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { Readable } from "node:stream";
-import { env } from "@/server/config/env";
+import { eq } from "drizzle-orm";
+import { env, type Env } from "@/server/config/env";
+import { getDb } from "@/server/db/client";
+import { fileContents } from "@/server/db/schema";
 
 /**
  * Where file bytes live. Everything above this interface works with
  * storage keys and the `files` table only, so moving to object storage
  * (S3, R2, MinIO, Azure Blob) means adding a driver here and setting
- * STORAGE_DRIVER — no change to services or routes.
+ * STORAGE_DRIVER, with no change to services or routes.
+ *
+ * No driver hands out an address a browser can fetch. The only way to a
+ * file's content is through the file service, after its access check.
  */
 export interface StorageDriver {
   readonly name: string;
@@ -66,16 +72,57 @@ class LocalDiskDriver implements StorageDriver {
   }
 }
 
-const KEY = Symbol.for("cheeta-aosa.storage");
-const g = globalThis as unknown as { [KEY]?: StorageDriver };
+/**
+ * In the database (the file_contents table). For hosting where the disk
+ * doesn't last, such as Vercel: files go where the rest of the data
+ * already is, and are backed up with it. Right for documents of a few
+ * megabytes; a platform storing far larger files would add an object
+ * storage driver instead.
+ */
+class DatabaseDriver implements StorageDriver {
+  readonly name = "database";
 
-export function getStorage(): StorageDriver {
-  if (!g[KEY]) {
-    switch (env.STORAGE_DRIVER) {
-      case "local":
-        g[KEY] = new LocalDiskDriver();
-        break;
-    }
+  async put(key: string, data: Uint8Array) {
+    await getDb().insert(fileContents).values({ storageKey: key, data }).onConflictDoUpdate({ target: fileContents.storageKey, set: { data } });
   }
-  return g[KEY]!;
+
+  async get(key: string) {
+    const [row] = await getDb().select({ data: fileContents.data }).from(fileContents).where(eq(fileContents.storageKey, key)).limit(1);
+    if (!row) return null;
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(row.data);
+        controller.close();
+      },
+    });
+  }
+
+  async delete(key: string) {
+    await getDb().delete(fileContents).where(eq(fileContents.storageKey, key));
+  }
+
+  async check() {
+    await getDb().select({ key: fileContents.storageKey }).from(fileContents).limit(1);
+  }
+}
+
+export type StorageDriverName = Env["STORAGE_DRIVER"];
+
+const KEY = Symbol.for("cheeta-aosa.storage");
+const g = globalThis as unknown as { [KEY]?: Partial<Record<StorageDriverName, StorageDriver>> };
+
+/**
+ * The driver new files are stored with (STORAGE_DRIVER), or the named
+ * one. A file is always read back through the driver it was stored
+ * with, which its `files` row records, so changing the setting doesn't
+ * strand what was uploaded before.
+ */
+export function getStorage(name: StorageDriverName = env.STORAGE_DRIVER): StorageDriver {
+  const drivers = (g[KEY] ??= {});
+  return (drivers[name] ??= name === "database" ? new DatabaseDriver() : new LocalDiskDriver());
+}
+
+/** The driver a stored file's bytes are in, or null if this build doesn't have it. */
+export function storageFor(name: string): StorageDriver | null {
+  return name === "local" || name === "database" ? getStorage(name) : null;
 }

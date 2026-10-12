@@ -130,7 +130,7 @@ export function InstitutionList() {
                     <p className="text-[var(--color-ink)]">{i.contactName}</p>
                     <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{i.phone}</p>
                   </Td>
-                  <Td className="whitespace-nowrap text-right tabular-nums">{formatCurrency(i.webFee)}</Td>
+                  <Td className="whitespace-nowrap text-right tabular-nums">{i.webFee === null ? <span className="text-[var(--color-ink-soft)]">Platform fee</span> : formatCurrency(i.webFee)}</Td>
                   <Td className="text-right tabular-nums">
                     <Link href={`/admin/applications?institution=${i.id}`} className="hover:underline">
                       {appCount(i.id)}

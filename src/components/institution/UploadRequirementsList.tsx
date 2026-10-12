@@ -1,79 +1,80 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
-import { mockUploadRequirements, UploadRequirement } from "@/lib/mockData/uploadRequirements";
-import { ButtonLinkClass } from "@/components/Form";
-import { SectionHeading, RowList, Row, RowAction, EmptyState, Pill } from "@/components/ui";
+import { useAuth } from "@/context/AuthContext";
+import { useInstitutionList } from "@/lib/institution/api";
+import { formatFileSize, formatFileTypes, type UploadRequirement } from "@/lib/institution/uploadRequirements";
+import { Pill, Row, RowAction } from "@/components/ui";
+import { InstitutionListShell } from "./InstitutionListShell";
 
-function formatSize(kb: number) {
-  return kb >= 1024 ? `${(kb / 1024).toFixed(kb % 1024 === 0 ? 0 : 1)} MB` : `${kb} KB`;
-}
+/**
+ * The documents this institution asks applicants to upload, from
+ * /api/institution/upload-requirements. The list is this institution's
+ * alone: the server never returns, or lets it change, another's.
+ *
+ * What is listed here as active is exactly what an applicant to this
+ * institution is asked for, with the same file types and size limit
+ * enforced when they upload.
+ */
+export default function UploadRequirementsList() {
+  const { user } = useAuth();
+  const canEdit = user?.role === "INSTITUTION_ADMIN";
+  const { items, error, setStatus, remove } = useInstitutionList<UploadRequirement>("upload-requirements");
 
-export default function UploadRequirementsList({ institutionId }: { institutionId: string }) {
-  const [items, setItems] = useState<UploadRequirement[]>(() =>
-    mockUploadRequirements.filter((r) => r.institutionId === institutionId)
-  );
-
-  function toggleStatus(id: string) {
-    setItems((s) =>
-      s.map((r) => (r.id === id ? { ...r, status: r.status === "active" ? "inactive" : "active" } : r))
-    );
-  }
-
-  function remove(id: string) {
-    setItems((s) => s.filter((r) => r.id !== id));
+  function confirmRemove(r: UploadRequirement) {
+    if (window.confirm(`Delete the requirement "${r.name}"? This can't be undone.`)) void remove(r.id);
   }
 
   return (
-    <div className="space-y-4">
-      <SectionHeading
-        title="Upload requirements"
-        actions={
-          <Link href="/institution/uploads/requirements/add" className={ButtonLinkClass("primary")}>
-            Add requirement
-          </Link>
-        }
-      />
-
-      {items.length === 0 ? (
-        <EmptyState
-          message="No upload requirements configured."
-          action={
-            <Link href="/institution/uploads/requirements/add" className={ButtonLinkClass("secondary")}>
-              Add the first requirement
-            </Link>
+    <InstitutionListShell
+      title="Upload requirements"
+      addHref="/institution/uploads/requirements/add"
+      addLabel="Add requirement"
+      emptyMessage="No upload requirements configured. Applicants aren't asked for any documents."
+      canEdit={canEdit}
+      loading={!items && !error}
+      error={error}
+      isEmpty={items?.length === 0}
+      note={
+        <p className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">
+          Applicants are asked for every active requirement. A required document must be uploaded before an application can be submitted; an optional one can be left out.
+        </p>
+      }
+    >
+      {(items ?? []).map((r) => (
+        <Row
+          key={r.id}
+          title={r.name}
+          subtitle={
+            <>
+              {formatFileTypes(r.fileTypes)} · max {formatFileSize(r.maxSizeKb)}
+              {r.description && <span className="mt-0.5 block">{r.description}</span>}
+              {!r.documentTypeId && canEdit && <span className="mt-0.5 block text-[var(--color-warning-strong)]">No document type chosen yet. Edit it to choose one.</span>}
+            </>
+          }
+          meta={
+            <div className="flex items-center gap-2">
+              {r.required ? <Pill>Required</Pill> : <Pill tone="muted">Optional</Pill>}
+              {r.status === "ACTIVE" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
+            </div>
+          }
+          actions={
+            <>
+              <RowAction href={`/institution/uploads/requirements/${r.id}`}>View</RowAction>
+              {canEdit && <RowAction href={`/institution/uploads/requirements/${r.id}/edit`}>Edit</RowAction>}
+              {canEdit && (
+                <RowAction tone="muted" onClick={() => setStatus(r.id, r.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")}>
+                  {r.status === "ACTIVE" ? "Deactivate" : "Activate"}
+                </RowAction>
+              )}
+              {canEdit && (
+                <RowAction tone="danger" onClick={() => confirmRemove(r)}>
+                  Delete
+                </RowAction>
+              )}
+            </>
           }
         />
-      ) : (
-        <RowList>
-          {items.map((it) => (
-            <Row
-              key={it.id}
-              title={it.name}
-              subtitle={`${it.fileTypes.join(", ").toUpperCase()} · max ${formatSize(it.maxSizeKB)}`}
-              meta={
-                <div className="flex items-center gap-3">
-                  {it.required ? <Pill>Required</Pill> : <Pill tone="muted">Optional</Pill>}
-                  {it.status === "active" ? <Pill tone="success">Active</Pill> : <Pill tone="muted">Inactive</Pill>}
-                </div>
-              }
-              actions={
-                <>
-                  <RowAction href={`/institution/uploads/requirements/${it.id}`}>View</RowAction>
-                  <RowAction href={`/institution/uploads/requirements/${it.id}/edit`}>Edit</RowAction>
-                  <RowAction tone="muted" onClick={() => toggleStatus(it.id)}>
-                    {it.status === "active" ? "Deactivate" : "Activate"}
-                  </RowAction>
-                  <RowAction tone="danger" onClick={() => remove(it.id)}>
-                    Delete
-                  </RowAction>
-                </>
-              }
-            />
-          ))}
-        </RowList>
-      )}
-    </div>
+      ))}
+    </InstitutionListShell>
   );
 }

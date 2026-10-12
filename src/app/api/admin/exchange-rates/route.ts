@@ -1,13 +1,19 @@
-import { z } from "zod";
 import { handler } from "@/server/http/handler";
 import { created, ok } from "@/server/http/respond";
-import { parseQuery, readJson } from "@/server/http/validate";
-import { currentRates, rateHistory, setRate } from "@/server/modules/reference/exchangeRates.service";
+import { readJson } from "@/server/http/validate";
+import { createRate, currentRates, listRates } from "@/server/modules/reference/exchangeRates.service";
 
-/** GET: current rates and recent changes (?code= to narrow). POST { code, xafPerUnit, source }: set a rate. */
+/**
+ * GET   ?from=&to=&status=&at=&limit=
+ *       `data`     the rate applying now to each currency against the base currency;
+ *       `history`  every rate on record that matches the filters, newest period first.
+ * POST  { fromCurrency, toCurrency?, rate, source, effectiveFrom?, effectiveTo? }
+ *       adds a rate. Existing rates are never changed by this, apart from
+ *       the date their period ends.
+ */
 export const GET = handler({ auth: ["AOSA_ADMIN"] }, async ({ req }) => {
-  const { code } = parseQuery(req, z.object({ code: z.string().length(3).optional() }));
-  const [current, history] = await Promise.all([currentRates(), rateHistory(code)]);
-  return ok({ data: current, history });
+  const [data, history] = await Promise.all([currentRates(), listRates(Object.fromEntries(req.nextUrl.searchParams))]);
+  return ok({ data, history });
 });
-export const POST = handler({ auth: ["AOSA_ADMIN"] }, async ({ req, user }) => created({ data: await setRate(await readJson(req), user.id) }));
+
+export const POST = handler({ auth: ["AOSA_ADMIN"] }, async ({ req, user }) => created({ data: await createRate(await readJson(req), user.id) }));

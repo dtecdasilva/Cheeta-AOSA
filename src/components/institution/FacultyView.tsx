@@ -1,24 +1,22 @@
-import { Faculty } from "@/lib/mockData/faculties";
+import type { Faculty } from "@/lib/institution/types";
 import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
 
-export default function FacultyView({ faculty }: { faculty: Faculty }) {
+export default function FacultyView({ faculty, canEdit }: { faculty: Faculty; canEdit: boolean }) {
   return (
     <div className="max-w-2xl space-y-4">
       <Card padded={false}>
-        <CardHeader title={faculty.name} description={`Dean: ${faculty.dean}`} />
+        <CardHeader title={faculty.name} description={faculty.dean ? `Dean: ${faculty.dean}` : undefined} />
         <DescriptionList
           items={[
+            { label: "Code", value: faculty.code },
             { label: "Address", value: faculty.address },
-            { label: "Town", value: faculty.town },
-            { label: "Region", value: faculty.region },
-            { label: "Location", value: faculty.location },
             { label: "Phone", value: faculty.phone },
             { label: "Email", value: faculty.email },
-            { label: "Status", value: faculty.status === "active" ? "Active" : "Inactive" },
+            { label: "Status", value: faculty.status === "ACTIVE" ? "Active" : "Inactive" },
           ]}
         />
       </Card>
-      <RowAction href={`/institution/faculty/${faculty.id}/edit`}>Edit</RowAction>
+      {canEdit && <RowAction href={`/institution/faculty/${faculty.id}/edit`}>Edit</RowAction>}
     </div>
   );
 }

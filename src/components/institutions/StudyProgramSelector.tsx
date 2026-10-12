@@ -1,29 +1,47 @@
 "use client";
 
+import { useState } from "react";
 import { ArrowLeft, CheckCircle2 } from "lucide-react";
-import {Field, SelectInput} from "@/components/Form";
-import { InstitutionWithProfile, ProgramChoice } from "@/lib/institutionDiscovery/data";
+import { Field, FormError, PrimaryButton, SecondaryButton, SelectInput } from "@/components/Form";
+import { choiceFor, type InstitutionDetails, type ProgramChoice } from "@/lib/institutionDiscovery/data";
+import type { Outcome } from "@/lib/applications/api";
 
 const RANK_LABELS: Record<number, string> = { 1: "First Choice", 2: "Second Choice", 3: "Third Choice" };
 
-// Frontend-only, mock data, per spec: choices live in the parent's
-// component state (lifted up so they survive navigating back to browse
-// and returning) — nothing here calls an API or validates server-side.
-// "Do not implement backend validation yet" means duplicate/completeness
-// checks below are UI conveniences only, not an enforced rule.
+/**
+ * The applicant's ranked study-program choices at one institution they
+ * have added. The slots start from the choices already saved and are
+ * sent to the server with Save (`onSave`), which checks them: programs
+ * the institution currently offers, each once, ranked without gaps, and
+ * no more than the institution allows. Nothing is kept until it is saved.
+ */
 export function StudyProgramSelector({
   institution,
-  choices,
-  onChange,
+  saved,
+  editable,
+  onSave,
   onBack,
 }: {
-  institution: InstitutionWithProfile;
-  choices: (ProgramChoice | null)[];
-  onChange: (choices: (ProgramChoice | null)[]) => void;
+  institution: InstitutionDetails;
+  /** Program ids already saved, in order of preference. */
+  saved: string[];
+  /** False once the application has been submitted: the choices are shown, not changed. */
+  editable: boolean;
+  onSave: (programIds: string[]) => Promise<Outcome>;
   onBack: () => void;
 }) {
   const slots = institution.maxProgramChoices;
+  const [choices, setChoices] = useState<(ProgramChoice | null)[]>(() => Array.from({ length: slots }, (_, i) => (saved[i] ? (choiceFor(institution, saved[i], i + 1) ?? null) : null)));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [savedNow, setSavedNow] = useState(false);
   const chosenProgramIds = choices.filter((c): c is ProgramChoice => !!c).map((c) => c.programId);
+
+  function onChange(next: (ProgramChoice | null)[]) {
+    setChoices(next);
+    setSavedNow(false);
+    setError(null);
+  }
 
   function updateSlot(index: number, patch: Partial<ProgramChoice> | null) {
     const next = [...choices];
@@ -35,8 +53,24 @@ export function StudyProgramSelector({
     onChange(next);
   }
 
+  async function save() {
+    if (saving) return;
+    // A slot with a faculty picked but no program yet isn't a choice.
+    const filled = choices.map((c) => (c?.programId ? c.programId : null));
+    const lastFilled = filled.reduce((last, id, i) => (id ? i : last), -1);
+    if (filled.slice(0, lastFilled + 1).some((id) => !id)) {
+      setError(`Fill in your ${RANK_LABELS[filled.indexOf(null) + 1].toLowerCase()} before the ones after it.`);
+      return;
+    }
+    setSaving(true);
+    const result = await onSave(filled.filter((id): id is string => !!id));
+    setSaving(false);
+    if (result.ok) setSavedNow(true);
+    else setError(result.error);
+  }
+
   function handleFacultyChange(index: number, facultyId: string) {
-    const faculty = institution.profile.faculties.find((f) => f.id === facultyId);
+    const faculty = institution.faculties.find((f) => f.id === facultyId);
     if (!faculty) {
       updateSlot(index, null);
       return;
@@ -55,7 +89,7 @@ export function StudyProgramSelector({
 
   function handleDepartmentChange(index: number, departmentId: string) {
     const current = choices[index];
-    const faculty = institution.profile.faculties.find((f) => f.id === current?.facultyId);
+    const faculty = institution.faculties.find((f) => f.id === current?.facultyId);
     const dept = faculty?.departments.find((d) => d.id === departmentId);
     if (!current || !dept) return;
     updateSlot(index, {
@@ -77,7 +111,7 @@ export function StudyProgramSelector({
 
   function handleProgramChange(index: number, programId: string) {
     const current = choices[index];
-    const faculty = institution.profile.faculties.find((f) => f.id === current?.facultyId);
+    const faculty = institution.faculties.find((f) => f.id === current?.facultyId);
     const dept = faculty?.departments.find((d) => d.id === current?.departmentId);
     const program = dept?.programs.find((p) => p.id === programId);
     if (!current || !program) return;
@@ -107,10 +141,21 @@ export function StudyProgramSelector({
         </p>
       </div>
 
-      <div className="space-y-4">
+      {!editable && (
+        <p className="mb-4 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">
+          This application has been submitted, so its program choices can no longer be changed here.
+        </p>
+      )}
+      {institution.faculties.length === 0 && (
+        <p className="mb-4 rounded-lg border border-[var(--color-warning-soft)] bg-[var(--color-warning-soft)] px-4 py-3 text-sm text-[var(--color-warning-strong)]">
+          This institution hasn&apos;t published its study programs yet, so there is nothing to choose.
+        </p>
+      )}
+
+      <fieldset disabled={!editable} className="space-y-4">
         {Array.from({ length: slots }, (_, index) => {
           const choice = choices[index];
-          const faculty = institution.profile.faculties.find((f) => f.id === choice?.facultyId);
+          const faculty = institution.faculties.find((f) => f.id === choice?.facultyId);
           const department = faculty?.departments.find((d) => d.id === choice?.departmentId);
           const qualificationOptions = department
             ? Array.from(new Set(department.programs.map((p) => p.qualification)))
@@ -129,6 +174,11 @@ export function StudyProgramSelector({
                 <p className="font-semibold text-base text-[var(--color-ink)]">
                   {RANK_LABELS[index + 1] ?? `Choice ${index + 1}`}
                 </p>
+                {choice && editable && (
+                  <button type="button" onClick={() => updateSlot(index, null)} className="ml-auto mr-3 text-xs font-medium text-[var(--color-ink-soft)] underline underline-offset-4">
+                    Clear
+                  </button>
+                )}
                 {choice?.programId && (
                   <span className="flex items-center gap-1.5 rounded-full border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-2 py-1 text-xs font-medium text-[var(--color-success-strong)]">
                     <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={2} />
@@ -141,7 +191,7 @@ export function StudyProgramSelector({
                 <Field label="Faculty / School">
                   <SelectInput value={choice?.facultyId ?? ""} onChange={(e) => handleFacultyChange(index, e.target.value)}>
                     <option value="">Select…</option>
-                    {institution.profile.faculties.map((f) => (
+                    {institution.faculties.map((f) => (
                       <option key={f.id} value={f.id}>
                         {f.name}
                       </option>
@@ -208,6 +258,27 @@ export function StudyProgramSelector({
             </div>
           );
         })}
+      </fieldset>
+
+      {error && (
+        <div className="mt-4">
+          <FormError>{error}</FormError>
+        </div>
+      )}
+      {savedNow && (
+        <p role="status" className="mt-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
+          Your program choices for {institution.name} are saved.
+        </p>
+      )}
+      <div className="mt-5 flex items-center gap-2">
+        {editable && (
+          <PrimaryButton type="button" onClick={save} disabled={saving}>
+            {saving ? "Saving…" : "Save choices"}
+          </PrimaryButton>
+        )}
+        <SecondaryButton type="button" onClick={onBack}>
+          {savedNow || !editable ? "Done" : "Cancel"}
+        </SecondaryButton>
       </div>
     </div>
   );

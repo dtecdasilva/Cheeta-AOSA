@@ -5,6 +5,8 @@ import { dbDriver, getDb } from "@/server/db/client";
 import { runMigrations, type MigrationReport } from "@/server/db/migrate";
 import { isDatabaseEmpty, seedDatabase } from "@/server/db/seed";
 import { syncAccessCatalogue } from "@/server/auth/access";
+import { adoptLegacyExaminationResults } from "@/server/modules/student/legacyResults";
+import { adoptLegacyRecords } from "@/server/modules/applications/legacyRecords";
 
 /**
  * Server start-up: validate configuration (importing `env` throws on a bad
@@ -28,6 +30,10 @@ export async function bootstrap() {
       log.info("Empty database: loading seed data", { demo: env.SEED_DEMO_DATA });
       await seedDatabase(db, { demo: env.SEED_DEMO_DATA });
     }
+    // Results recorded before they were tied to an examination are attached to one. A no-op once done.
+    await db.transaction((tx) => adoptLegacyExaminationResults(tx));
+    // Documents, upload requirements and rejected payments stored by earlier versions get the fields added since. Also a no-op once done.
+    await db.transaction((tx) => adoptLegacyRecords(tx));
     log.info("Backend ready", { database: dbDriver() });
   } catch (err) {
     // The commonest cause by far: the code was updated but no migration was generated

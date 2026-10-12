@@ -1,19 +1,23 @@
 import "server-only";
-import { and, asc, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
+import { assessFee, type FeeAssessment } from "@/server/modules/fees/calculation";
 import {
+  applicationComments,
   applicationDocuments,
   applicationFees,
   applicationInstitutions,
   applicationStatusEvents,
   applications,
-  feeConfigs,
+  departments,
+  faculties,
   feePayments,
   institutions,
   parameters,
   programChoices,
   programs,
   uploadRequirements,
+  users,
 } from "@/server/db/schema";
 import { NotFoundError } from "@/server/http/errors";
 
@@ -32,43 +36,41 @@ export async function currentAcademicYear(db: Executor) {
 }
 
 /**
- * The application fee an institution charges nationals today: its active
- * "application" fee config, falling back to the suggested amount on the
- * APP fee type. In XAF, with the fee schedule entry it came from (null
- * for the fallback).
- */
-export async function applicationFeeFor(db: Executor, institutionId: string): Promise<number> {
-  return (await applicationFeeQuote(db, institutionId)).amount;
-}
-
-async function applicationFeeQuote(db: Executor, institutionId: string): Promise<{ amount: number; feeConfigId: string | null }> {
-  const today = new Date().toISOString().slice(0, 10);
-  const [fee] = await db
-    .select({ id: feeConfigs.id, amount: feeConfigs.amount })
-    .from(feeConfigs)
-    .where(and(eq(feeConfigs.institutionId, institutionId), eq(feeConfigs.type, "application"), eq(feeConfigs.category, "national"), eq(feeConfigs.status, "ACTIVE"), lte(feeConfigs.effectiveDate, today)))
-    .orderBy(desc(feeConfigs.effectiveDate))
-    .limit(1);
-  if (fee) return { amount: fee.amount, feeConfigId: fee.id };
-  const [type] = await db.select({ attrs: parameters.attrs }).from(parameters).where(eq(parameters.id, "fee-types:APP")).limit(1);
-  return { amount: Number(type?.attrs?.defaultAmount ?? 0), feeConfigId: null };
-}
-
-/**
  * Works out what one application to one institution costs and stores it
  * on that application (application_fees), replacing any earlier figure.
  * Called when the institution is added and again when a payment is
  * recorded, so the stored fee is always the one the applicant is asked to
- * pay; once a payment is awaiting approval or approved it no longer moves.
+ * pay. It is today's figure, at today's exchange rate where the
+ * institution's fee is in another currency; the figures that become
+ * permanent are the ones stored on the payment.
+ *
+ * `webFee` is the institution's own web fee, or null to use the platform's.
+ * If the fee can't be priced (no exchange rate for its currency), nothing
+ * is stored and the assessment says why.
  */
-export async function assessApplicationFee(db: Executor, app: { id: string; institutionId: string; webFee: number }) {
-  const quote = await applicationFeeQuote(db, app.institutionId);
-  const row = { feeConfigId: quote.feeConfigId, applicationFee: quote.amount, webFee: app.webFee, amount: quote.amount + app.webFee, assessedAt: new Date() };
+export async function assessApplicationFee(db: Executor, app: { id: string; institutionId: string; webFee: number | null }): Promise<FeeAssessment> {
+  const assessment = await assessFee(db, { id: app.institutionId, webFee: app.webFee });
+  if (!assessment.priced) {
+    await db.delete(applicationFees).where(eq(applicationFees.applicationInstitutionId, app.id));
+    return assessment;
+  }
+  const converted = assessment.feeRate.derivation !== null;
+  const row = {
+    feeConfigId: assessment.fee.feeConfigId,
+    applicationFee: assessment.applicationFee,
+    webFee: assessment.webFee,
+    amount: assessment.amount,
+    currency: assessment.currency,
+    feeCurrency: assessment.fee.currency,
+    feeAmount: converted ? assessment.fee.amount : null,
+    feeRate: converted ? assessment.feeRate.rate : null,
+    assessedAt: new Date(),
+  };
   await db
     .insert(applicationFees)
     .values({ applicationInstitutionId: app.id, ...row })
     .onConflictDoUpdate({ target: applicationFees.applicationInstitutionId, set: row });
-  return row;
+  return assessment;
 }
 
 /** How many programs an applicant may rank at this institution, from its institution type. */
@@ -96,11 +98,26 @@ export async function loadApplicationInstitution(db: Executor, id: string) {
     .limit(1);
   if (!row) throw new NotFoundError("Application");
 
-  const [choices, documents, payments, events, requirements] = await Promise.all([
+  const [choices, documents, payments, events, requirements, comments] = await Promise.all([
+    // Each choice with the path down to it (faculty, department, qualification), so it can be shown without another lookup.
     db
-      .select({ id: programChoices.id, rank: programChoices.rank, programId: programs.id, programName: programs.name, programCode: programs.code })
+      .select({
+        id: programChoices.id,
+        rank: programChoices.rank,
+        programId: programs.id,
+        programName: programs.name,
+        programCode: programs.code,
+        facultyId: faculties.id,
+        faculty: faculties.name,
+        departmentId: departments.id,
+        department: departments.name,
+        qualification: parameters.label,
+      })
       .from(programChoices)
       .innerJoin(programs, eq(programs.id, programChoices.programId))
+      .innerJoin(faculties, eq(faculties.id, programs.facultyId))
+      .innerJoin(departments, eq(departments.id, programs.departmentId))
+      .innerJoin(parameters, eq(parameters.id, programs.qualificationId))
       .where(eq(programChoices.applicationInstitutionId, id))
       .orderBy(asc(programChoices.rank)),
     db.select().from(applicationDocuments).where(eq(applicationDocuments.applicationInstitutionId, id)).orderBy(asc(applicationDocuments.createdAt)),
@@ -111,9 +128,15 @@ export async function loadApplicationInstitution(db: Executor, id: string) {
       .from(uploadRequirements)
       .where(and(eq(uploadRequirements.institutionId, row.ai.institutionId), eq(uploadRequirements.status, "ACTIVE")))
       .orderBy(asc(uploadRequirements.name)),
+    db
+      .select({ comment: applicationComments, authorName: users.fullName })
+      .from(applicationComments)
+      .innerJoin(users, eq(users.id, applicationComments.authorUserId))
+      .where(eq(applicationComments.applicationInstitutionId, id))
+      .orderBy(asc(applicationComments.createdAt)),
   ]);
 
-  return { ...row.ai, application: row.app, institution: row.institution, choices, documents, payments, events, requirements };
+  return { ...row.ai, application: row.app, institution: row.institution, choices, documents, payments, events, requirements, comments: comments.map((c) => ({ ...c.comment, authorName: c.authorName })) };
 }
 
 export type LoadedApplication = Awaited<ReturnType<typeof loadApplicationInstitution>>;

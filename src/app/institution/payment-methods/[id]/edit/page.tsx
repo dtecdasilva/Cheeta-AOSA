@@ -1,25 +1,21 @@
 import { requireRole } from "@/lib/auth/guard";
-import { resolveInstitutionId } from "@/lib/auth/institution";
 import PaymentMethodForm from "@/components/institution/PaymentMethodForm";
-import { mockPaymentMethods } from "@/lib/mockData/paymentMethods";
+import type { PaymentMethod } from "@/lib/institution/paymentMethods";
+import { institutionPaymentMethodResource } from "@/server/modules/institutions/institutions.resources";
+import { findOwn } from "@/server/modules/institutions/portal";
 import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
+  const user = await requireRole(["INSTITUTION_ADMIN"]);
   const { id } = await params;
-  const institutionId = resolveInstitutionId(user);
-  // Scoped to the caller's own institution — an id belonging to another
-  // institution reads as "not found" rather than being served.
-  const record = mockPaymentMethods.find((r) => r.id === id && r.institutionId === institutionId);
+  // Read from the database, confined to the caller's own institution: an id that
+  // belongs to another institution is "not found", exactly as if it didn't exist.
+  const record = await findOwn<PaymentMethod>(institutionPaymentMethodResource, user, id);
 
   return (
     <main className={PAGE_MAIN_CLASS}>
       <PageHeading title="Edit payment method" />
-      {record ? (
-        <PaymentMethodForm institutionId={institutionId} initial={record} />
-      ) : (
-        <EmptyState message="This payment method doesn't exist, or belongs to another institution." />
-      )}
+      {record ? <PaymentMethodForm initial={record} /> : <EmptyState message="This payment method doesn't exist, or belongs to another institution." />}
     </main>
   );
 }

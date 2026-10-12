@@ -1,9 +1,10 @@
 import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
-import { getDb } from "@/server/db/client";
+import { getDb, type Executor } from "@/server/db/client";
 import { settings } from "@/server/db/schema";
 import { audit } from "@/server/audit/audit";
+import { BASE_CURRENCY } from "@/lib/admin/reference";
 import { SYSTEM_DEFAULTS, PAYMENT_DEFAULTS, type SystemSettings, type PaymentSettings } from "@/lib/admin/settings";
 import { NotFoundError } from "@/server/http/errors";
 
@@ -39,8 +40,13 @@ const systemSchema = z.object({
 });
 
 const paymentSchema = z.object({
-  baseCurrency: z.string().length(3),
+  // Fixed. Every stored amount (fees, web fee, payments) is a figure in this currency and every exchange
+  // rate is quoted against it, so changing it here would relabel those amounts without converting them.
+  baseCurrency: z.literal(BASE_CURRENCY, { error: `The base currency is ${BASE_CURRENCY} and can't be changed: every stored amount is in it.` }),
   defaultWebFee: nonNeg.max(100_000),
+  // Null until the administrator sets a price; see PaymentSettings.
+  deliberationSubscriptionFee: nonNeg.max(100_000_000).nullable(),
+  deliberationPerNameFee: nonNeg.max(1_000_000).nullable(),
   webFeeCollectionBank: z.string().trim().min(1).max(120),
   webFeeAccountName: z.string().trim().min(1).max(120),
   webFeeAccountNumber: z.string().trim().min(1).max(60),
@@ -65,10 +71,17 @@ export function isSettingsKey(key: string): key is SettingsKey {
   return key in SECTIONS;
 }
 
-export async function getSettings<K extends SettingsKey>(key: K): Promise<ValueOf<K>> {
+/** Pass the transaction as `db` when reading settings inside one. */
+export async function getSettings<K extends SettingsKey>(key: K, db: Executor = getDb()): Promise<ValueOf<K>> {
   const section = SECTIONS[key];
-  const [row] = await getDb().select().from(settings).where(eq(settings.key, key)).limit(1);
-  return { ...section.defaults, ...(row?.value ?? {}), ...(row ? { updatedAt: row.updatedAt.toISOString() } : {}) } as ValueOf<K>;
+  const [row] = await db.select().from(settings).where(eq(settings.key, key)).limit(1);
+  return {
+    ...section.defaults,
+    ...(row?.value ?? {}),
+    ...(row ? { updatedAt: row.updatedAt.toISOString() } : {}),
+    // The base currency is fixed (see paymentSchema); a different value saved before that was enforced is not honoured.
+    ...(key === "payment" ? { baseCurrency: BASE_CURRENCY } : {}),
+  } as ValueOf<K>;
 }
 
 /** Replaces a settings section. Partial input is merged over the current values, then validated whole. */

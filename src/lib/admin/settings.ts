@@ -1,4 +1,4 @@
-import { createCollection } from "./store";
+import { createApiSettings, createCollection } from "./store";
 
 /**
  * Platform-wide settings. Each is a single record (id "platform") held in
@@ -58,7 +58,20 @@ export const SYSTEM_DEFAULTS: SystemSettings = {
 export interface PaymentSettings {
   id: "platform";
   baseCurrency: string;
+  /**
+   * The platform web fee, in XAF: what an application costs on top of the
+   * institution's own fee. It applies to every institution that hasn't
+   * been given a web fee of its own.
+   */
   defaultWebFee: number;
+  /**
+   * Deliberation is a paid service for institutions: an annual
+   * subscription, plus a fee for each applicant name on the Deliberation
+   * List. Both in XAF. Null means the price hasn't been set yet, and until
+   * both are set no institution can subscribe. Zero means free.
+   */
+  deliberationSubscriptionFee: number | null;
+  deliberationPerNameFee: number | null;
   webFeeCollectionBank: string;
   webFeeAccountName: string;
   webFeeAccountNumber: string;
@@ -77,6 +90,8 @@ export const PAYMENT_DEFAULTS: PaymentSettings = {
   id: "platform",
   baseCurrency: "XAF",
   defaultWebFee: 2000,
+  deliberationSubscriptionFee: null,
+  deliberationPerNameFee: null,
   webFeeCollectionBank: "Afriland First Bank",
   webFeeAccountName: "Cheeta AOSA — Web fees",
   webFeeAccountNumber: "CM21 10005 00001 00000000001 21",
@@ -91,4 +106,5 @@ export const PAYMENT_DEFAULTS: PaymentSettings = {
 };
 
 export const systemSettingsStore = createCollection<SystemSettings>("system-settings", () => [SYSTEM_DEFAULTS]);
-export const paymentSettingsStore = createCollection<PaymentSettings>("payment-settings", () => [PAYMENT_DEFAULTS]);
+/** Stored in the database: read from and saved to /api/admin/settings/payment. */
+export const paymentSettingsStore = createApiSettings<PaymentSettings>("/api/admin/settings/payment", PAYMENT_DEFAULTS);

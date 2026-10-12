@@ -40,11 +40,17 @@ const schema = z
     LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default(isProd ? "info" : "debug"),
     LOG_FORMAT: z.enum(["json", "pretty"]).default(isProd ? "json" : "pretty"),
 
-    STORAGE_DRIVER: z.enum(["local"]).default("local"),
+    /**
+     * Where uploaded files are kept: "local" (a folder on this server's disk) or "database" (in the database, for hosting
+     * without a lasting disk). Unset, it is "database" on Vercel, where the disk is discarded between requests, and "local" elsewhere.
+     */
+    STORAGE_DRIVER: z.enum(["local", "database"]).default(process.env.VERCEL ? "database" : "local"),
     STORAGE_LOCAL_DIR: z.string().default(".data/uploads"),
-    STORAGE_MAX_UPLOAD_MB: z.coerce.number().positive().max(100).default(10),
-    /** Lifetime of a signed file download link. */
-    STORAGE_DOWNLOAD_TTL_SECONDS: z.coerce.number().int().min(30).max(86_400).default(300),
+    /**
+     * The largest file anyone can upload. No upload requirement can ask for more, and applicants are never told a bigger limit.
+     * Unset, it is 10 MB, or 4 MB on Vercel, which refuses any request over about 4.5 MB before it reaches the app.
+     */
+    STORAGE_MAX_UPLOAD_MB: z.coerce.number().positive().max(100).default(process.env.VERCEL ? 4 : 10),
 
     EMAIL_PROVIDER: z.enum(["console"]).default("console"),
     SMS_PROVIDER: z.enum(["console"]).default("console"),

@@ -1,9 +1,12 @@
+import { NextResponse } from "next/server";
 import { handler } from "@/server/http/handler";
-import { paged } from "@/server/http/respond";
-import { listFeePayments } from "@/server/modules/applications/admin.service";
+import { feePaymentSummary, listFeePayments } from "@/server/modules/applications/admin.service";
 
-/** The approval desk: ?approval=AWAITING|APPROVED|REJECTED, ?institutionId=, ?q= */
+/**
+ * Payment records, for verification: ?approval=AWAITING|APPROVED|REJECTED, ?institutionId=, ?method=, ?from=, ?to=, ?q=.
+ * `summary` is the totals across every record, whatever the filters.
+ */
 export const GET = handler({ auth: ["AOSA_ADMIN"] }, async ({ req }) => {
-  const r = await listFeePayments(req);
-  return paged(r.data, r.meta);
+  const [list, summary] = await Promise.all([listFeePayments(req), feePaymentSummary()]);
+  return NextResponse.json({ data: list.data, meta: list.meta, summary });
 });

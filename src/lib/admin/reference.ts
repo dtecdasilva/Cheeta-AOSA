@@ -1,4 +1,4 @@
-import { createApiCollection, createCollection } from "./store";
+import { createApiCollection } from "./store";
 import type { ParamStatus } from "./parameters";
 import { COUNTRIES } from "@/lib/countries/data";
 import { CURRENCIES, MOCK_EXCHANGE_RATES } from "@/lib/currency/data";
@@ -11,7 +11,8 @@ import { CURRENCIES, MOCK_EXCHANGE_RATES } from "@/lib/currency/data";
  * read and write /api/admin/countries and /api/admin/currencies. The
  * lists in src/lib/countries and src/lib/currency are what an empty
  * database is first filled from, and what is shown until the API answers.
- * Exchange rates are still held in the browser.
+ * Exchange rates are stored too (/api/admin/exchange-rates); they are
+ * added to, never edited, so the history of each rate is kept.
  */
 
 // ---------------------------------------------------------------------------
@@ -238,28 +239,47 @@ export interface AdminExchangeRate {
   updatedBy: string;
 }
 
-export interface RateChange {
+/** One rate on record, as /api/admin/exchange-rates returns it in `history`. */
+export interface RateRecord {
   id: string;
-  code: string;
-  from: number;
-  to: number;
-  at: string;
-  by: string;
+  fromCurrency: string;
+  toCurrency: string;
+  /** How many `toCurrency` equal one `fromCurrency`. */
+  rate: number;
+  source: string;
+  effectiveFrom: string;
+  /** An end date given for the rate itself, if any. */
+  effectiveTo: string | null;
+  /** When it actually stops applying (its own end, or the next rate's start). */
+  appliesUntil: string | null;
+  status: ParamStatus;
+  /** Whether it is the rate applying to its pair right now. */
+  current: boolean;
+  createdBy: string | null;
+  createdAt: string;
 }
 
-export const rateStore = createCollection<AdminExchangeRate>("exchange-rates", () =>
-  MOCK_EXCHANGE_RATES.map((r) => ({
-    id: r.code,
-    code: r.code,
-    xafPerUnit: r.xafPerUnit,
-    source: r.code === "EUR" ? "Fixed peg (BEAC)" : "BEAC reference rate",
-    asOf: `${r.asOf}T08:00:00.000Z`,
-    updatedBy: "AOSA administrator",
-  }))
+/**
+ * The rate applying now to each currency against the base currency, from
+ * the database (/api/admin/exchange-rates). Read-only here: a rate is
+ * never edited, so changes go through the Exchange rates screen, which
+ * adds a new rate and then calls `rateStore.reset()` to read them again.
+ * The sample rates are what an empty database is first filled from.
+ */
+export const rateStore = createApiCollection<AdminExchangeRate>(
+  "exchange-rates",
+  () =>
+    MOCK_EXCHANGE_RATES.map((r) => ({
+      id: r.code,
+      code: r.code,
+      xafPerUnit: r.xafPerUnit,
+      source: r.code === "EUR" ? "Fixed peg (BEAC)" : "BEAC reference rate",
+      asOf: `${r.asOf}T08:00:00.000Z`,
+      updatedBy: "AOSA administrator",
+    })),
+  {
+    url: "/api/admin/exchange-rates",
+    fromApi: (r) => ({ id: str(r.code), code: str(r.code), xafPerUnit: typeof r.xafPerUnit === "number" ? r.xafPerUnit : 0, source: str(r.source), asOf: str(r.asOf), updatedBy: str(r.updatedBy) }),
+    toApi: () => ({}),
+  }
 );
-
-export const rateHistoryStore = createCollection<RateChange>("exchange-rate-history", () => [
-  { id: "rc-3", code: "USD", from: 604.2, to: 610.5, at: "2026-09-01T08:00:00.000Z", by: "AOSA administrator" },
-  { id: "rc-2", code: "GBP", from: 762.9, to: 770.2, at: "2026-09-01T08:00:00.000Z", by: "AOSA administrator" },
-  { id: "rc-1", code: "NGN", from: 0.41, to: 0.4, at: "2026-08-01T08:00:00.000Z", by: "AOSA administrator" },
-]);

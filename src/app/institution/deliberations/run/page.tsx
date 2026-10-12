@@ -1,12 +1,15 @@
 import { requireRole } from "@/lib/auth/guard";
 import RunDeliberation from "@/components/institution/deliberations/RunDeliberation";
+import { DeliberationGate } from "@/components/institution/deliberations/DeliberationAccess";
 
 export default async function Page() {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   return (
     <main className="px-4 py-6 sm:px-8 sm:py-8">
       <h1 className="font-semibold tracking-tight text-xl mb-4">Run deliberation</h1>
-      <RunDeliberation institutionId={user.institutionId ?? "inst-1"} />
+      <DeliberationGate>
+        <RunDeliberation institutionId={user.institutionId ?? "inst-1"} />
+      </DeliberationGate>
     </main>
   );
 }

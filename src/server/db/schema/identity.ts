@@ -88,6 +88,12 @@ export const applicantProfiles = pgTable(
     highestQualification: text("highest_qualification").notNull().default(""),
     /** "Self-registered" or "Registered by admin", as the admin screens show it. */
     source: text("source").notNull().default("Self-registered"),
+    /**
+     * The currency this applicant has chosen to see fees in (a currency
+     * code). Null for the base currency. It changes what is shown, never
+     * what is owed.
+     */
+    displayCurrency: text("display_currency"),
     ...timestamps,
   },
   (t) => [uniqueIndex("applicant_profiles_registration_no_unique").on(t.registrationNo), check("applicant_profiles_institution_type_check", oneOf(t.institutionType, INSTITUTION_TYPES))]

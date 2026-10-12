@@ -5,22 +5,20 @@ import type { ExamConfiguration, ExamTypeConfig } from "./config";
  * checked against the examination configuration. Used by the server on
  * every save; safe to use in the forms too.
  *
+ * An examination is created first (its qualification and sittings), and
+ * results are then added to one of its sittings. So no subject appears in
+ * an examination, and a result names the sitting it belongs to, never a
+ * qualification of its own.
+ *
  * Errors are keyed by where they are, so a form can put each next to its
  * input: "qualification", "sittings", "sittings.0.examinationYear",
- * "sittings.1.subjectEntries.2.value".
+ * "sittingId", "subject", "value".
  */
-
-export interface SubjectEntryInput {
-  subject: string;
-  /** A grade label, or a score as text. */
-  value: string;
-}
 
 export interface SittingInput {
   examinationYear: string;
   candidateNumber: string;
   centreNumber: string;
-  subjectEntries: SubjectEntryInput[];
 }
 
 export interface ExaminationInput {
@@ -30,7 +28,8 @@ export interface ExaminationInput {
 }
 
 export interface ResultInput {
-  qualification: string;
+  /** The sitting of one of the applicant's examinations that the result was obtained at. */
+  sittingId: string;
   subject: string;
   value: string;
   /** Set instead of `value` for a result recorded without a grade, e.g. Absent. */
@@ -77,8 +76,8 @@ function qualificationFor(id: string, config: ExamConfiguration, keepQualificati
 export function validateExamination(
   input: ExaminationInput,
   config: ExamConfiguration,
-  /** The record as stored, when updating: its qualification, subjects and values stay acceptable even if the configuration has changed since. */
-  existing?: ExaminationInput
+  /** The record as stored, when updating: its qualification stays acceptable even if it has been switched off since. */
+  existing?: Pick<ExaminationInput, "qualification">
 ): ExamFieldErrors {
   const errors: ExamFieldErrors = {};
   const type = qualificationFor(input.qualification, config, existing?.qualification, errors);
@@ -87,11 +86,7 @@ export function validateExamination(
   if (input.sittings.length === 0) errors.sittings = "Add at least one sitting.";
   else if (input.sittings.length > type.maxSittings) errors.sittings = `${type.qualification} allows at most ${type.maxSittings} sitting${type.maxSittings === 1 ? "" : "s"}.`;
 
-  const sameType = existing?.qualification === input.qualification;
-  const keptSubjects = new Set(sameType ? existing!.sittings.flatMap((s) => s.subjectEntries.map((e) => e.subject)) : []);
-  const keptValues = new Set(sameType ? existing!.sittings.flatMap((s) => s.subjectEntries.map((e) => `${e.subject}\n${e.value}`)) : []);
   const thisYear = new Date().getFullYear();
-
   input.sittings.forEach((sitting, i) => {
     const at = `sittings.${i}`;
     if (!/^\d{4}$/.test(sitting.examinationYear) || Number(sitting.examinationYear) < MIN_EXAM_YEAR || Number(sitting.examinationYear) > thisYear) {
@@ -102,32 +97,26 @@ export function validateExamination(
       if (!sitting[field].trim()) errors[`${at}.${field}`] = `Enter the ${label}.`;
       else if (sitting[field].length > MAX_NUMBER_LENGTH) errors[`${at}.${field}`] = `Keep the ${label} to ${MAX_NUMBER_LENGTH} characters or fewer.`;
     }
-
-    const seen = new Set<string>();
-    sitting.subjectEntries.forEach((entry, j) => {
-      const entryAt = `${at}.subjectEntries.${j}`;
-      if (!entry.subject) errors[`${entryAt}.subject`] = "Choose a subject.";
-      else if (!type.subjects.includes(entry.subject) && !keptSubjects.has(entry.subject)) errors[`${entryAt}.subject`] = "Choose one of the subjects offered for this qualification.";
-      else if (seen.has(entry.subject)) errors[`${entryAt}.subject`] = "This subject is already listed for this sitting.";
-      seen.add(entry.subject);
-
-      const keep = keptValues.has(`${entry.subject}\n${entry.value}`) ? entry.value : undefined;
-      const problem = valueProblem(type, entry.value, keep);
-      if (problem) errors[`${entryAt}.value`] = problem;
-    });
   });
 
   return errors;
 }
 
-export function validateResult(input: ResultInput, config: ExamConfiguration, existing?: ResultInput): ExamFieldErrors {
+/**
+ * Checks a result against the qualification of the examination it is
+ * being added to (`type`, which the caller reads from the applicant's
+ * stored examination, so it is never taken from the request).
+ *
+ * `existing` is the result as stored, when updating: the subject and
+ * grade it already has stay acceptable on the same sitting even if the
+ * configuration has changed since.
+ */
+export function validateResult(input: ResultInput, type: ExamTypeConfig, config: ExamConfiguration, existing?: ResultInput): ExamFieldErrors {
   const errors: ExamFieldErrors = {};
-  const type = qualificationFor(input.qualification, config, existing?.qualification, errors);
-  if (!type) return errors;
+  const sameSitting = existing?.sittingId === input.sittingId;
 
-  const sameType = existing?.qualification === input.qualification;
   if (!input.subject) errors.subject = "Choose a subject.";
-  else if (!type.subjects.includes(input.subject) && !(sameType && existing!.subject === input.subject)) errors.subject = "Choose one of the subjects offered for this qualification.";
+  else if (!type.subjects.includes(input.subject) && !(sameSitting && existing!.subject === input.subject)) errors.subject = "Choose one of the subjects offered for this examination.";
 
   if (input.resultTypeId) {
     // A result recorded without a grade: it has to be one of the "not graded" result types on offer.
@@ -135,7 +124,7 @@ export function validateResult(input: ResultInput, config: ExamConfiguration, ex
     if (!offered) errors.resultTypeId = "Choose one of the results offered.";
     if (input.value.trim()) errors.value = "Leave the grade empty when recording a result such as Absent.";
   } else {
-    const keep = sameType && existing!.subject === input.subject ? existing!.value : undefined;
+    const keep = sameSitting && existing!.subject === input.subject ? existing!.value : undefined;
     const problem = valueProblem(type, input.value, keep);
     if (problem) errors.value = problem;
   }

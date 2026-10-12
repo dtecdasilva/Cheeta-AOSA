@@ -1,66 +1,32 @@
-import { PaymentMethodConfig } from "@/lib/mockData/paymentMethods";
+import { PAYMENT_METHOD_TYPE_LABELS, VERIFICATION_LABELS, describePaymentMethod, type PaymentMethod } from "@/lib/institution/paymentMethods";
+import { formatDate } from "@/lib/utils";
 import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
 
-const TYPE_LABELS: Record<PaymentMethodConfig["type"], string> = {
-  bank: "Bank account",
-  money_transfer: "Money transfer",
-  mobile_operator: "Mobile operator",
-  debit_wallet: "Debit wallet",
-};
+/** One payment method. The detail rows differ by kind (and are labelled for it); the layout does not. */
+export default function PaymentMethodView({ method, canEdit }: { method: PaymentMethod; canEdit: boolean }) {
+  const verification =
+    method.verification === "VERIFIED" && method.verifiedAt
+      ? `Verified by Cheeta administration on ${formatDate(method.verifiedAt)}`
+      : method.verification === "REJECTED"
+      ? `Rejected by Cheeta administration${method.verificationNote ? `: ${method.verificationNote}` : ""}`
+      : `${VERIFICATION_LABELS[method.verification]}: not shown to applicants yet`;
 
-/** The detail rows differ per method type, but the layout does not. */
-function detailsFor(method: PaymentMethodConfig): { label: string; value: React.ReactNode }[] {
-  switch (method.type) {
-    case "bank":
-      return method.bank
-        ? [
-            { label: "Account name", value: method.bank.accountName },
-            { label: "Account number", value: method.bank.accountNumber },
-            { label: "Bank", value: method.bank.bankName },
-            { label: "SWIFT", value: method.bank.swift },
-            { label: "Notes", value: method.bank.notes },
-          ]
-        : [];
-    case "mobile_operator":
-      return method.mobile
-        ? [
-            { label: "Operator", value: method.mobile.operator },
-            { label: "Number", value: method.mobile.number },
-            { label: "Account name", value: method.mobile.accountName },
-            { label: "Notes", value: method.mobile.notes },
-          ]
-        : [];
-    case "money_transfer":
-      return method.money
-        ? [
-            { label: "Provider", value: method.money.provider },
-            { label: "Instructions", value: method.money.instructions },
-          ]
-        : [];
-    case "debit_wallet":
-      return method.wallet
-        ? [
-            { label: "Provider", value: method.wallet.provider },
-            { label: "Wallet ID", value: method.wallet.walletId },
-            { label: "Instructions", value: method.wallet.instructions },
-          ]
-        : [];
-  }
-}
-
-export default function PaymentMethodView({ method }: { method: PaymentMethodConfig }) {
   return (
     <div className="max-w-2xl space-y-4">
       <Card padded={false}>
-        <CardHeader title={method.label} description={TYPE_LABELS[method.type]} />
+        <CardHeader title={method.label} description={PAYMENT_METHOD_TYPE_LABELS[method.type]} />
         <DescriptionList
           items={[
-            ...detailsFor(method),
-            { label: "Status", value: method.active ? "Active" : "Inactive" },
+            ...describePaymentMethod(method).map((row) => ({ label: row.label, value: row.value })),
+            { label: "Instructions for payers", value: method.instructions },
+            { label: "Tuition", value: method.acceptsTuition ? "Also accepts tuition payments" : "Application fees only" },
+            { label: "Verification", value: verification },
+            { label: "Status", value: method.status === "ACTIVE" ? "Active" : "Inactive" },
+            { label: "Shown to applicants", value: method.status === "ACTIVE" && method.verification === "VERIFIED" ? "Yes" : "No" },
           ]}
         />
       </Card>
-      <RowAction href={`/institution/payment-methods/${method.id}/edit`}>Edit</RowAction>
+      {canEdit && <RowAction href={`/institution/payment-methods/${method.id}/edit`}>Edit</RowAction>}
     </div>
   );
 }

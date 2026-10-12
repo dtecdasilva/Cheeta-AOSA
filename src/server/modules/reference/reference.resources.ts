@@ -3,7 +3,7 @@ import { count, eq, or } from "drizzle-orm";
 import { z } from "zod";
 import { CATEGORY_DEFS, type CategoryDef, type FieldDef } from "@/lib/admin/parameters";
 import { BASE_CURRENCY, WORLD_REGION_LABELS } from "@/lib/admin/reference";
-import { countries, currencies, demographicProfiles, educationRecords, feeConfigs, parameters } from "@/server/db/schema";
+import { countries, currencies, demographicProfiles, educationRecords, exchangeRates, feeConfigs, parameters } from "@/server/db/schema";
 import { ConflictError, ValidationError } from "@/server/http/errors";
 import { parseWith, requiredText, text } from "@/server/http/validate";
 import type { ResourceDef } from "@/server/modules/resource";
@@ -189,10 +189,12 @@ export const currencyResource: ResourceDef<z.ZodObject> = {
   async check(_db, next, existing) {
     if (existing && existing.code === BASE_CURRENCY && next.status === "INACTIVE") throw new ValidationError({ status: "The base currency can't be deactivated." });
   },
-  // Deleting a currency also deletes its exchange-rate history (the rates reference it).
   async remove(db, row) {
     const code = String(row.code);
     if (code === BASE_CURRENCY) throw new ConflictError("The base currency can't be deleted: every amount is stored in it.");
+    // Exchange rates are history and are never deleted, so a currency that has any stays.
+    const [rates] = await db.select({ n: count() }).from(exchangeRates).where(or(eq(exchangeRates.fromCurrency, code), eq(exchangeRates.toCurrency, code)));
+    if (rates.n) throw new ConflictError(`${code} has exchange rates on record, which are kept as history, so it can't be deleted. Deactivate it instead.`);
     const [[fees], [used]] = await Promise.all([
       db.select({ n: count() }).from(feeConfigs).where(eq(feeConfigs.currency, code)),
       db.select({ n: count() }).from(countries).where(eq(countries.currencyCode, code)),

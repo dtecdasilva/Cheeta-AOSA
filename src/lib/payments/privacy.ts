@@ -34,6 +34,15 @@ export function maskFullName(fullName: string): string {
   return maskName(parts.slice(0, -1).join(" "), parts[parts.length - 1]);
 }
 
+/**
+ * The masked name for an account. Someone who registered but hasn't given
+ * their name yet is still known by the first part of their email address;
+ * that is a contact detail, not a name, so it isn't shown at all.
+ */
+export function maskAccountName(fullName: string, email: string): string {
+  return fullName.trim() === email.split("@")[0] ? "Applicant" : maskFullName(fullName);
+}
+
 // ---------------------------------------------------------------------------
 // Bank codes
 // ---------------------------------------------------------------------------

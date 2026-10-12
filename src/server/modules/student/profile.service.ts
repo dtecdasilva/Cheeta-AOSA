@@ -8,7 +8,7 @@ import type { EducationLevelConfig } from "@/lib/education/configTypes";
 import type { EducationRecord, EducationRecordInput } from "@/lib/education/types";
 import { validateEducationRecord } from "@/lib/education/validation";
 import { getDb, type Executor } from "@/server/db/client";
-import { demographicProfiles, educationLevels, educationQualifications, educationRecords } from "@/server/db/schema";
+import { demographicProfiles, educationLevels, educationQualifications, educationRecords, users } from "@/server/db/schema";
 import { newId } from "@/server/db/ids";
 import { audit } from "@/server/audit/audit";
 import { BadRequestError, ConflictError, NotFoundError, ValidationError } from "@/server/http/errors";
@@ -154,6 +154,12 @@ async function writeDemographic(user: PublicUser, body: unknown, kind: "create" 
           .values({ userId: user.id, ...values, ...(submitting ? { submittedAt: new Date() } : {}) })
           .returning();
 
+    // An account opened by registering starts with a name made from its email address. The name the
+    // applicant gives here is their name everywhere from now on: on the account, and so to the
+    // administrators checking their payments and to the institutions they apply to.
+    const name = values.fullNameOnBirthCertificate.trim();
+    if (name && name !== user.fullName) await tx.update(users).set({ fullName: name }).where(eq(users.id, user.id));
+
     await audit(tx, {
       action: submitting ? "submit" : kind,
       entityType: "demographic-profile",
@@ -166,12 +172,12 @@ async function writeDemographic(user: PublicUser, body: unknown, kind: "create" 
 }
 
 /** Create: the first save. Refused with 409 if the applicant already has a record. */
-export function createDemographic(user: PublicUser, body: unknown): Promise<DemographicRecord> {
+function createDemographicNow(user: PublicUser, body: unknown): Promise<DemographicRecord> {
   return writeDemographic(user, body, "create");
 }
 
 /** Update: changes only the fields sent. Refused with 404 if there is nothing to update yet. */
-export function updateDemographic(user: PublicUser, body: unknown): Promise<DemographicRecord> {
+function updateDemographicNow(user: PublicUser, body: unknown): Promise<DemographicRecord> {
   return writeDemographic(user, body, "update");
 }
 
@@ -227,7 +233,7 @@ export async function listEducation(user: PublicUser): Promise<EducationRecord[]
   return rows.map(toRecord);
 }
 
-export async function createEducation(user: PublicUser, body: Record<string, unknown>): Promise<EducationRecord> {
+async function createEducationNow(user: PublicUser, body: Record<string, unknown>): Promise<EducationRecord> {
   const input = await validInput(body);
   const row = await getDb().transaction(async (tx) => {
     const [inserted] = await tx.insert(educationRecords).values({ id: newId("edu"), userId: user.id, ...input }).returning();
@@ -237,7 +243,7 @@ export async function createEducation(user: PublicUser, body: Record<string, unk
   return toRecord(row);
 }
 
-export async function updateEducation(user: PublicUser, id: string, body: Record<string, unknown>): Promise<EducationRecord> {
+async function updateEducationNow(user: PublicUser, id: string, body: Record<string, unknown>): Promise<EducationRecord> {
   const ownRow = and(eq(educationRecords.id, id), eq(educationRecords.userId, user.id));
   const [current] = await getDb().select({ country: educationRecords.country }).from(educationRecords).where(ownRow).limit(1);
   if (!current) throw new NotFoundError("Education record");
@@ -252,7 +258,7 @@ export async function updateEducation(user: PublicUser, id: string, body: Record
   return toRecord(row);
 }
 
-export async function deleteEducation(user: PublicUser, id: string) {
+async function deleteEducationNow(user: PublicUser, id: string) {
   await getDb().transaction(async (tx) => {
     const [deleted] = await tx
       .delete(educationRecords)
@@ -261,4 +267,42 @@ export async function deleteEducation(user: PublicUser, id: string) {
     if (!deleted) throw new NotFoundError("Education record");
     await audit(tx, { action: "delete", entityType: "education-record", entityId: id, before: deleted, after: null });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Keeping application statuses in step
+// ---------------------------------------------------------------------------
+
+/**
+ * Runs a change to a section every application shares, then re-checks the
+ * applicant's applications that haven't been submitted, so each one's
+ * INCOMPLETE or COMPLETED status follows (src/server/modules/applications/
+ * applications.workflow.ts). That module is loaded when needed rather than
+ * imported, because it reads this one.
+ */
+async function thenRecheck<T>(userId: string, change: Promise<T>): Promise<T> {
+  const result = await change;
+  const { syncApplicantCompletion } = await import("@/server/modules/applications/applications.workflow");
+  await getDb().transaction((tx) => syncApplicantCompletion(tx, userId));
+  return result;
+}
+
+export function createDemographic(user: PublicUser, body: unknown): Promise<DemographicRecord> {
+  return thenRecheck(user.id, createDemographicNow(user, body));
+}
+
+export function updateDemographic(user: PublicUser, body: unknown): Promise<DemographicRecord> {
+  return thenRecheck(user.id, updateDemographicNow(user, body));
+}
+
+export function createEducation(user: PublicUser, body: Record<string, unknown>): Promise<EducationRecord> {
+  return thenRecheck(user.id, createEducationNow(user, body));
+}
+
+export function updateEducation(user: PublicUser, id: string, body: Record<string, unknown>): Promise<EducationRecord> {
+  return thenRecheck(user.id, updateEducationNow(user, id, body));
+}
+
+export function deleteEducation(user: PublicUser, id: string): Promise<void> {
+  return thenRecheck(user.id, deleteEducationNow(user, id));
 }

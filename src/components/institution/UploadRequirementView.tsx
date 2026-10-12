@@ -1,21 +1,24 @@
-import { UploadRequirement } from "@/lib/mockData/uploadRequirements";
+import { formatFileSize, formatFileTypes, type UploadRequirement } from "@/lib/institution/uploadRequirements";
 import { Card, CardHeader, DescriptionList, RowAction } from "@/components/ui";
 
-export default function UploadRequirementView({ req }: { req: UploadRequirement }) {
+/** One upload requirement, as the institution set it. */
+export default function UploadRequirementView({ req, canEdit }: { req: UploadRequirement; canEdit: boolean }) {
   return (
     <div className="max-w-2xl space-y-4">
       <Card padded={false}>
-        <CardHeader title={req.name} description={req.description} />
+        <CardHeader title={req.name} description={req.description || undefined} />
         <DescriptionList
           items={[
-            { label: "Required", value: req.required ? "Yes" : "No" },
-            { label: "Accepted file types", value: req.fileTypes.join(", ").toUpperCase() },
-            { label: "Maximum size", value: req.maxSizeKB >= 1024 ? `${(req.maxSizeKB / 1024).toFixed(req.maxSizeKB % 1024 === 0 ? 0 : 1)} MB` : `${req.maxSizeKB} KB` },
-            { label: "Status", value: req.status === "active" ? "Active" : "Inactive" },
+            { label: "Document type", value: req.documentTypeId ? req.name : "Not chosen yet" },
+            { label: "Required or optional", value: req.required ? "Required: an application can't be submitted without it" : "Optional: applicants may leave it out" },
+            { label: "Accepted file types", value: formatFileTypes(req.fileTypes) },
+            { label: "Maximum size", value: formatFileSize(req.maxSizeKb) },
+            { label: "Status", value: req.status === "ACTIVE" ? "Active" : "Inactive" },
+            { label: "Asked of applicants", value: req.status === "ACTIVE" ? "Yes" : "No" },
           ]}
         />
       </Card>
-      <RowAction href={`/institution/uploads/requirements/${req.id}/edit`}>Edit</RowAction>
+      {canEdit && <RowAction href={`/institution/uploads/requirements/${req.id}/edit`}>Edit</RowAction>}
     </div>
   );
 }

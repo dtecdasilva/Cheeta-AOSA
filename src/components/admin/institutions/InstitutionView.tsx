@@ -84,7 +84,7 @@ export function InstitutionView({ id }: { id: string }) {
               { label: "Accredited by", value: body ? `${body.label} (${body.code})` : "—" },
               { label: "Accreditation code", value: inst.accreditationCode },
               { label: "Status", value: active ? "Active" : "Inactive" },
-              { label: "Web fee", value: formatCurrency(inst.webFee) },
+              { label: "Web fee", value: inst.webFee === null ? "Platform web fee" : formatCurrency(inst.webFee) },
             ]}
           />
         </Card>

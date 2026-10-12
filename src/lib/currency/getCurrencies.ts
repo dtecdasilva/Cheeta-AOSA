@@ -1,28 +1,32 @@
 import { CURRENCIES, CurrencyInfo } from "./data";
 
 /**
- * Returns the list of currencies, shaped as a Promise even though today
- * it just resolves the static mock list in data.ts — the same pattern as
- * getCountries() (src/lib/countries/getCountries.ts). "Do not implement
- * live exchange-rate APIs" rules out a real call today; this is the seam
- * a real one (or a database-backed config, matching Education
- * Information's pattern) plugs into later without touching
- * <CurrencySelector> or anything else that calls this.
+ * The currencies applicants can view fees in, from the database
+ * (/api/reference/currencies: the active ones the administrator has
+ * switched on for applicants).
  *
- * The synchronous helpers in data.ts (getCurrencyInfo, formatAmount,
- * convertAmount) are used directly by the small inline display
- * components (CurrencySymbol, CurrencyCode, FormattedCurrencyAmount,
- * ConvertedAmount, ExchangeRateInfo) rather than going through this
- * async accessor — those are meant to render instantly wherever they're
- * dropped in, not show a loading flicker for static mock data. This
- * accessor exists for the one place a brief load is expected and fine:
- * populating <CurrencySelector>'s option list.
+ * Asked for once per page load and shared by everything that needs it.
+ * If the list can't be read (offline, or the server is down), the
+ * starting list in data.ts is used instead so pickers and amounts still
+ * render; the next page load tries again.
  */
 let cached: Promise<CurrencyInfo[]> | null = null;
 
-export function getCurrencies(): Promise<CurrencyInfo[]> {
-  if (!cached) {
-    cached = Promise.resolve([...CURRENCIES]);
+async function load(): Promise<CurrencyInfo[]> {
+  try {
+    const res = await fetch("/api/reference/currencies", { cache: "no-store" });
+    if (!res.ok) throw new Error(String(res.status));
+    const body = (await res.json()) as { data: CurrencyInfo[] };
+    if (!body.data.length) throw new Error("empty");
+    return body.data.map((c) => ({ code: c.code, symbol: c.symbol, name: c.name, decimalDigits: c.decimalDigits, symbolPosition: c.symbolPosition }));
+  } catch {
+    cached = null;
+    return [...CURRENCIES];
   }
-  return cached;
+}
+
+export function getCurrencies(): Promise<CurrencyInfo[]> {
+  // On the server there is no session to read the list with; the starting list stands in.
+  if (typeof window === "undefined") return Promise.resolve([...CURRENCIES]);
+  return (cached ??= load());
 }

@@ -161,13 +161,8 @@ export function CurrencyManager() {
       validate={(c, all, editingId) => ({
         code: !/^[A-Z]{3}$/.test(c.code) ? "Use three letters, for example USD." : all.some((x) => x.id !== editingId && x.code === c.code) ? "This currency is already on the list." : undefined,
       })}
-      beforeSave={(c) => {
-        // A new currency needs a rate row so the converter has something to edit.
-        if (!rateStore.getAll().some((r) => r.code === c.code)) {
-          rateStore.add({ id: c.code, code: c.code, xafPerUnit: 0, source: "Not set", asOf: new Date().toISOString(), updatedBy: "AOSA administrator" });
-        }
-        return { ...c, id: c.code };
-      }}
+      // A new currency shows on the Exchange rates screen as "Not set" until its first rate is added there.
+      beforeSave={(c) => ({ ...c, id: c.code })}
       deactivateBlocker={(c) => (c.code === BASE_CURRENCY ? "The base currency can't be deactivated." : null)}
       columns={[
         {

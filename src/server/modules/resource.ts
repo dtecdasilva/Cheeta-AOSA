@@ -64,8 +64,15 @@ export interface ResourceDef<TCreate extends z.ZodObject> {
   check?: (db: Executor, next: Row, existing: Row | null) => Promise<void>;
   /** Sets derived fields before saving; gets the merged record and the existing row (null on create). */
   prepare?: (next: Row, existing: Row | null) => Row;
+  /**
+   * Fields that are worked out from other records and so need the database (a name copied from the list entry
+   * chosen, say). Runs after `check`, inside the same transaction; what it returns is saved over what was sent.
+   */
+  derive?: (db: Executor, next: Row, existing: Row | null) => Promise<Row>;
   /** Shapes a row for the response (drop secrets, add derived fields). */
   present?: (row: Row) => Row;
+  /** Always applied when reading: rows it excludes don't exist as far as this resource is concerned. */
+  where?: SQL;
   /**
    * Makes the resource deletable. Called inside the delete's transaction
    * with the row about to go; throw ConflictError to refuse (the record is
@@ -87,9 +94,9 @@ function uniqueMessage(def: ResourceDef<z.ZodObject>, err: unknown): ConflictErr
 }
 
 function scopeCondition(def: ResourceDef<z.ZodObject>, scope: Scope): SQL | undefined {
-  if (!scope.institutionId) return undefined;
+  if (!scope.institutionId) return def.where;
   if (!def.institutionColumn) throw new ForbiddenError();
-  return eq(def.institutionColumn, scope.institutionId);
+  return and(eq(def.institutionColumn, scope.institutionId), def.where);
 }
 
 export async function listResource(def: ResourceDef<z.ZodObject>, req: NextRequest, scope: Scope) {
@@ -145,7 +152,10 @@ export async function getResource(def: ResourceDef<z.ZodObject>, id: string, sco
 }
 
 export async function createResource<T extends z.ZodObject>(def: ResourceDef<T>, input: unknown, scope: Scope) {
-  const parsed = def.create.parse(input) as Row;
+  // A caller confined to one institution always creates in that institution: whatever
+  // institution the request names (or doesn't) is replaced before anything is checked.
+  const scoped = scope.institutionId && def.institutionColumn && input && typeof input === "object" ? { ...input, [keyOf(def.institutionColumn)]: scope.institutionId } : input;
+  const parsed = def.create.parse(scoped) as Row;
   if (scope.institutionId && def.institutionColumn) parsed[keyOf(def.institutionColumn)] = scope.institutionId;
   const id = def.idPrefix ? newId(def.idPrefix) : def.idFrom!(parsed as z.infer<T>);
   let record: Row = { ...parsed, [keyOf(def.idColumn)]: id };
@@ -154,6 +164,7 @@ export async function createResource<T extends z.ZodObject>(def: ResourceDef<T>,
   try {
     const row = await getDb().transaction(async (tx) => {
       await def.check?.(tx, record, null);
+      if (def.derive) Object.assign(record, await def.derive(tx, record, null));
       const [inserted] = await tx.insert(def.table).values(record).returning();
       await audit(tx, { action: "create", entityType: def.name, entityId: id, institutionId: (inserted.institutionId as string) ?? null, before: null, after: inserted });
       return inserted;
@@ -182,6 +193,7 @@ export async function updateResource(def: ResourceDef<z.ZodObject>, id: string, 
       if (Object.keys(patch).length === 0) return existing;
       if (def.prepare) Object.assign(patch, diffKeys(def.prepare({ ...existing, ...patch }, existing), existing));
       await def.check?.(tx, { ...existing, ...patch }, existing);
+      if (def.derive) Object.assign(patch, diffKeys(await def.derive(tx, { ...existing, ...patch }, existing), existing));
       const [updated] = await tx.update(def.table).set(patch).where(eq(def.idColumn, id)).returning();
       const action = Object.keys(patch).length === 1 && "status" in patch ? "status" : "update";
       await audit(tx, { action, entityType: def.name, entityId: id, institutionId: (updated.institutionId as string) ?? null, before: existing, after: updated });

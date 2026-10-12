@@ -1,16 +1,18 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { EDITABLE_STATUSES } from "@/lib/applications/statusFlow";
 import type { PublicUser } from "@/lib/auth/users";
-import { signToken, verifyToken } from "@/lib/auth/token";
+import { formatFileSize, normaliseFileType } from "@/lib/institution/uploadRequirements";
+import type { ApplicationStatus } from "@/lib/types";
 import { env } from "@/server/config/env";
 import { getDb, type Executor } from "@/server/db/client";
-import { applicationDocuments, files } from "@/server/db/schema";
+import { applicationDocuments, applicationInstitutions, feePayments, files } from "@/server/db/schema";
 import { newId } from "@/server/db/ids";
 import { audit } from "@/server/audit/audit";
-import { BadRequestError, ConflictError, ForbiddenError, NotFoundError, PayloadTooLargeError } from "@/server/http/errors";
+import { BadRequestError, ConflictError, NotFoundError, PayloadTooLargeError } from "@/server/http/errors";
 import { logger } from "@/server/logging/logger";
-import { getStorage } from "./driver";
+import { getStorage, storageFor } from "./driver";
 
 /**
  * Upload, read and delete files, with their metadata in the `files` table.
@@ -20,9 +22,12 @@ import { getStorage } from "./driver";
  * requirement), and the first bytes of the content against that extension,
  * so a renamed executable can't pass as a PDF.
  *
- * Downloads go through short-lived signed links (`/api/files/:id?t=...`)
- * issued only to someone allowed to see the file, so a link can be put in
- * an <a href> or <img src> without exposing the file to anyone else.
+ * Reading a file always needs a signed-in account, and the account is
+ * checked against what the file is attached to at the moment it is opened
+ * (`fileAccess` below). There are no links that work on their own: the
+ * address of a file, /api/files/:id, opens nothing for someone who isn't
+ * allowed it, so sharing or leaking one gives nothing away, and access
+ * ends the moment the reason for it does.
  */
 
 export type FilePurpose = "application-document" | "payment-receipt" | "medical-certificate" | "admission-letter" | "other";
@@ -39,13 +44,12 @@ export function isFilePurpose(v: string): v is FilePurpose {
   return v in PURPOSES;
 }
 
-const MIME: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png" };
+const MIME: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", png: "image/png" };
 
 /** Leading bytes each allowed type must start with. */
 const SIGNATURES: Record<string, number[][]> = {
   pdf: [[0x25, 0x50, 0x44, 0x46]],
   jpg: [[0xff, 0xd8, 0xff]],
-  jpeg: [[0xff, 0xd8, 0xff]],
   png: [[0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]],
 };
 
@@ -77,13 +81,14 @@ export async function storeUpload(params: {
 }): Promise<StoredFile> {
   const { owner, file, purpose } = params;
   const rules = PURPOSES[purpose];
-  const allowed = (params.allowedTypes?.length ? params.allowedTypes : rules.types).map((t) => t.toLowerCase().replace(/^\./, ""));
+  // "jpeg" and "jpg" are one format: a requirement that accepts JPG accepts a file named either way.
+  const allowed = [...new Set((params.allowedTypes?.length ? params.allowedTypes : rules.types).map(normaliseFileType))];
   const limitBytes = Math.min(env.STORAGE_MAX_UPLOAD_MB, rules.maxMb ?? Infinity) * 1024 * 1024;
   const maxBytes = params.maxSizeKb ? Math.min(params.maxSizeKb * 1024, limitBytes) : limitBytes;
 
-  if (file.size === 0) throw new BadRequestError("The file is empty.");
-  if (file.size > maxBytes) throw new PayloadTooLargeError(`The file is larger than the ${Math.round((maxBytes / 1024 / 1024) * 10) / 10} MB allowed.`);
-  const ext = extensionOf(file.name);
+  if (file.size === 0) throw new BadRequestError("The file is empty.", { field: "file" });
+  if (file.size > maxBytes) throw new PayloadTooLargeError(`The file is larger than the ${formatFileSize(Math.floor(maxBytes / 1024))} allowed.`);
+  const ext = normaliseFileType(extensionOf(file.name));
   if (!allowed.includes(ext)) throw new BadRequestError(`Upload a ${allowed.map((t) => t.toUpperCase()).join(", ")} file.`, { field: "file" });
 
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -91,6 +96,7 @@ export async function storeUpload(params: {
 
   const id = newId("file");
   const now = new Date();
+  // The key is made here and never from anything the uploader sent, so a file name can't steer where the bytes go.
   const key = `${purpose}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${id}.${ext}`;
   const storage = getStorage();
   await storage.put(key, bytes, MIME[ext] ?? "application/octet-stream");
@@ -133,43 +139,146 @@ export async function getFile(db: Executor, id: string): Promise<StoredFile> {
   return row;
 }
 
+// ---------------------------------------------------------------------------
+// Who may open a file
+// ---------------------------------------------------------------------------
+
+/** Why an account may open a file: it is theirs, it belongs to an application to their institution, or they are Cheeta administration. */
+export type FileAccess = "owner" | "institution" | "administration";
+
+const isInstitutionStaff = (user: PublicUser) => user.role === "INSTITUTION_ADMIN" || user.role === "INSTITUTION_ADMISSION_USER";
+
 /**
- * Who may read a file: its owner, any AOSA administrator, and staff of the
- * institution it was uploaded for. Callers that attach files to records
- * (application documents) pass the institution when uploading.
+ * Decides whether `user` may open `file`, and on what grounds; null means
+ * no. Asked on every download, against the database as it stands, so it
+ * can't be answered from anything the browser holds.
+ *
+ * An applicant's document (a file attached to an application):
+ *
+ * - the applicant it belongs to;
+ * - staff of the institution that application is to, once the application
+ *   has been submitted and its fee approved. This is the same moment the
+ *   institution is shown the application at all; before it, the
+ *   institution sees only a masked name. Another institution the applicant
+ *   also applied to never sees it: each application has its own documents;
+ * - Cheeta administration.
+ *
+ * It is the document record that says whose it is, not the file. A file
+ * that was a document and has been replaced or removed is attached to
+ * nothing, and opens for nobody.
+ *
+ * A payment receipt: the applicant who uploaded it, and Cheeta
+ * administration, who verify payments. Never an institution.
+ *
+ * Any other file: its owner, Cheeta administration, and staff of the
+ * institution it was uploaded for (admission letters and the like).
  */
-export function canRead(user: PublicUser, file: StoredFile) {
-  if (file.ownerUserId === user.id) return true;
-  if (user.role === "AOSA_ADMIN") return true;
-  return !!file.institutionId && file.institutionId === user.institutionId && (user.role === "INSTITUTION_ADMIN" || user.role === "INSTITUTION_ADMISSION_USER");
+export async function fileAccess(db: Executor, user: PublicUser, file: StoredFile): Promise<FileAccess | null> {
+  if (user.role === "AOSA_ADMIN") return "administration";
+
+  if (file.purpose === "application-document") {
+    const [doc] = await db
+      .select({
+        applicantId: applicationDocuments.applicantId,
+        institutionId: applicationDocuments.institutionId,
+        applicationInstitutionId: applicationDocuments.applicationInstitutionId,
+        status: applicationInstitutions.status,
+      })
+      .from(applicationDocuments)
+      .innerJoin(applicationInstitutions, eq(applicationInstitutions.id, applicationDocuments.applicationInstitutionId))
+      .where(eq(applicationDocuments.fileId, file.id))
+      .limit(1);
+    if (!doc) return null;
+    if (user.role === "STUDENT") return doc.applicantId === user.id ? "owner" : null;
+    if (!isInstitutionStaff(user) || !user.institutionId || doc.institutionId !== user.institutionId) return null;
+    if (EDITABLE_STATUSES.includes(doc.status as ApplicationStatus)) return null;
+    const [approved] = await db
+      .select({ id: feePayments.id })
+      .from(feePayments)
+      .where(and(eq(feePayments.applicationInstitutionId, doc.applicationInstitutionId), eq(feePayments.approval, "APPROVED")))
+      .limit(1);
+    return approved ? "institution" : null;
+  }
+
+  if (file.ownerUserId === user.id) return "owner";
+  if (file.purpose === "payment-receipt") return null;
+  return isInstitutionStaff(user) && !!file.institutionId && file.institutionId === user.institutionId ? "institution" : null;
 }
 
-export async function signedDownloadUrl(user: PublicUser, file: StoredFile): Promise<string> {
-  if (!canRead(user, file)) throw new ForbiddenError();
-  const token = await signToken({ sub: file.id, purpose: "file_download", exp: Date.now() + env.STORAGE_DOWNLOAD_TTL_SECONDS * 1000 });
-  return `/api/files/${encodeURIComponent(file.id)}?t=${encodeURIComponent(token)}`;
+/**
+ * The address a file is opened at. It carries no permission: the request
+ * must come with a session that passes `fileAccess`.
+ */
+export function fileUrl(file: Pick<StoredFile, "id">): string {
+  return `/api/files/${encodeURIComponent(file.id)}`;
 }
 
-export async function verifyDownloadToken(fileId: string, token: string | null): Promise<boolean> {
-  const payload = await verifyToken<{ sub: string; purpose: string }>(token);
-  return !!payload && payload.purpose === "file_download" && payload.sub === fileId;
-}
-
-export async function openFile(file: StoredFile) {
-  const stream = await getStorage().get(file.storageKey);
+/**
+ * Opens a file for `user` after checking they may read it, and records the
+ * read in the audit trail when it is someone other than the owner (an
+ * institution or an administrator looking at an applicant's document).
+ */
+export async function openFileFor(user: PublicUser, id: string) {
+  const db = getDb();
+  const file = await getFile(db, id);
+  const access = await fileAccess(db, user, file);
+  if (!access) {
+    // An applicant or institution asking for a file that isn't theirs learns nothing about it, not even that it exists.
+    throw new NotFoundError("File");
+  }
+  const stream = await storageFor(file.storageDriver)?.get(file.storageKey);
   if (!stream) throw new NotFoundError("File content");
-  return stream;
+  if (access !== "owner") await audit(db, { action: "download", entityType: "file", entityId: file.id, institutionId: file.institutionId, meta: { purpose: file.purpose, as: access } });
+  return { file, stream };
 }
 
-/** Soft delete, by the owner or an administrator, once no application document uses the file. */
+// ---------------------------------------------------------------------------
+// Removing files
+// ---------------------------------------------------------------------------
+
+/**
+ * Marks files as deleted, inside the caller's transaction, and returns
+ * what to hand to `discardBytes` once that transaction has committed.
+ * From this point the files open for nobody.
+ */
+export async function markFilesDeleted(tx: Executor, ids: (string | null | undefined)[]): Promise<StoredFile[]> {
+  const wanted = [...new Set(ids.filter((id): id is string => !!id))];
+  if (!wanted.length) return [];
+  return tx
+    .update(files)
+    .set({ deletedAt: new Date() })
+    .where(and(inArray(files.id, wanted), isNull(files.deletedAt)))
+    .returning();
+}
+
+/**
+ * Removes the content of files already marked deleted. Called after the
+ * transaction that marked them has committed, so a rolled-back change
+ * never loses a file. A failure here leaves bytes nobody can reach, which
+ * is logged and harmless.
+ */
+export async function discardBytes(removed: StoredFile[]) {
+  for (const file of removed) {
+    await storageFor(file.storageDriver)
+      ?.delete(file.storageKey)
+      .catch((err) => logger.warn("Could not remove the content of a deleted file", { fileId: file.id, err }));
+  }
+}
+
+/** Deletes a file its owner uploaded and no longer wants, provided no record depends on it. */
 export async function deleteFile(user: PublicUser, id: string) {
   const db = getDb();
   const file = await getFile(db, id);
-  if (file.ownerUserId !== user.id && user.role !== "AOSA_ADMIN") throw new ForbiddenError();
-  const [inUse] = await db.select({ id: applicationDocuments.id }).from(applicationDocuments).where(eq(applicationDocuments.fileId, id)).limit(1);
-  if (inUse) throw new ConflictError("This file is attached to an application. Remove it from the application first.");
-  await db.transaction(async (tx) => {
-    await tx.update(files).set({ deletedAt: new Date() }).where(eq(files.id, id));
+  if (file.ownerUserId !== user.id && user.role !== "AOSA_ADMIN") throw new NotFoundError("File");
+  const [document] = await db.select({ id: applicationDocuments.id }).from(applicationDocuments).where(eq(applicationDocuments.fileId, id)).limit(1);
+  if (document) throw new ConflictError("This file is attached to an application. Remove it from the application first.");
+  // A receipt is the evidence for a payment record; it stays as long as the payment does.
+  const [receipt] = await db.select({ id: feePayments.id }).from(feePayments).where(eq(feePayments.receiptFileId, id)).limit(1);
+  if (receipt) throw new ConflictError("This file is the receipt for a recorded payment, so it can't be deleted.");
+  const removed = await db.transaction(async (tx) => {
+    const marked = await markFilesDeleted(tx, [id]);
     await audit(tx, { action: "delete", entityType: "file", entityId: id, institutionId: file.institutionId });
+    return marked;
   });
+  await discardBytes(removed);
 }
