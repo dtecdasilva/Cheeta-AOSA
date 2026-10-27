@@ -1,4 +1,5 @@
 import "server-only";
+import { assertAcceptingApplications, stateOf } from "@/server/modules/institutions/applicationWindow.service";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { CORRECTABLE_STATUSES, EDITABLE_STATUSES } from "@/lib/applications/statusFlow";
@@ -18,6 +19,7 @@ import { loadSnapshots, presentSnapshot, quoteRate, takeSnapshot } from "@/serve
 import { allowedChannels, savedDisplayCurrency } from "@/server/modules/fees/studentFees.service";
 import { discardBytes, fileUrl, getFile, markFilesDeleted, storeUpload, type StoredFile } from "@/server/storage/files.service";
 import { notify } from "@/server/notifications/notifications.service";
+import { admissionFor, recordOfferResponse } from "@/server/modules/deliberation/admissions.service";
 import { assessApplicationFee, currentAcademicYear, listBundleInstitutions, loadApplicationInstitution, maxProgramChoicesFor, type LoadedApplication } from "./applications.queries";
 import { readiness, syncCompletion, transition } from "./applications.workflow";
 
@@ -119,6 +121,8 @@ async function present(user: PublicUser, app: LoadedApplication) {
     // Comments the institution chose to share with the applicant; its internal ones never leave the institution.
     comments: app.comments.filter((c) => c.visibleToApplicant).map((c) => ({ id: c.id, body: c.body, at: c.createdAt })),
     readiness: await readiness(db, app, { resubmission: submission.mode === "resubmit" }),
+    // The place offered by deliberation, if there is one.
+    admission: await admissionFor(db, app.id),
     submission,
   };
 }
@@ -132,7 +136,12 @@ async function present(user: PublicUser, app: LoadedApplication) {
 async function submissionState(db: Executor, app: LoadedApplication): Promise<{ mode: "submit" | "resubmit" | null; reason: string | null; declarationVersion: string }> {
   const out = (mode: "submit" | "resubmit" | null, reason: string | null) => ({ mode, reason, declarationVersion: DECLARATION_VERSION });
   const status = app.status as ApplicationStatus;
-  if (EDITABLE_STATUSES.includes(status)) return out("submit", null);
+  if (EDITABLE_STATUSES.includes(status)) {
+    // A first submission only while the institution is accepting applications. (Corrections it asked for, below, still go.)
+    const [inst] = await db.select().from(institutions).where(eq(institutions.id, app.institutionId)).limit(1);
+    const window = inst ? stateOf(inst) : null;
+    return window && !window.open ? out(null, window.reason) : out("submit", null);
+  }
   const sent = app.applicationNumber ? ` as ${app.applicationNumber}` : "";
   if (status === "I_REJECTED") {
     // Only a rejection whose reason allows it ("correct and resubmit") can be answered with a correction.
@@ -238,6 +247,7 @@ export async function addInstitution(user: PublicUser, input: unknown) {
 
     const [inst] = await tx.select().from(institutions).where(eq(institutions.id, institutionId)).limit(1);
     if (!inst || inst.status !== "ACTIVE") throw new ValidationError({ institutionId: "Choose an institution that is accepting applications." });
+    await assertAcceptingApplications(tx, institutionId);
 
     const existing = await tx.select({ id: applicationInstitutions.id, institutionId: applicationInstitutions.institutionId }).from(applicationInstitutions).where(eq(applicationInstitutions.applicationId, bundle.id));
     if (existing.some((e) => e.institutionId === institutionId)) throw new ConflictError("You've already added this institution.");
@@ -467,7 +477,7 @@ export async function recordFeePayment(user: PublicUser, applicationInstitutionI
       applicationInstitutionId: app.id,
       method: channel!.id,
       paymentMethodId: account?.id ?? null,
-      paymentAccount: account ? { type: account.type, label: account.label, provider: account.provider, branch: account.branch, accountName: account.accountName, accountNumber: account.accountNumber, swift: account.swift } : null,
+      paymentAccount: account ? { type: account.type, label: account.label, provider: account.provider, branch: account.branch, accountName: account.accountName, accountNumber: account.accountNumber, swift: account.swift, bankCode: account.bankCode, branchCode: account.branchCode, rib: account.rib } : null,
       reference: v.reference,
       paidFrom: v.paidFrom ?? "",
       receiptFileId: v.receiptFileId ?? null,
@@ -567,6 +577,7 @@ export async function respondToOffer(user: PublicUser, applicationInstitutionId:
     const app = await loadOwn(tx, user, applicationInstitutionId);
     if (app.status !== "ACCEPTED") throw new ForbiddenError("There's no offer to answer on this application.");
     await transition(tx, app, decision === "accept" ? "A_ACKNOWLEDGED" : "A_REJECTED", "applicant", { actorUserId: user.id });
+    await recordOfferResponse(tx, app.id, decision === "accept");
   });
   return getMyApplication(user, applicationInstitutionId);
 }

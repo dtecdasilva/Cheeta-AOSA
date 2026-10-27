@@ -66,6 +66,8 @@ export interface InstitutionListing {
   webFee: number;
   currency: string;
   fee: { currency: string; amount: number };
+  /** Whether it is accepting applications now, and when it opens or closes. */
+  applications: import("@/lib/institution/applicationWindow").WindowState;
 }
 
 /** One institution in full: the listing, plus how to reach it, what it teaches and what it asks for. */

@@ -13,7 +13,7 @@ import { mockPrograms } from "@/lib/mockData/programs";
  * Each record points at its parent by id (program → department → faculty
  * → institution). The seed lists come from the institution portal's
  * sample data (src/lib/mockData); they are what an empty database is
- * first filled from, and what is shown until the API answers.
+ * first filled from (never shown on screen).
  */
 
 export interface AdminFaculty {
@@ -25,6 +25,9 @@ export interface AdminFaculty {
   email: string;
   phone: string;
   address: string;
+  location?: string;
+  regionId?: string | null;
+  townId?: string | null;
   status: ParamStatus;
   updatedAt: string;
 }
@@ -38,6 +41,10 @@ export interface AdminDepartment {
   head: string;
   email: string;
   phone: string;
+  address?: string;
+  location?: string;
+  regionId?: string | null;
+  townId?: string | null;
   status: ParamStatus;
   updatedAt: string;
 }

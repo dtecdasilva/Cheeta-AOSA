@@ -57,7 +57,8 @@ export const MEDICAL_REQUIREMENTS: MedicalRequirement[] = [
 ];
 
 /** Which requirements each institution type asks for. */
-const BY_TYPE: Record<string, string[]> = {
+/** Which requirements each institution type asks for, when the institution hasn't set its own. */
+export const BY_TYPE: Record<string, string[]> = {
   UNI: ["MED-FIT", "HEP-B"],
   PRO: ["MED-FIT", "HEP-B", "TB-XRAY", "BLOOD"],
   VOC: ["MED-FIT", "EYE"],
@@ -203,10 +204,12 @@ export const medicalStore = createCollection<MedicalRecord>("medical", medicalSe
 // Derived
 // ---------------------------------------------------------------------------
 
-export function clearanceFor(records: MedicalRecord[]): MedicalClearance {
-  if (records.length === 0) return "IN_PROGRESS";
+/** Cleared when every required record is verified and none is Unfit. Records without `required` count as required. Same rule as the server. */
+export function clearanceFor(records: (Pick<MedicalRecord, "status" | "result"> & { required?: boolean })[]): MedicalClearance {
   if (records.some((r) => r.result === "UNFIT")) return "NOT_CLEARED";
-  if (records.every((r) => r.status === "VERIFIED" && r.result && r.result !== "UNFIT")) return "CLEARED";
+  const required = records.filter((r) => r.required !== false);
+  if (!required.length) return records.length ? "CLEARED" : "IN_PROGRESS";
+  if (required.every((r) => r.status === "VERIFIED" && r.result && r.result !== "UNFIT")) return "CLEARED";
   return "IN_PROGRESS";
 }
 

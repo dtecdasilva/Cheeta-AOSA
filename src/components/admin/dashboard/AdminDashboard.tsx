@@ -1,9 +1,9 @@
 "use client";
 
+import { AdminDataNotice } from "@/components/admin/AdminDataNotice";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, CardHeader, PageHeading, TableFrame, Td, Th } from "@/components/ui";
-import { SecondaryButton } from "@/components/Form";
 import {
   AdminStatusBadge,
   BarRow,
@@ -17,12 +17,13 @@ import {
 import { useAdminData } from "@/lib/admin/useAdminData";
 import { DATE_PRESETS, describeRange, inRange, matchesSearch, type DateRange } from "@/lib/admin/filters";
 import { ADMIN_STATUS_LABELS, ALL_STATUSES, STAGES, STATUS_TONE, reachedStages } from "@/lib/admin/status";
-import { resetAllAdminData } from "@/lib/admin/store";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 const DEFAULT_RANGE = () => DATE_PRESETS.find((p) => p.key === "90")!.range();
 
 export function AdminDashboard() {
+  const tr = useT();
   const data = useAdminData();
   const [search, setSearch] = useState("");
   const [institutionId, setInstitutionId] = useState("");
@@ -30,7 +31,6 @@ export function AdminDashboard() {
   const [typeId, setTypeId] = useState("");
   const [status, setStatus] = useState("");
   const [range, setRange] = useState<DateRange>(DEFAULT_RANGE);
-  const [confirmReset, setConfirmReset] = useState(false);
 
   const filtersActive = !!(search || institutionId || regionId || typeId || status);
 
@@ -133,32 +133,10 @@ export function AdminDashboard() {
 
   return (
     <>
+      <AdminDataNotice />
       <PageHeading
-        title="Dashboard"
-        description={`Registrations, applications and payments for ${describeRange(range)}.`}
-        actions={
-          confirmReset ? (
-            <span className="flex items-center gap-2 text-sm">
-              <span className="text-[var(--color-ink-soft)]">Discard every change made in the admin portal?</span>
-              <SecondaryButton
-                type="button"
-                onClick={() => {
-                  resetAllAdminData();
-                  setConfirmReset(false);
-                }}
-              >
-                Reset demo data
-              </SecondaryButton>
-              <button type="button" onClick={() => setConfirmReset(false)} className="text-[var(--color-ink-soft)] underline underline-offset-4">
-                Cancel
-              </button>
-            </span>
-          ) : (
-            <SecondaryButton type="button" onClick={() => setConfirmReset(true)}>
-              Reset demo data
-            </SecondaryButton>
-          )
-        }
+        title={tr("Dashboard")}
+        description={tr("Registrations, applications and payments for {value}.", { value: describeRange(range) })}
       />
 
       <FilterBar
@@ -171,46 +149,44 @@ export function AdminDashboard() {
           setStatus("");
         }}
       >
-        <SearchField value={search} onChange={setSearch} placeholder="Student, registration no., application ref., institution" />
+        <SearchField value={search} onChange={setSearch} placeholder={tr("Student, registration no., application ref., institution")} />
         <DateRangeFilter value={range} onChange={setRange} />
-        <FilterSelect label="Institution" value={institutionId} onChange={setInstitutionId} options={data.institutionOptions} />
-        <FilterSelect label="Institution type" value={typeId} onChange={setTypeId} options={data.options("institution-types")} />
-        <FilterSelect label="Region" value={regionId} onChange={setRegionId} options={data.options("regions")} />
+        <FilterSelect label={tr("Institution")} value={institutionId} onChange={setInstitutionId} options={data.institutionOptions} />
+        <FilterSelect label={tr("Institution type")} value={typeId} onChange={setTypeId} options={data.options("institution-types")} />
+        <FilterSelect label={tr("Region")} value={regionId} onChange={setRegionId} options={data.options("regions")} />
         <FilterSelect
-          label="Application status"
+          label={tr("Application status")}
           value={status}
           onChange={setStatus}
-          options={ALL_STATUSES.map((s) => ({ value: s, label: ADMIN_STATUS_LABELS[s] }))}
+          options={ALL_STATUSES.map((s) => ({ value: s, label: tr(ADMIN_STATUS_LABELS[s]) }))}
         />
       </FilterBar>
 
       <div className="space-y-3">
         <StatStrip
           stats={[
-            { label: "Registered students", value: fmt(view.students.length), detail: `${fmt(view.studentsWithoutApps)} yet to apply`, href: "/admin/students/register" },
-            { label: "Applications", value: fmt(view.apps.length), detail: `${fmt(view.ever.draft)} not yet submitted`, href: "/admin/applications" },
-            { label: "Institutions", value: fmt(activeInstitutions), detail: `active, ${fmt(view.institutions.length - activeInstitutions)} inactive`, href: "/admin/institutions" },
-            { label: "Payments received", value: formatCurrency(view.collected), detail: `${fmt(view.paid.length)} payments, ${fmt(view.pending.length)} pending`, href: "/admin/applications?payment=PAID" },
+            { label: tr("Registered students"), value: fmt(view.students.length), detail: tr("{value} yet to apply", { value: fmt(view.studentsWithoutApps) }), href: "/admin/students/register" },
+            { label: tr("Applications"), value: fmt(view.apps.length), detail: tr("{value} not yet submitted", { value: fmt(view.ever.draft) }), href: "/admin/applications" },
+            { label: tr("Institutions"), value: fmt(activeInstitutions), detail: tr("active, {value} inactive", { value: fmt(view.institutions.length - activeInstitutions) }), href: "/admin/institutions" },
+            { label: tr("Payments received"), value: formatCurrency(view.collected), detail: tr("{value} payments, {value2} pending", { value: fmt(view.paid.length), value2: fmt(view.pending.length) }), href: "/admin/applications?payment=PAID" },
           ]}
         />
         <StatStrip
           stats={[
-            { label: "Submitted", value: fmt(view.ever.submitted), detail: `${fmt(view.ever.awaitingAck)} awaiting acknowledgement`, href: "/admin/applications?status=SUBMITTED" },
-            { label: "Acknowledged", value: fmt(view.ever.acknowledged), detail: `${fmt(view.ever.awaitingDecision)} awaiting a decision`, href: "/admin/applications?status=I_ACKNOWLEDGED" },
-            { label: "Accepted", value: fmt(view.ever.accepted), detail: `${fmt(view.ever.takenUp)} offers taken up`, href: "/admin/applications?status=ACCEPTED" },
-            { label: "Rejected", value: fmt(view.ever.rejected), detail: `by institutions, plus ${fmt(view.ever.declined)} offers declined`, href: "/admin/applications?status=I_REJECTED" },
+            { label: tr("Submitted"), value: fmt(view.ever.submitted), detail: tr("{value} awaiting acknowledgement", { value: fmt(view.ever.awaitingAck) }), href: "/admin/applications?status=SUBMITTED" },
+            { label: tr("Acknowledged"), value: fmt(view.ever.acknowledged), detail: tr("{value} awaiting a decision", { value: fmt(view.ever.awaitingDecision) }), href: "/admin/applications?status=I_ACKNOWLEDGED" },
+            { label: tr("Accepted"), value: fmt(view.ever.accepted), detail: tr("{value} offers taken up", { value: fmt(view.ever.takenUp) }), href: "/admin/applications?status=ACCEPTED" },
+            { label: tr("Rejected"), value: fmt(view.ever.rejected), detail: tr("by institutions, plus {value} offers declined", { value: fmt(view.ever.declined) }), href: "/admin/applications?status=I_REJECTED" },
           ]}
         />
       </div>
       <p className="mt-2 text-xs text-[var(--color-ink-faint)]">
-        Application figures count every application started in the date range that has reached that point. Payments are dated
-        by when they were received. The region filter matches the institution for applications and payments, and the home
-        region for students.
+        {tr("Application figures count every application started in the date range that has reached that point. Payments are dated by when they were received. The region filter matches the institution for applications and payments, and the home region for students.")}
       </p>
 
       <div className="mt-8 grid gap-6 xl:grid-cols-5">
         <Card padded={false} className="xl:col-span-3">
-          <CardHeader title="Application progression" description="How far applications started in this period have got." />
+          <CardHeader title={tr("Application progression")} description={tr("How far applications started in this period have got.")} />
           <div className="px-5 py-3">
             {view.reached.map((s, i) => {
               const prev = i > 0 ? view.reached[i - 1].count : null;
@@ -218,29 +194,29 @@ export function AdminDashboard() {
               return (
                 <BarRow
                   key={s.key}
-                  label={s.label}
+                  label={tr(s.label)}
                   value={s.count}
                   max={started}
                   tone="ink"
-                  detail={conversion !== null ? `${conversion}% of previous` : undefined}
+                  detail={conversion !== null ? tr("{conversion}% of previous", { conversion }) : undefined}
                 />
               );
             })}
           </div>
           <div className="border-t border-[var(--color-line)] px-5 py-3 text-right">
             <Link href="/admin/applications/progression" className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-              See progression for each application
+              {tr("See progression for each application")}
             </Link>
           </div>
         </Card>
 
         <Card padded={false} className="xl:col-span-2">
-          <CardHeader title="Current status" description="Where each application stands today." />
+          <CardHeader title={tr("Current status")} description={tr("Where each application stands today.")} />
           <div className="px-5 py-3">
             {view.byStatus.map((s) => (
               <BarRow
                 key={s.status}
-                label={ADMIN_STATUS_LABELS[s.status]}
+                label={tr(ADMIN_STATUS_LABELS[s.status])}
                 value={s.count}
                 max={Math.max(...view.byStatus.map((x) => x.count))}
                 tone={STATUS_TONE[s.status]}
@@ -252,35 +228,35 @@ export function AdminDashboard() {
       </div>
 
       <Card padded={false} className="mt-6">
-        <CardHeader title="Applications started" description={series.granularity === "day" ? "Per day" : "Per week, starting Monday"} />
+        <CardHeader title={tr("Applications started")} description={series.granularity === "day" ? tr("Per day") : tr("Per week, starting Monday")} />
         <div className="px-5 py-5">
           {view.apps.length ? (
-            <ColumnChart data={series.points} label="Applications started over time" />
+            <ColumnChart data={series.points} label={tr("Applications started over time")} />
           ) : (
-            <p className="py-10 text-center text-sm text-[var(--color-ink-soft)]">No applications match these filters.</p>
+            <p className="py-10 text-center text-sm text-[var(--color-ink-soft)]">{tr("No applications match these filters.")}</p>
           )}
         </div>
       </Card>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-5">
         <div className="xl:col-span-3">
-          <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">By institution</h2>
+          <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("By institution")}</h2>
           <TableFrame>
             <thead>
               <tr>
-                <Th>Institution</Th>
-                <Th className="text-right">Applications</Th>
-                <Th className="text-right">Submitted</Th>
-                <Th className="text-right">Accepted</Th>
-                <Th className="text-right">Rejected</Th>
-                <Th className="text-right">Fees received</Th>
+                <Th>{tr("Institution")}</Th>
+                <Th className="text-right">{tr("Applications")}</Th>
+                <Th className="text-right">{tr("Submitted")}</Th>
+                <Th className="text-right">{tr("Accepted")}</Th>
+                <Th className="text-right">{tr("Rejected")}</Th>
+                <Th className="text-right">{tr("Fees received")}</Th>
               </tr>
             </thead>
             <tbody>
               {view.perInstitution.length === 0 && (
                 <tr>
                   <Td colSpan={6} className="py-8 text-center text-[var(--color-ink-soft)]">
-                    No institutions have applications for these filters.
+                    {tr("No institutions have applications for these filters.")}
                   </Td>
                 </tr>
               )}
@@ -288,7 +264,7 @@ export function AdminDashboard() {
                 <tr key={r.inst.id}>
                   <Td>
                     <Link href={`/admin/institutions/${r.inst.id}`} className="text-[var(--color-ink)] hover:underline">
-                      {r.inst.name}
+                      {tr(r.inst.name)}
                     </Link>
                     <p className="text-xs text-[var(--color-ink-faint)]">{data.label(r.inst.typeId)}</p>
                   </Td>
@@ -301,13 +277,13 @@ export function AdminDashboard() {
               ))}
             </tbody>
           </TableFrame>
-          <p className="mt-2 text-xs text-[var(--color-ink-faint)]">Web fees in these payments: {formatCurrency(view.webFees)}.</p>
+          <p className="mt-2 text-xs text-[var(--color-ink-faint)]">{tr("Web fees in these payments: {value}.", { value: formatCurrency(view.webFees) })}</p>
         </div>
 
         <div className="xl:col-span-2">
-          <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">Latest activity</h2>
+          <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("Latest activity")}</h2>
           <div className="divide-y divide-[var(--color-line)] overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
-            {view.recent.length === 0 && <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">Nothing happened in this period.</p>}
+            {view.recent.length === 0 && <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">{tr("Nothing happened in this period.")}</p>}
             {view.recent.map(({ app, event }) => (
               <Link key={`${app.id}-${event.at}`} href={`/admin/applications/${app.id}`} className="block px-5 py-3 hover:bg-[var(--color-paper)]">
                 <div className="flex flex-wrap items-center justify-between gap-2">

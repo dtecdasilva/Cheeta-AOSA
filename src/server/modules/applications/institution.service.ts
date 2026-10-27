@@ -10,14 +10,17 @@ import type { PublicUser } from "@/lib/auth/users";
 import { maskAccountName, normalizeBankCode } from "@/lib/payments/privacy";
 import type { ApplicationStatus } from "@/lib/types";
 import { getDb, type Executor } from "@/server/db/client";
-import { admissions, applicationComments, applicationDocuments, applicationInstitutions, applications, demographicProfiles, educationRecords, examinationResults, feePayments, parameters, programChoices, programs, users } from "@/server/db/schema";
+import { applicationComments, applicationDocuments, applicationInstitutions, applications, applicationStatusEvents, demographicProfiles, educationRecords, examinationResults, feePayments, parameters, programChoices, programs, users } from "@/server/db/schema";
 import { newId } from "@/server/db/ids";
 import { audit } from "@/server/audit/audit";
 import { hasPermission } from "@/server/auth/access";
-import { assertCanDeliberate, chargeNames } from "@/server/modules/deliberation/deliberation.service";
+import { chargeNames } from "@/server/modules/deliberation/deliberation.service";
+import { photoOf } from "@/server/modules/student/photo.service";
 import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from "@/server/http/errors";
 import { pagination, parseQuery, parseWith } from "@/server/http/validate";
 import { notify } from "@/server/notifications/notifications.service";
+import { notifyEvent } from "@/server/notifications/engine";
+import { mediaFor } from "@/server/modules/student/disability.service";
 import { fileUrl, getFile } from "@/server/storage/files.service";
 import { loadApplicationInstitution, type LoadedApplication } from "./applications.queries";
 import { movesFor, transition } from "./applications.workflow";
@@ -55,13 +58,51 @@ async function assertPermission(db: Executor, user: PublicUser, permission: Perm
  * again on the server.
  */
 async function abilitiesOf(db: Executor, user: PublicUser) {
-  const [review, paymentsUploads, acknowledge, reject] = await Promise.all([
+  const [review, paymentsUploads, acknowledge, reject, deliberation] = await Promise.all([
     hasPermission(db, user, "review"),
     hasPermission(db, user, "PAYMENTS_UPLOADS"),
     hasPermission(db, user, "ACKNOWLEDGED_APPS"),
     hasPermission(db, user, "REJECTED_APPS"),
+    hasPermission(db, user, "DELIBERATION"),
   ]);
-  return { review, verifyPayment: paymentsUploads, verifyUploads: paymentsUploads, acknowledge, reject, comment: review };
+  return { review, verifyPayment: paymentsUploads, verifyUploads: paymentsUploads, acknowledge, reject, deliberation, comment: review };
+}
+
+type Abilities = Awaited<ReturnType<typeof abilitiesOf>>;
+
+/**
+ * Which applications a staff member may see, by status. Anyone who
+ * reviews sees applications being prepared and those awaiting review.
+ * Acknowledged ones need "Acknowledged Applications", rejected ones
+ * "Rejected Applications", and those past deliberation (an offer made,
+ * taken up or declined) "Deliberation List". An institution administrator
+ * holds all three.
+ */
+const STATUS_PERMISSION: Partial<Record<ApplicationStatus, keyof Pick<Abilities, "acknowledge" | "reject" | "deliberation">>> = {
+  I_ACKNOWLEDGED: "acknowledge",
+  I_REJECTED: "reject",
+  ACCEPTED: "deliberation",
+  A_ACKNOWLEDGED: "deliberation",
+  A_REJECTED: "deliberation",
+};
+
+const NEEDS: Record<"acknowledge" | "reject" | "deliberation", string> = {
+  acknowledge: "Acknowledged Applications",
+  reject: "Rejected Applications",
+  deliberation: "Deliberation List",
+};
+
+function visibleStatuses(abilities: Abilities): ApplicationStatus[] {
+  return (ALL_STATUSES as ApplicationStatus[]).filter((s) => {
+    const needs = STATUS_PERMISSION[s];
+    return !needs || abilities[needs];
+  });
+}
+
+/** Refuses an application in a status the staff member's permissions don't cover, naming the permission. */
+function assertCanSee(abilities: Abilities, status: string) {
+  const needs = STATUS_PERMISSION[status as ApplicationStatus];
+  if (needs && !abilities[needs]) throw new ForbiddenError(`Seeing ${status === "I_REJECTED" ? "rejected" : status === "I_ACKNOWLEDGED" ? "acknowledged" : "decided"} applications needs the "${NEEDS[needs]}" permission.`);
 }
 
 const listQuery = pagination.extend({
@@ -93,7 +134,10 @@ export async function listForInstitution(user: PublicUser, req: NextRequest) {
   );
 
   const escape = (v: string) => `%${v.replace(/[%_\\]/g, "\\$&")}%`;
-  const scope = eq(applicationInstitutions.institutionId, institutionId);
+  const abilities = await abilitiesOf(db, user);
+  if (query.status) assertCanSee(abilities, query.status);
+  // Only the statuses this staff member's permissions cover, for the rows and for the counts alike.
+  const scope = and(eq(applicationInstitutions.institutionId, institutionId), inArray(applicationInstitutions.status, visibleStatuses(abilities)));
   const conditions: (SQL | undefined)[] = [scope];
   if (query.status) conditions.push(eq(applicationInstitutions.status, query.status));
   // Names only match once the fee is approved, so a search can't reveal a masked applicant.
@@ -167,8 +211,9 @@ export async function listForInstitution(user: PublicUser, req: NextRequest) {
       masked: false,
       applicant: r.fullName,
       email: r.email,
-      bankCode: r.bankCode,
-      applicationFee: r.applicationFee,
+      // Fee and payment details are for staff with "Student Payments & Uploads".
+      bankCode: abilities.verifyPayment ? r.bankCode : null,
+      applicationFee: abilities.verifyPayment ? r.applicationFee : null,
       programName: programOf.get(r.id) ?? null,
       paymentVerification: r.paymentVerification,
       // Documents only count once the application has been submitted: before that they aren't the institution's to review.
@@ -236,11 +281,12 @@ export async function getForInstitution(user: PublicUser, id: string) {
     decidedAt: app.decidedAt,
     history: app.events.map((e) => ({ status: e.status, actor: e.actor, by: nameOf(e.actorUserId), note: e.note, reason: reasons.find((r) => r.id === e.reasonId)?.label ?? null, at: e.at })),
   };
+  const abilities = await abilitiesOf(db, user);
+  assertCanSee(abilities, app.status);
   if (!approved) {
     return { ...base, masked: true as const, applicant: { displayName: `${maskAccountName(applicant.fullName, applicant.email)} — awaiting payment` } };
   }
 
-  const abilities = await abilitiesOf(db, user);
   const [demographic, education, examinations, results, examConfig] = submitted
     ? await Promise.all([
         db.select().from(demographicProfiles).where(eq(demographicProfiles.userId, applicant.id)).limit(1),
@@ -266,7 +312,8 @@ export async function getForInstitution(user: PublicUser, id: string) {
             reviewedBy: nameOf(d.reviewedBy),
             reviewedAt: d.reviewedAt,
             uploadedAt: d.createdAt,
-            file: file ? { name: file.originalName, size: file.sizeBytes, mimeType: file.mimeType, url: fileUrl(file) } : null,
+            // Opening a document needs "Student Payments & Uploads" (the file route checks the same).
+            file: file && abilities.verifyUploads ? { name: file.originalName, size: file.sizeBytes, mimeType: file.mimeType, url: fileUrl(file) } : null,
           };
         })
       )
@@ -281,7 +328,7 @@ export async function getForInstitution(user: PublicUser, id: string) {
     masked: false as const,
     applicant: { displayName: applicant.fullName, email: applicant.email, phone: applicant.phone },
     // The payment as the institution may know it: its own fee and what identifies the money in its account. Never the web fee.
-    payment: {
+    payment: abilities.verifyPayment ? {
       bankCode: approved.bankCode,
       applicationFee: approved.applicationFee,
       currency: approved.currency,
@@ -291,11 +338,17 @@ export async function getForInstitution(user: PublicUser, id: string) {
       account: approved.paymentAccount ? { label: approved.paymentAccount.label, provider: approved.paymentAccount.provider, accountNumber: approved.paymentAccount.accountNumber } : null,
       approvedAt: approved.reviewedAt,
       verification: { status: app.paymentVerification, note: app.paymentVerificationNote, by: nameOf(app.paymentVerifiedBy), at: app.paymentVerifiedAt },
-    },
+    } : null,
+    // Without "Student Payments & Uploads" a reviewer still sees whether the payment has been checked, not its details.
+    paymentVerification: app.paymentVerification,
     choices: app.choices,
     submitted,
     declaration: app.declarationAcceptedAt ? { acceptedAt: app.declarationAcceptedAt, version: app.declarationVersion } : null,
     demographic: demographic[0] ?? null,
+    // Photos and a video the applicant added to help assess accommodation (only when they answered Yes).
+    disabilityMedia: demographic[0]?.disability === "Yes" ? await mediaFor(db, applicant.id) : [],
+    // Shown where the rest of the record is: the file itself opens only for staff the applicant has submitted to.
+    photo: demographic[0] ? await photoOf(db, applicant.id) : null,
     education,
     examinations: examinations.map((e) => ({
       id: e.id,
@@ -320,7 +373,14 @@ export async function getForInstitution(user: PublicUser, id: string) {
       acknowledge: { allowed: abilities.acknowledge && !blocker, reason: abilities.acknowledge ? blocker : "Your staff account doesn't have permission to acknowledge applications." },
       reject: { allowed: abilities.reject && movesFor(app.status, "institution").includes("I_REJECTED"), reason: !abilities.reject ? "Your staff account doesn't have permission to reject applications." : movesFor(app.status, "institution").includes("I_REJECTED") ? null : `An application that is "${ADMIN_STATUS_LABELS[app.status as ApplicationStatus]}" can't be rejected.` },
       comment: abilities.comment,
+      cancelAcknowledgement: abilities.acknowledge && app.status === "I_ACKNOWLEDGED",
+      cancelRejection: abilities.reject && app.status === "I_REJECTED",
     },
+    // Who took the decision now standing, and when (acknowledged and rejected lists).
+    decision: (() => {
+      const last = [...app.events].reverse().find((e) => e.status === app.status);
+      return last && (app.status === "I_ACKNOWLEDGED" || app.status === "I_REJECTED") ? { status: app.status, at: last.at, by: nameOf(last.actorUserId), note: last.note } : null;
+    })(),
   };
 }
 
@@ -329,8 +389,20 @@ export type InstitutionApplicationView = Awaited<ReturnType<typeof getForInstitu
 const decisionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("acknowledge"), note: z.string().trim().max(1000).optional() }),
   z.object({ action: z.literal("reject"), reasonId: z.string({ error: "Choose a rejection reason." }).trim().min(1, "Choose a rejection reason."), note: z.string().trim().max(1000).optional() }),
-  z.object({ action: z.literal("accept"), programId: z.string().trim().min(1, "Choose the program being offered."), note: z.string().trim().max(1000).optional() }),
+  z.object({ action: z.literal("cancel_acknowledgement"), note: z.string({ error: "Say why the acknowledgement is being cancelled." }).trim().min(1, "Say why the acknowledgement is being cancelled.").max(1000) }),
+  z.object({ action: z.literal("cancel_rejection"), note: z.string({ error: "Say why the rejection is being cancelled." }).trim().min(1, "Say why the rejection is being cancelled.").max(1000) }),
 ]);
+
+/** Where an application goes back to when its acknowledgement or rejection is cancelled: the review status it was in before the decision. */
+async function reviewStatusBefore(db: Executor, applicationInstitutionId: string): Promise<"SUBMITTED" | "RESUBMITTED"> {
+  const [last] = await db
+    .select({ status: applicationStatusEvents.status })
+    .from(applicationStatusEvents)
+    .where(and(eq(applicationStatusEvents.applicationInstitutionId, applicationInstitutionId), inArray(applicationStatusEvents.status, ["SUBMITTED", "RESUBMITTED"])))
+    .orderBy(desc(applicationStatusEvents.at))
+    .limit(1);
+  return last?.status === "RESUBMITTED" ? "RESUBMITTED" : "SUBMITTED";
+}
 
 /**
  * Acknowledge, reject or accept an application. Used by institution staff
@@ -343,11 +415,25 @@ const decisionSchema = z.discriminatedUnion("action", [
  * it and tells the applicant.
  */
 export async function decide(user: PublicUser, id: string, input: unknown, actor: "institution" | "admin" = "institution") {
+  // Admitting is never done here: an admission is only made by publishing a deliberation run.
+  if (input && typeof input === "object" && (input as { action?: unknown }).action === "accept") {
+    throw new ConflictError("Applicants are admitted by deliberation: run the deliberation and publish it to make offers.");
+  }
   const v = parseWith(decisionSchema, input);
   const db = getDb();
   await db.transaction(async (tx) => {
     const app: LoadedApplication = actor === "admin" ? await loadApplicationInstitution(tx, id) : await loadForInstitution(tx, user, id);
-    if (actor === "institution") await assertPermission(tx, user, v.action === "reject" ? "REJECTED_APPS" : v.action === "accept" ? "DELIBERATION" : "ACKNOWLEDGED_APPS");
+    if (actor === "institution") {
+      await assertPermission(tx, user, v.action === "reject" || v.action === "cancel_rejection" ? "REJECTED_APPS" : "ACKNOWLEDGED_APPS");
+      assertCanSee(await abilitiesOf(tx, user), app.status);
+    }
+    if (v.action === "cancel_acknowledgement" || v.action === "cancel_rejection") {
+      const from = v.action === "cancel_acknowledgement" ? "I_ACKNOWLEDGED" : "I_REJECTED";
+      if (app.status !== from) throw new ConflictError(v.action === "cancel_acknowledgement" ? "Only an acknowledged application's acknowledgement can be cancelled." : "Only a rejected application's rejection can be cancelled.");
+      const back = await reviewStatusBefore(tx, app.id);
+      await transition(tx, app, back, actor, { actorUserId: user.id, note: `${v.action === "cancel_acknowledgement" ? "Acknowledgement cancelled" : "Rejection cancelled"}: ${v.note}` });
+      return;
+    }
     if (!app.payments.some((p) => p.approval === "APPROVED")) throw new ValidationError({ status: "The application fee hasn't been approved yet." });
 
     if (v.action === "acknowledge") {
@@ -365,18 +451,6 @@ export async function decide(user: PublicUser, id: string, input: unknown, actor
         .limit(1);
       if (!reason) throw new ValidationError({ reasonId: "Choose a rejection reason from the list." });
       await transition(tx, app, "I_REJECTED", actor, { actorUserId: user.id, reasonId: reason.id, note: v.note ? `${reason.label}. ${v.note}` : reason.label });
-    } else {
-      // Admitting an applicant is deliberation, which is a paid service: the institution
-      // needs an active subscription. (Rejecting, above, never needs one.) The Cheeta
-      // administrator acting on an application is not held to the institution's subscription.
-      if (actor === "institution") await chargeNames(tx, app.institutionId, [app.id], await assertCanDeliberate(tx, app.institutionId));
-      const choice = app.choices.find((c) => c.programId === v.programId);
-      if (!choice) throw new ValidationError({ programId: "Offer one of the programs the applicant chose." });
-      await transition(tx, app, "ACCEPTED", actor, { actorUserId: user.id, note: v.note ?? `Offered ${choice.programName}.` });
-      await tx
-        .insert(admissions)
-        .values({ id: newId("adm"), applicationInstitutionId: app.id, programId: choice.programId, choice: choice.rank, status: "OFFERED", offeredAt: new Date() })
-        .onConflictDoUpdate({ target: admissions.applicationInstitutionId, set: { programId: choice.programId, choice: choice.rank, status: "OFFERED", offeredAt: new Date() } });
     }
   });
   return actor === "admin" ? null : getForInstitution(user, id);
@@ -417,6 +491,16 @@ export async function verifyPayment(user: PublicUser, id: string, input: unknown
       after: { paymentVerification: result },
       meta: { bankCode: payment.bankCode, ...(v.note ? { note: v.note } : {}) },
     });
+    if (result === "VERIFIED") {
+      await notifyEvent(tx, {
+        event: "verification.payment_verified",
+        to: { userId: app.application.applicantId },
+        applicationId: app.id,
+        values: { "payment.reference": payment.bankCode ?? "" },
+        inApp: { title: `${app.institution.name} confirmed your fee`, summary: `${app.institution.name} has confirmed it received your application fee.`, category: "VERIFICATION" },
+        action: { label: "View application", href: "/student/application/status" },
+      });
+    }
     if (result === "NOT_RECEIVED") {
       await notify(tx, {
         audience: "admin",
@@ -482,16 +566,27 @@ export async function reviewDocument(user: PublicUser, id: string, documentId: s
       after: { reviewStatus: v.decision === "approve" ? "APPROVED" : "REJECTED", rejectionReason: reason },
     });
     if (v.decision === "reject") {
-      await notify(tx, {
-        audience: "student",
-        recipientUserId: app.application.applicantId,
-        category: "UPLOAD",
-        title: `${app.institution.name}: document rejected`,
-        summary: `${doc.requirementName}: ${reason}`,
+      await notifyEvent(tx, {
+        event: "rejection.document_rejected",
+        to: { userId: app.application.applicantId },
+        applicationId: app.id,
+        values: { "document.name": doc.requirementName, reason },
+        inApp: { title: `${app.institution.name}: document rejected`, summary: `${doc.requirementName}: ${reason}`, category: "UPLOAD" },
         important: true,
-        reference: app.reference,
         action: { label: "Upload again", href: "/student/institutions/upload" },
       });
+    } else {
+      // Once every document on the application is approved, the applicant hears it once.
+      const docs = await tx.select({ status: applicationDocuments.reviewStatus }).from(applicationDocuments).where(eq(applicationDocuments.applicationInstitutionId, app.id));
+      if (docs.length && docs.every((d) => d.status === "APPROVED")) {
+        await notifyEvent(tx, {
+          event: "verification.documents_verified",
+          to: { userId: app.application.applicantId },
+          applicationId: app.id,
+          inApp: { title: `${app.institution.name} verified your documents`, summary: `${app.institution.name} has checked and accepted every document on your application.`, category: "VERIFICATION" },
+          action: { label: "View application", href: "/student/application/status" },
+        });
+      }
     }
   });
   return getForInstitution(user, id);
@@ -510,6 +605,7 @@ export async function addComment(user: PublicUser, id: string, input: unknown) {
   await db.transaction(async (tx) => {
     const app = await loadForInstitution(tx, user, id);
     await assertPermission(tx, user, "review");
+    assertCanSee(await abilitiesOf(tx, user), app.status);
     // Before the fee is approved the institution only sees a masked name, so there is nothing to comment on yet.
     if (!app.payments.some((p) => p.approval === "APPROVED")) throw new ConflictError("Comments can be added once the application fee is approved.");
     const commentId = newId("cmt");
@@ -579,6 +675,7 @@ async function firstChoicePrograms(db: Executor, applicationInstitutionIds: stri
 /** ?state=AWAITING|PAID, ?q= (paid: name, application or bank code; awaiting: first names only). */
 export async function listFeesForInstitution(user: PublicUser, req: NextRequest) {
   const institutionId = institutionOf(user);
+  await assertPermission(getDb(), user, "PAYMENTS_UPLOADS");
   const query = parseQuery(req, pagination.extend({ state: z.enum(["AWAITING", "PAID"]).optional(), q: z.string().trim().max(100).optional() }));
   const db = getDb();
   const { approved, scope } = feeRows(db, institutionId);
@@ -635,6 +732,7 @@ export async function listFeesForInstitution(user: PublicUser, req: NextRequest)
  */
 export async function findFeeByBankCode(user: PublicUser, code: string) {
   const institutionId = institutionOf(user);
+  await assertPermission(getDb(), user, "PAYMENTS_UPLOADS");
   const wanted = normalizeBankCode(code);
   if (!wanted) return null;
   const db = getDb();
@@ -653,11 +751,59 @@ export async function findFeeByBankCode(user: PublicUser, code: string) {
 
 /** Counts by status for the institution dashboard. */
 export async function statusCounts(user: PublicUser) {
-  const rows = await getDb()
+  const db = getDb();
+  const visible = visibleStatuses(await abilitiesOf(db, user));
+  const rows = await db
     .select({ status: applicationInstitutions.status, n: count() })
     .from(applicationInstitutions)
-    .where(eq(applicationInstitutions.institutionId, institutionOf(user)))
+    .where(and(eq(applicationInstitutions.institutionId, institutionOf(user)), inArray(applicationInstitutions.status, visible)))
     .groupBy(applicationInstitutions.status);
   return Object.fromEntries(rows.map((r) => [r.status, r.n]));
 }
 
+/**
+ * The institution dashboard's figures, from its own applications only. A
+ * figure for applications the staff member's permissions don't cover is
+ * null (shown as not available), so the dashboard never reveals more than
+ * the applications table would.
+ */
+export async function dashboardCounts(user: PublicUser) {
+  const db = getDb();
+  const institutionId = institutionOf(user);
+  const abilities = await abilitiesOf(db, user);
+  const mine = eq(applicationInstitutions.institutionId, institutionId);
+  const approvedFee = sql`EXISTS (SELECT 1 FROM fee_payments f WHERE f.application_institution_id = ${applicationInstitutions.id} AND f.approval = 'APPROVED')`;
+  const [byStatus, [awaitingPayment], [paymentToCheck], [uploadsToVerify]] = await Promise.all([
+    db.select({ status: applicationInstitutions.status, n: count() }).from(applicationInstitutions).where(and(mine, isNotNull(applicationInstitutions.submittedAt))).groupBy(applicationInstitutions.status),
+    db
+      .select({ n: count() })
+      .from(applicationInstitutions)
+      .where(and(mine, inArray(applicationInstitutions.status, AWAITING_REVIEW_STATUSES), sql`NOT ${approvedFee}`)),
+    db
+      .select({ n: count() })
+      .from(applicationInstitutions)
+      .where(and(mine, inArray(applicationInstitutions.status, AWAITING_REVIEW_STATUSES), approvedFee, eq(applicationInstitutions.paymentVerification, "PENDING"))),
+    db
+      .select({ n: count() })
+      .from(applicationDocuments)
+      .innerJoin(applicationInstitutions, eq(applicationInstitutions.id, applicationDocuments.applicationInstitutionId))
+      .where(and(mine, inArray(applicationInstitutions.status, [...AWAITING_REVIEW_STATUSES, "I_ACKNOWLEDGED"]), approvedFee, eq(applicationDocuments.reviewStatus, "PENDING"))),
+  ]);
+  const n = (s: ApplicationStatus) => Number(byStatus.find((r) => r.status === s)?.n ?? 0);
+  const visible = visibleStatuses(abilities);
+  const total = byStatus.filter((r) => visible.includes(r.status as ApplicationStatus)).reduce((sum, r) => sum + Number(r.n), 0);
+  return {
+    total,
+    awaitingReview: n("SUBMITTED") + n("RESUBMITTED"),
+    awaitingPayment: Number(awaitingPayment.n),
+    paymentToCheck: abilities.verifyPayment ? Number(paymentToCheck.n) : null,
+    uploadsToVerify: abilities.verifyUploads ? Number(uploadsToVerify.n) : null,
+    acknowledged: abilities.acknowledge ? n("I_ACKNOWLEDGED") : null,
+    rejected: abilities.reject ? n("I_REJECTED") : null,
+    offered: abilities.deliberation ? n("ACCEPTED") : null,
+    takenUp: abilities.deliberation ? n("A_ACKNOWLEDGED") : null,
+    declined: abilities.deliberation ? n("A_REJECTED") : null,
+  };
+}
+
+export type InstitutionDashboardCounts = Awaited<ReturnType<typeof dashboardCounts>>;

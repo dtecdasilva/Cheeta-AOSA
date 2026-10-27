@@ -12,6 +12,9 @@ import { rateLimit } from "@/server/http/rateLimit";
 import { getSettings } from "@/server/modules/settings/settings.service";
 import { audit } from "@/server/audit/audit";
 import { getDb } from "@/server/db/client";
+import { eq } from "drizzle-orm";
+import { users } from "@/server/db/schema";
+import { LANG_COOKIE, normalizeLang } from "@/lib/i18n/core";
 
 const body = z.object({
   email: z.string().trim().min(1, "Email and password are both required."),
@@ -26,9 +29,14 @@ export const POST = handler({ auth: "public" }, async ({ req }) => {
   // The same answer for "no such account" and "wrong password", so the
   // endpoint can't be used to find out which emails are registered.
   const invalid = new UnauthorizedError("Incorrect email or password.");
-  if (!user) throw invalid;
+  if (!user) {
+    // Recorded without the address itself in clear: the trail mustn't become a list of what people typed.
+    await audit(getDb(), { action: "login_failed", entityType: "account", entityId: null, meta: { reason: "unknown_email", emailDomain: email.split("@")[1] ?? "" } });
+    throw invalid;
+  }
 
   if (user.lockedUntil && user.lockedUntil > new Date()) {
+    await audit(getDb(), { action: "login_blocked", entityType: "account", entityId: user.id, actorUserId: user.id, meta: { reason: "locked", until: user.lockedUntil.toISOString() } });
     const minutes = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
     throw new TooManyRequestsError(`Too many failed sign-ins. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`);
   }
@@ -36,10 +44,13 @@ export const POST = handler({ auth: "public" }, async ({ req }) => {
   if (!verifyPassword(password, user.passwordHash)) {
     const { lockoutAttempts } = await getSettings("system");
     await recordFailedLogin(user.id, lockoutAttempts);
-    await audit(getDb(), { action: "login_failed", entityType: "account", entityId: user.id, actorUserId: user.id });
+    await audit(getDb(), { action: "login_failed", entityType: "account", entityId: user.id, actorUserId: user.id, meta: { reason: "wrong_password" } });
     throw invalid;
   }
 
+  if (user.status === "INACTIVE") {
+    await audit(getDb(), { action: "login_blocked", entityType: "account", entityId: user.id, actorUserId: user.id, meta: { reason: "inactive" } });
+  }
   if (user.status === "INACTIVE") throw new ForbiddenError("This account has been deactivated. Contact your administrator.");
 
   await recordSuccessfulLogin(user.id);
@@ -52,5 +63,10 @@ export const POST = handler({ auth: "public" }, async ({ req }) => {
   await audit(getDb(), { action: "login", entityType: "account", entityId: user.id, actorUserId: user.id, institutionId: user.institutionId });
   const res = ok({ user: toPublicUser(user), redirectTo: ROLE_HOME[user.role] });
   res.cookies.set(SESSION_COOKIE, await openSession(user, req), SESSION_COOKIE_OPTIONS);
+  // The language follows the person: the one saved on the account wins; if none is saved yet, the one they are using now is kept.
+  const [saved] = await getDb().select({ language: users.language }).from(users).where(eq(users.id, user.id)).limit(1);
+  const current = normalizeLang(req.cookies.get(LANG_COOKIE)?.value);
+  if (saved?.language) res.cookies.set(LANG_COOKIE, saved.language, { path: "/", maxAge: 31_536_000, sameSite: "lax" });
+  else if (current) await getDb().update(users).set({ language: current }).where(eq(users.id, user.id));
   return res;
 });

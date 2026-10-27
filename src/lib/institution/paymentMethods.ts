@@ -52,7 +52,7 @@ export const VERIFICATION_LABELS: Record<MethodVerification, string> = {
 };
 
 /** The detail fields whose meaning depends on the kind of method. */
-export const PAYMENT_METHOD_DETAIL_FIELDS = ["provider", "branch", "accountName", "accountNumber", "swift"] as const;
+export const PAYMENT_METHOD_DETAIL_FIELDS = ["provider", "bankCode", "branch", "branchCode", "accountName", "accountNumber", "rib", "swift"] as const;
 export type PaymentMethodDetailField = (typeof PAYMENT_METHOD_DETAIL_FIELDS)[number];
 
 interface FieldRule {
@@ -65,10 +65,13 @@ interface FieldRule {
 /** For each kind: the fields it uses, in the order to show them. A field left out isn't used by that kind. */
 export const PAYMENT_METHOD_FIELDS: Record<PaymentMethodType, Partial<Record<PaymentMethodDetailField, FieldRule>>> = {
   bank: {
-    provider: { label: "Bank", required: true, placeholder: "Afriland First Bank" },
+    provider: { label: "Bank name", required: true, placeholder: "Afriland First Bank" },
+    bankCode: { label: "Bank code", required: false, placeholder: "10005", hint: "The bank's code, as on the RIB (5 digits in Cameroon)." },
     branch: { label: "Branch", required: false, placeholder: "Yaoundé Hippodrome" },
+    branchCode: { label: "Branch code", required: false, placeholder: "00001", hint: "The branch's code, as on the RIB." },
     accountName: { label: "Account name", required: true },
-    accountNumber: { label: "Account number / IBAN", required: true, hint: "The full number, with the bank and branch codes if your bank uses them (RIB)." },
+    accountNumber: { label: "Account number / IBAN", required: true },
+    rib: { label: "RIB key", required: false, placeholder: "88", hint: "The key at the end of the RIB (2 digits)." },
     swift: { label: "SWIFT / BIC", required: false, hint: "Needed for payments from abroad." },
   },
   money_transfer: {
@@ -100,6 +103,9 @@ export interface PaymentMethod {
   accountName: string;
   accountNumber: string;
   swift: string;
+  bankCode: string;
+  branchCode: string;
+  rib: string;
   instructions: string;
   acceptsTuition: boolean;
   verification: MethodVerification;
@@ -111,7 +117,7 @@ export interface PaymentMethod {
 }
 
 /** What an applicant is shown: the account to pay into, without the checks behind it. */
-export type PublicPaymentMethod = Pick<PaymentMethod, "id" | "type" | "label" | "provider" | "branch" | "accountName" | "accountNumber" | "swift" | "instructions">;
+export type PublicPaymentMethod = Pick<PaymentMethod, "id" | "type" | "label" | "provider" | "branch" | "accountName" | "accountNumber" | "swift" | "bankCode" | "branchCode" | "rib" | "instructions">;
 
 const PHONE = /^\+?[0-9][0-9 ().-]{6,22}$/;
 const SWIFT = /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/;
@@ -134,6 +140,10 @@ export function validatePaymentMethodDetails(method: { type: PaymentMethodType }
   if (method.type === "mobile_operator" && number && !PHONE.test(number)) errors.accountNumber = "Enter a mobile number, with the country code if payers may be abroad.";
   const swift = (method.swift ?? "").trim().toUpperCase();
   if (method.type === "bank" && swift && !SWIFT.test(swift)) errors.swift = "A SWIFT / BIC code has 8 or 11 letters and digits, for example CCEICMCX.";
+  const digits = (v: string | undefined, n: number) => !v?.trim() || new RegExp(`^[0-9]{${n}}$`).test(v.trim());
+  if (method.type === "bank" && !digits(method.bankCode, 5)) errors.bankCode = "A bank code has 5 digits.";
+  if (method.type === "bank" && !digits(method.branchCode, 5)) errors.branchCode = "A branch code has 5 digits.";
+  if (method.type === "bank" && !digits(method.rib, 2)) errors.rib = "A RIB key has 2 digits.";
   return errors;
 }
 

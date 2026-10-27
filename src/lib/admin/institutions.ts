@@ -102,10 +102,12 @@ const str = (v: unknown) => (typeof v === "string" ? v : "");
 /**
  * Institutions are stored in the database: this collection reads and
  * writes /api/admin/institutions. The seed list is what an empty database
- * is first filled from, and what is shown until the API answers.
+ * is first filled from. Institution staff and students, who can't read the
+ * administration list, get the public listing (names and ids).
  */
 export const institutionStore = createApiCollection<AdminInstitution>("institutions", seedInstitutions, {
   url: "/api/admin/institutions",
+  readFallback: "/api/reference/institutions",
   fromApi: (r) => ({
     id: str(r.id),
     typeId: str(r.typeId),

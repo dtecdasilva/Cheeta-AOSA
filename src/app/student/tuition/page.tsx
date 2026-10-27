@@ -1,19 +1,15 @@
 import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { Topbar } from "@/components/Topbar";
 import { StudentTuition } from "@/components/tuition/Tuition";
-/** Same id as DEMO_TUITION_ID in src/lib/tuition/data.ts (client module, so not imported here). */
-const DEMO_TUITION_ID = "tui-demo";
-
-/**
- * Mock data: every signed-in student sees the demo admitted student's
- * tuition account until tuition accounts are linked to real users.
- */
-export default function StudentTuitionPage() {
+import { getT } from "@/lib/i18n/server";
+/** The signed-in student's tuition: one account per offer they have taken up, from /api/student/tuition. */
+export default async function StudentTuitionPage() {
+  const tr = await getT();
   return (
     <>
-      <Topbar title="Tuition" description="Your tuition after admission, the payments you've recorded and what's been verified." />
+      <Topbar title={tr("Tuition")} description={tr("Your tuition after admission, the payments you've recorded and what's been verified.")} />
       <main className={PAGE_MAIN_CLASS}>
-        <StudentTuition accountId={DEMO_TUITION_ID} />
+        <StudentTuition />
       </main>
     </>
   );

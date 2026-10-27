@@ -1,4 +1,5 @@
 import { getCurrencyInfo } from "@/lib/currency/data";
+import { getT } from "@/lib/i18n/server";
 
 /**
  * Renders a currency's ISO code as a small label, e.g. "XAF". Shown with
@@ -7,14 +8,15 @@ import { getCurrencyInfo } from "@/lib/currency/data";
  * code visually rather than silently rendering it identically to a
  * valid one.
  */
-export function CurrencyCode({ code, className }: { code: string; className?: string }) {
+export async function CurrencyCode({ code, className }: { code: string; className?: string }) {
+  const tr = await getT();
   const known = !!getCurrencyInfo(code);
   return (
     <span
       className={`inline-block rounded-md border border-[var(--color-line)] px-1.5 py-0.5 text-xs font-medium tracking-wide ${
         known ? "text-[var(--color-ink-soft)]" : "text-[var(--color-danger)]"
       } ${className ?? ""}`}
-      title={known ? undefined : "Unrecognized currency code"}
+      title={known ? undefined : tr("Unrecognized currency code")}
     >
       {code}
     </span>

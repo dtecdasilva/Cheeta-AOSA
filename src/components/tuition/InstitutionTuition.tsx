@@ -7,10 +7,13 @@ import { Card, CardHeader, DescriptionList, EmptyState, TableFrame, Td, Th } fro
 import { ButtonLinkClass } from "@/components/Form";
 import { FilterBar, FilterSelect, Pager, ResultCount, SearchField, StatStrip, ToneBadge, usePaged } from "@/components/admin/ui";
 import { BankCodeLookup } from "@/components/payments/BankCodeLookup";
-import { INSTITUTION_TUITION_META, institutionTuitionView, instalmentCoverage, markReceived, tuitionStore, type InstitutionTuitionView } from "@/lib/tuition/data";
+import { INSTITUTION_TUITION_META, type InstitutionTuitionView } from "@/lib/tuition/data";
+import { markTuitionReceived, useInstitutionTuition } from "@/lib/tuition/api";
+import { FormError } from "@/components/Form";
 import { matchesSearch } from "@/lib/admin/filters";
 import { useHydrated } from "@/lib/admin/store";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * The institution's side of tuition. Everything here goes through
@@ -21,22 +24,26 @@ import { formatCurrency, formatDate } from "@/lib/utils";
  */
 
 function Note() {
+  const tr = useT();
   return (
     <p className="mb-6 flex items-start gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-info-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-info)]" strokeWidth={1.75} />
-      AOSA verifies every tuition payment. While a payment is being checked you see only the student&apos;s first name and &ldquo;awaiting payment&rdquo;. Once it&apos;s approved it appears here with a bank code: find it on your statement and mark it received.
+      {tr("AOSA verifies every tuition payment. While a payment is being checked you see only the student's first name and “awaiting payment”. Once it's approved it appears here with a bank code: find it on your statement and mark it received.")}
     </p>
   );
 }
 
 function StateBadge({ v }: { v: InstitutionTuitionView }) {
+  const tr = useT();
   const m = INSTITUTION_TUITION_META[v.state];
-  return <ToneBadge tone={m.tone}>{m.label}</ToneBadge>;
+  return <ToneBadge tone={m.tone}>{tr(m.label)}</ToneBadge>;
 }
 
 export function InstitutionTuitionList({ institutionId, basePath }: { institutionId: string; basePath: string }) {
-  const accounts = tuitionStore.useItems();
-  const views = useMemo(() => accounts.filter((a) => a.institutionId === institutionId).map(institutionTuitionView), [accounts, institutionId]);
+  const tr = useT();
+  // Worked out by the server: masked until Cheeta has verified a payment.
+  const { items: views, error: loadError } = useInstitutionTuition();
+  void institutionId;
 
   const [search, setSearch] = useState("");
   const [state, setState] = useState("");
@@ -60,25 +67,26 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
 
   return (
     <>
+      {loadError && <div className="mb-4"><FormError>{tr(loadError)}</FormError></div>}
       <Note />
       <StatStrip
         columns={5}
         stats={[
-          { label: "Admitted students", value: views.length },
-          { label: "Awaiting payment", value: awaiting, detail: "Being checked by AOSA" },
-          { label: "Approved by AOSA", value: formatCurrency(sum("confirmed")), detail: `${identified.filter((v) => v.state === "PAID").length} paid in full` },
+          { label: tr("Admitted students"), value: views.length },
+          { label: tr("Awaiting payment"), value: awaiting, detail: tr("Being checked by AOSA") },
+          { label: tr("Approved by AOSA"), value: formatCurrency(sum("confirmed")), detail: tr("{count} paid in full", { count: identified.filter((v) => v.state === "PAID").length }) },
           {
-            label: "To mark received",
+            label: tr("To mark received"),
             value: toReconcile,
             detail: toReconcile ? (
               <button type="button" onClick={() => setReconcile("to-reconcile")} className="underline underline-offset-4">
-                Show them
+                {tr("Show them")}
               </button>
             ) : (
-              "All reconciled"
+              tr("All reconciled")
             ),
           },
-          { label: "Outstanding", value: formatCurrency(sum("outstanding")), detail: "Students with an approved payment or none yet" },
+          { label: tr("Outstanding"), value: formatCurrency(sum("outstanding")), detail: tr("Students with an approved payment or none yet") },
         ]}
       />
 
@@ -88,35 +96,35 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
 
       <div className="mt-6">
         <FilterBar active={!!(search || state || reconcile)} onClear={() => { setSearch(""); setState(""); setReconcile(""); }}>
-          <SearchField value={search} onChange={setSearch} placeholder="Student, registration no. or bank code" />
-          <FilterSelect label="Status" value={state} onChange={setState} options={Object.entries(INSTITUTION_TUITION_META).map(([k, m]) => ({ value: k, label: m.label }))} />
+          <SearchField value={search} onChange={setSearch} placeholder={tr("Student, registration no. or bank code")} />
+          <FilterSelect label={tr("Status")} value={state} onChange={setState} options={Object.entries(INSTITUTION_TUITION_META).map(([k, m]) => ({ value: k, label: m.label }))} />
           <FilterSelect
-            label="Reconciliation"
+            label={tr("Reconciliation")}
             value={reconcile}
             onChange={setReconcile}
-            allLabel="Any"
+            allLabel={tr("Any")}
             options={[
-              { value: "to-reconcile", label: "Payments to mark received" },
-              { value: "done", label: "All marked received" },
+              { value: "to-reconcile", label: tr("Payments to mark received") },
+              { value: "done", label: tr("All marked received") },
             ]}
           />
         </FilterBar>
       </div>
 
-      <ResultCount shown={filtered.length} total={views.length} noun="admitted students" />
+      <ResultCount shown={filtered.length} total={views.length} noun={tr("admitted students")} />
       {filtered.length === 0 ? (
-        <EmptyState message={views.length === 0 ? "No admitted students yet." : "No students match these filters."} />
+        <EmptyState message={views.length === 0 ? tr("No admitted students yet.") : tr("No students match these filters.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Student</Th>
-              <Th>Program</Th>
-              <Th className="text-right">Tuition</Th>
-              <Th className="text-right">Approved</Th>
-              <Th className="text-right">Outstanding</Th>
-              <Th>Status</Th>
-              <Th>Bank codes</Th>
+              <Th>{tr("Student")}</Th>
+              <Th>{tr("Program")}</Th>
+              <Th className="text-right">{tr("Tuition")}</Th>
+              <Th className="text-right">{tr("Approved")}</Th>
+              <Th className="text-right">{tr("Outstanding")}</Th>
+              <Th>{tr("Status")}</Th>
+              <Th>{tr("Bank codes")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -126,7 +134,7 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
                   <Td>
                     <span className="inline-flex items-center gap-2 text-[var(--color-ink)]">
                       <Lock className="h-3.5 w-3.5 text-[var(--color-ink-faint)]" strokeWidth={1.75} aria-hidden />
-                      {v.displayName}
+                      {tr(v.displayName)}
                     </span>
                   </Td>
                   <Td colSpan={6}>
@@ -137,15 +145,15 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
                 <tr key={v.id}>
                   <Td>
                     <Link href={`${basePath}/${v.id}`} className="text-[var(--color-ink)] underline-offset-4 hover:underline">
-                      {v.displayName}
+                      {tr(v.displayName)}
                     </Link>
-                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{v.registrationNo}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(v.registrationNo)}</p>
                   </Td>
                   <Td>{v.programName}</Td>
                   <Td className="whitespace-nowrap text-right tabular-nums">{formatCurrency(v.tuition ?? 0)}</Td>
                   <Td className="whitespace-nowrap text-right tabular-nums">
                     {formatCurrency(v.confirmed ?? 0)}
-                    {v.awaitingCount > 0 && <p className="mt-0.5 text-xs text-[var(--color-info)]">+ {v.awaitingCount} awaiting AOSA</p>}
+                    {v.awaitingCount > 0 && <p className="mt-0.5 text-xs text-[var(--color-info)]">{tr("+ {awaitingCount} awaiting AOSA", { awaitingCount: v.awaitingCount })}</p>}
                   </Td>
                   <Td className="whitespace-nowrap text-right tabular-nums">{formatCurrency(v.outstanding ?? 0)}</Td>
                   <Td>
@@ -159,7 +167,7 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
                         {v.confirmedPayments.map((p) => (
                           <li key={p.id} className="whitespace-nowrap font-mono text-xs text-[var(--color-ink)]">
                             {p.bankCode}
-                            {!p.receivedAt && <span className="ml-2 font-sans text-[var(--color-warning-strong)]">to mark</span>}
+                            {!p.receivedAt && <span className="ml-2 font-sans text-[var(--color-warning-strong)]">{tr("to mark")}</span>}
                           </li>
                         ))}
                       </ul>
@@ -177,117 +185,133 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
 }
 
 export function InstitutionTuitionAccount({ id, institutionId, basePath, staffName }: { id: string; institutionId: string; basePath: string; staffName: string }) {
+  const tr = useT();
   const hydrated = useHydrated();
-  const accounts = tuitionStore.useItems();
-  const account = accounts.find((a) => a.id === id && a.institutionId === institutionId);
+  const { items: views, loaded } = useInstitutionTuition();
+  const v = views.find((a) => a.id === id);
   const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  void institutionId;
+  void staffName;
+
+  async function setReceived(paymentId: string, bankCode: string, received: boolean) {
+    const r = await markTuitionReceived(paymentId, received);
+    if (!r.ok) return setError(r.error);
+    setError("");
+    setNotice(received ? tr("{bankCode} marked received.", { bankCode }) : tr("{bankCode} is no longer marked received.", { bankCode }));
+  }
 
   const back = (
     <Link href={basePath} className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
       <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-      All admitted students
+      {tr("All admitted students")}
     </Link>
   );
 
-  if (!account) {
-    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+  if (!v) {
+    if (!hydrated || !loaded) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     return (
       <>
-        {back}
-        <EmptyState message="This tuition account doesn't exist, or belongs to another institution." />
+        {tr(back)}
+        <EmptyState message={tr("This tuition account doesn't exist, or belongs to another institution.")} />
       </>
     );
   }
 
-  const v = institutionTuitionView(account);
   if (v.masked) {
     return (
       <>
-        {back}
+        {tr(back)}
         <EmptyState
-          message={`${v.displayName} — awaiting payment. Details appear once AOSA approves the payment.`}
-          action={<Link href={basePath} className={ButtonLinkClass("secondary")}>Back to tuition</Link>}
+          message={tr("{displayName} — awaiting payment. Details appear once AOSA approves the payment.", { displayName: v.displayName })}
+          action={<Link href={basePath} className={ButtonLinkClass("secondary")}>{tr("Back to tuition")}</Link>}
         />
       </>
     );
   }
 
-  const schedule = instalmentCoverage(account);
+  // Approved money covers the instalments in order.
+  const today = new Date().toISOString().slice(0, 10);
+  let pool = v.confirmed ?? 0;
+  const schedule = v.instalments.map((inst) => {
+    const covered = Math.min(pool, inst.amount);
+    pool -= covered;
+    return { ...inst, covered, state: covered >= inst.amount ? ("covered" as const) : inst.dueDate < today ? ("overdue" as const) : covered > 0 ? ("part" as const) : ("due" as const) };
+  });
   const tone = { covered: "success", part: "amber", overdue: "danger", due: "neutral" } as const;
   const label = { covered: "Covered", part: "Part covered", overdue: "Overdue", due: "Not yet due" } as const;
 
   return (
     <>
-      {back}
+      {tr(back)}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{v.displayName}</h1>
+          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{tr(v.displayName)}</h1>
           <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-            {v.programName}, {v.registrationNo}
+            {tr(v.programName)}, {tr(v.registrationNo)}
           </p>
         </div>
         <StateBadge v={v} />
       </div>
 
+      {error && (
+        <div className="mb-4">
+          <FormError>{tr(error)}</FormError>
+        </div>
+      )}
       {notice && (
         <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-          {notice}
+          {tr(notice)}
         </p>
       )}
 
       <StatStrip
         columns={4}
         stats={[
-          { label: "Tuition amount", value: formatCurrency(v.tuition ?? 0) },
-          { label: "Approved by AOSA", value: formatCurrency(v.confirmed ?? 0), detail: `${v.confirmedPayments.length} ${v.confirmedPayments.length === 1 ? "payment" : "payments"}` },
-          { label: "Awaiting AOSA", value: v.awaitingCount, detail: v.awaitingCount ? "Amounts shown once approved" : "Nothing waiting" },
-          { label: "Outstanding", value: formatCurrency(v.outstanding ?? 0) },
+          { label: tr("Tuition amount"), value: formatCurrency(v.tuition ?? 0) },
+          { label: tr("Approved by AOSA"), value: formatCurrency(v.confirmed ?? 0), detail: `${v.confirmedPayments.length} ${v.confirmedPayments.length === 1 ? "payment" : "payments"}` },
+          { label: tr("Awaiting AOSA"), value: v.awaitingCount, detail: v.awaitingCount ? tr("Amounts shown once approved") : tr("Nothing waiting") },
+          { label: tr("Outstanding"), value: formatCurrency(v.outstanding ?? 0) },
         ]}
       />
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">
           <Card padded={false}>
-            <CardHeader title="Approved payments" description="Find each bank code on your statement, then mark it received." />
+            <CardHeader title={tr("Approved payments")} description={tr("Find each bank code on your statement, then mark it received.")} />
             {v.confirmedPayments.length === 0 ? (
-              <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">No approved payments yet.</p>
+              <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">{tr("No approved payments yet.")}</p>
             ) : (
               <ul className="divide-y divide-[var(--color-line)]">
                 {v.confirmedPayments.map((p) => (
                   <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
                     <div>
                       <p className="font-mono text-sm text-[var(--color-ink)]">{p.bankCode}</p>
-                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">Approved by AOSA {formatDate(p.verifiedAt)}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr("Approved by AOSA {value}", { value: formatDate(p.verifiedAt) })}</p>
                     </div>
                     <p className="tabular-nums text-[var(--color-ink)]">{formatCurrency(p.amount)}</p>
                     <div className="text-right">
                       {p.receivedAt ? (
                         <>
-                          <ToneBadge tone="success">Received</ToneBadge>
+                          <ToneBadge tone="success">{tr("Received")}</ToneBadge>
                           <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
-                            {formatDate(p.receivedAt)}, {p.receivedBy}
+                            {formatDate(p.receivedAt)}, {tr(p.receivedBy)}
                           </p>
                           <button
                             type="button"
-                            onClick={() => {
-                              markReceived(account.id, p.id, staffName, false);
-                              setNotice(`${p.bankCode} is no longer marked received.`);
-                            }}
+                            onClick={() => void setReceived(p.id, p.bankCode, false)}
                             className="mt-1 text-xs text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]"
                           >
-                            Undo
+                            {tr("Undo")}
                           </button>
                         </>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            markReceived(account.id, p.id, staffName);
-                            setNotice(`${p.bankCode} marked received.`);
-                          }}
+                          onClick={() => void setReceived(p.id, p.bankCode, true)}
                           className="inline-flex items-center rounded-lg border border-[var(--color-ink)] px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-ink)] hover:text-white"
                         >
-                          Mark received
+                          {tr("Mark received")}
                         </button>
                       )}
                     </div>
@@ -297,27 +321,27 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
             )}
             {v.awaitingCount > 0 && (
               <p className="border-t border-[var(--color-line)] px-5 py-3 text-sm text-[var(--color-ink-soft)]">
-                {v.awaitingCount} more {v.awaitingCount === 1 ? "payment is" : "payments are"} awaiting AOSA approval.
+                {tr("{awaitingCount} more", { awaitingCount: v.awaitingCount })}{" "}{v.awaitingCount === 1 ? tr("payment is") : tr("payments are")}{" "}{tr("awaiting AOSA approval.")}
               </p>
             )}
           </Card>
 
           <Card padded={false}>
-            <CardHeader title="Instalment schedule" description="Approved payments are applied to instalments in order." />
+            <CardHeader title={tr("Instalment schedule")} description={tr("Approved payments are applied to instalments in order.")} />
             <TableFrame>
               <thead>
                 <tr>
-                  <Th>Instalment</Th>
-                  <Th>Due</Th>
-                  <Th className="text-right">Amount</Th>
-                  <Th className="text-right">Covered</Th>
-                  <Th>State</Th>
+                  <Th>{tr("Instalment")}</Th>
+                  <Th>{tr("Due")}</Th>
+                  <Th className="text-right">{tr("Amount")}</Th>
+                  <Th className="text-right">{tr("Covered")}</Th>
+                  <Th>{tr("State")}</Th>
                 </tr>
               </thead>
               <tbody>
                 {schedule.map((r) => (
                   <tr key={r.label}>
-                    <Td>{r.label}</Td>
+                    <Td>{tr(r.label)}</Td>
                     <Td className="whitespace-nowrap">{formatDate(r.dueDate)}</Td>
                     <Td className="whitespace-nowrap text-right tabular-nums">{formatCurrency(r.amount)}</Td>
                     <Td className="whitespace-nowrap text-right tabular-nums">{formatCurrency(r.covered)}</Td>
@@ -332,15 +356,15 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
         </div>
 
         <Card padded={false} className="self-start">
-          <CardHeader title="Admitted student" />
+          <CardHeader title={tr("Admitted student")} />
           <DescriptionList
             items={[
-              { label: "Name", value: v.displayName },
-              { label: "Registration no.", value: v.registrationNo },
-              { label: "Application", value: v.applicationRef },
-              { label: "Program", value: v.programName },
-              { label: "Admitted", value: formatDate(account.admittedAt) },
-              { label: "Offer", value: account.offerAccepted ? "Accepted by student" : "Awaiting student's reply" },
+              { label: tr("Name"), value: v.displayName },
+              { label: tr("Registration no."), value: v.registrationNo },
+              { label: tr("Application"), value: v.applicationRef },
+              { label: tr("Program"), value: v.programName },
+              ...(v.admittedAt ? [{ label: tr("Admitted"), value: formatDate(v.admittedAt) }] : []),
+              { label: tr("Offer"), value: "Taken up by the student" },
             ]}
           />
         </Card>

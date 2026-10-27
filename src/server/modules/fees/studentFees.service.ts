@@ -12,7 +12,7 @@ import { audit } from "@/server/audit/audit";
 import { ValidationError } from "@/server/http/errors";
 import { parseWith } from "@/server/http/validate";
 import { decimalsOf, loadSnapshots, quoteRate, type RateQuote, type RateSnapshot } from "@/server/modules/reference/conversion.service";
-import { assessFee, inDisplayCurrency } from "./calculation";
+import { applicantFeeCategory, assessFee, inDisplayCurrency } from "./calculation";
 
 /**
  * The applicant's view of what their applications cost.
@@ -62,6 +62,7 @@ function fromSnapshot(s: RateSnapshot, decimals: number, amounts: { applicationF
 export async function getMyFees(user: PublicUser, query: { currency?: unknown } = {}): Promise<FeeSummary> {
   const db = getDb();
   const saved = await savedDisplayCurrency(db, user.id);
+  const category = await applicantFeeCategory(db, user.id);
   let displayCurrency = saved;
   if (query.currency !== undefined && query.currency !== "") {
     displayCurrency = parseWith(z.object({ currency: currencySchema }), { currency: query.currency }).currency;
@@ -121,7 +122,7 @@ export async function getMyFees(user: PublicUser, query: { currency?: unknown } 
       continue;
     }
 
-    const a = await assessFee(db, institution, now);
+    const a = await assessFee(db, institution, now, category);
     const fee = {
       name: a.fee.name,
       currency: a.fee.currency,
@@ -222,7 +223,7 @@ export async function listMyPaymentMethods(user: PublicUser, query: { type?: unk
     institution: { id: r.institutionId, name: r.institutionName },
     methods: methods
       .filter((m) => m.institutionId === r.institutionId)
-      .map((m) => ({ id: m.id, type: m.type as PaymentMethodType, label: m.label, provider: m.provider, branch: m.branch, accountName: m.accountName, accountNumber: m.accountNumber, swift: m.swift, instructions: m.instructions })),
+      .map((m) => ({ id: m.id, type: m.type as PaymentMethodType, label: m.label, provider: m.provider, branch: m.branch, accountName: m.accountName, accountNumber: m.accountNumber, swift: m.swift, bankCode: m.bankCode, branchCode: m.branchCode, rib: m.rib, instructions: m.instructions })),
   }));
 }
 

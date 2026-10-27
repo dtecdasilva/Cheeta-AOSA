@@ -1,5 +1,6 @@
 import React from "react";
 import Link from "next/link";
+import { T } from "@/lib/i18n/client";
 
 /**
  * Shared presentational primitives.
@@ -177,7 +178,7 @@ export function DescriptionList({ items }: { items: { label: string; value: Reac
     <dl className="divide-y divide-[var(--color-line)] text-sm">
       {items.map((item) => (
         <div key={item.label} className="flex flex-wrap justify-between gap-4 px-5 py-3">
-          <dt className="text-[var(--color-ink-soft)]">{item.label}</dt>
+          <dt className="text-[var(--color-ink-soft)]"><T>{item.label}</T></dt>
           <dd className="text-right font-medium text-[var(--color-ink)]">{item.value ?? "—"}</dd>
         </div>
       ))}
@@ -196,7 +197,7 @@ export function Pill({ children, tone = "neutral" }: { children: React.ReactNode
   } as const;
   return (
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${tones[tone]}`}>
-      {children}
+      <T>{children}</T>
     </span>
   );
 }
@@ -215,7 +216,7 @@ export function Th({ children, className = "" }: { children?: React.ReactNode; c
     <th
       className={`border-b border-[var(--color-line)] bg-[var(--color-paper)] px-5 py-2.5 text-left text-xs font-medium text-[var(--color-ink-soft)] ${className}`}
     >
-      {children}
+      <T>{children}</T>
     </th>
   );
 }
@@ -223,7 +224,7 @@ export function Th({ children, className = "" }: { children?: React.ReactNode; c
 export function Td({ children, className = "", colSpan }: { children?: React.ReactNode; className?: string; colSpan?: number }) {
   return (
     <td colSpan={colSpan} className={`border-b border-[var(--color-line)] px-5 py-3 ${className}`}>
-      {children}
+      <T>{children}</T>
     </td>
   );
 }

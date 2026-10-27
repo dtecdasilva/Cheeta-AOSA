@@ -1,8 +1,10 @@
 import "server-only";
 import type { Executor } from "@/server/db/client";
-import { auditLog } from "@/server/db/schema";
+import { eq } from "drizzle-orm";
+import { auditLog, users } from "@/server/db/schema";
 import { newId } from "@/server/db/ids";
 import { getRequestContext } from "@/server/logging/context";
+import { categoryOf } from "./categories";
 
 /**
  * Appends to the audit trail. Call it inside the same transaction as the
@@ -47,11 +49,16 @@ export async function audit(
   const ctx = getRequestContext();
   const changes = entry.before !== undefined || entry.after !== undefined ? diff(entry.before, entry.after) : null;
   if (entry.action === "update" && changes && Object.keys(changes).length === 0) return;
+  const actorUserId = entry.actorUserId ?? ctx?.userId ?? null;
+  // Who it was, as they are named now, so the entry still reads right if the account changes later.
+  const [actor] = actorUserId ? await db.select({ name: users.fullName, email: users.email, role: users.role }).from(users).where(eq(users.id, actorUserId)).limit(1) : [];
   await db.insert(auditLog).values({
     id: newId("aud"),
-    actorUserId: entry.actorUserId ?? ctx?.userId ?? null,
-    actorRole: ctx?.role ?? null,
+    actorUserId,
+    actorRole: ctx?.role ?? actor?.role ?? null,
+    actorLabel: actor ? `${actor.name} <${actor.email}>` : null,
     action: entry.action,
+    category: categoryOf(entry.action, entry.entityType, entry.after),
     entityType: entry.entityType,
     entityId: entry.entityId ?? null,
     institutionId: entry.institutionId ?? ctx?.institutionId ?? null,

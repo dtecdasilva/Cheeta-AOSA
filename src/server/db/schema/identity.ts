@@ -35,6 +35,8 @@ export const users = pgTable(
       .references(() => roles.key, { onUpdate: "cascade" }),
     status: recordStatus(),
     phone: text("phone"),
+    /** The language the person chose for the screens, emails and SMS ("en" or "fr"); null until they choose, when English is used. */
+    language: text("language", { enum: ["en", "fr"] }),
     /** Set for institution staff; the institution they act for. */
     institutionId: text("institution_id").references(() => institutions.id),
     /**
@@ -94,6 +96,8 @@ export const applicantProfiles = pgTable(
      * what is owed.
      */
     displayCurrency: text("display_currency"),
+    /** The applicant's photo (a files id, purpose "applicant-photo"), shown on their application. Null until one is uploaded. */
+    photoFileId: text("photo_file_id"),
     ...timestamps,
   },
   (t) => [uniqueIndex("applicant_profiles_registration_no_unique").on(t.registrationNo), check("applicant_profiles_institution_type_check", oneOf(t.institutionType, INSTITUTION_TYPES))]
@@ -101,7 +105,7 @@ export const applicantProfiles = pgTable(
 
 /**
  * Institution user: staff-side details for institution accounts
- * (src/lib/mockData/staff.ts). What each admission user may do is in
+ * (src/lib/institution/staff.ts). What each admission user may do is in
  * user_permissions; an institution administrator has everything through
  * the role.
  */
@@ -117,6 +121,10 @@ export const institutionStaff = pgTable(
     staffNo: text("staff_no").notNull(),
     position: text("position").notNull(),
     title: text("title"),
+    /** The name of their role on the platform ("Payment & Upload Agent"). */
+    platformTitle: text("platform_title").notNull().default(""),
+    /** What this staff member does on the platform, in the institution's words ("Verifies payments and uploads"). */
+    roleDescription: text("role_description").notNull().default(""),
     ...timestamps,
   },
   (t) => [uniqueIndex("institution_staff_no_unique").on(t.institutionId, t.staffNo), index("institution_staff_institution_idx").on(t.institutionId)]

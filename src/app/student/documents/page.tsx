@@ -1,15 +1,16 @@
 import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { Topbar } from "@/components/Topbar";
-import { DocumentCentre } from "@/components/documents/Documents";
-/** Same id as DEMO_TUITION_ID in src/lib/tuition/data.ts. */
-const DEMO_TUITION_ID = "tui-demo";
+import { StudentDocumentCentre } from "@/components/documents/Documents";
+import { getT } from "@/lib/i18n/server";
 
-export default function StudentDocumentsPage() {
+/** The student's documents for each institution they applied to, from the database. */
+export default async function StudentDocumentsPage() {
+  const tr = await getT();
   return (
     <>
-      <Topbar title="My documents" description="Print or download your application, payment and admission documents." />
+      <Topbar title={tr("My documents")} description={tr("Print or download your application, payment and admission documents.")} />
       <main className={PAGE_MAIN_CLASS}>
-        <DocumentCentre accountId={DEMO_TUITION_ID} audience="student" basePath="/student/documents" />
+        <StudentDocumentCentre basePath="/student/documents" />
       </main>
     </>
   );

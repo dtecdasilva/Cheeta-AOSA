@@ -8,6 +8,7 @@ import { useMyApplications, type MyApplication } from "@/lib/applications/api";
 import type { DocumentRequirement } from "@/lib/institutionDiscovery/data";
 import { buttonClass } from "@/lib/ui/button";
 import DocumentUploadRow from "./DocumentUploadRow";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Institution Upload: for each institution on the application, the
@@ -17,17 +18,18 @@ import DocumentUploadRow from "./DocumentUploadRow";
  * allows; the institution's review of each document shows here.
  */
 export function InstitutionUploads() {
+  const tr = useT();
   const mine = useMyApplications();
 
-  if (!mine.applications) return mine.error ? <FormError>{mine.error}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">Loading your documents…</p>;
+  if (!mine.applications) return mine.error ? <FormError>{tr(mine.error)}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading your documents…")}</p>;
 
   if (mine.applications.length === 0) {
     return (
       <EmptyState
-        message="You haven't added an institution to your application yet. Once you have, the documents it asks for are uploaded here."
+        message={tr("You haven't added an institution to your application yet. Once you have, the documents it asks for are uploaded here.")}
         action={
           <Link href="/student/institutions/add" className={buttonClass("secondary")}>
-            Add an institution
+            {tr("Add an institution")}
           </Link>
         }
       />
@@ -36,7 +38,7 @@ export function InstitutionUploads() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <h2 className="mb-4 text-lg font-semibold">Upload Documents</h2>
+      <h2 className="mb-4 text-lg font-semibold">{tr("Upload Documents")}</h2>
       {mine.applications.map((application) => (
         <ApplicationUploads key={application.id} application={application} mine={mine} />
       ))}
@@ -45,6 +47,7 @@ export function InstitutionUploads() {
 }
 
 function ApplicationUploads({ application, mine }: { application: MyApplication; mine: ReturnType<typeof useMyApplications> }) {
+  const tr = useT();
   const required = application.requirements.filter((r) => r.required);
   const optional = application.requirements.filter((r) => !r.required);
   const documentFor = (r: DocumentRequirement) => application.documents.find((d) => d.requirementId === r.id);
@@ -69,9 +72,9 @@ function ApplicationUploads({ application, mine }: { application: MyApplication;
     <section id={application.id} className="mb-6 scroll-mt-6 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <div className="font-semibold">{application.institution.name}</div>
+          <div className="font-semibold">{tr(application.institution.name)}</div>
           <div className="text-xs text-[var(--color-ink-soft)]">
-            {required.length === 0 ? "No documents required" : `${done} of ${required.length} required document${required.length === 1 ? "" : "s"} uploaded`} · Reference {application.reference}
+            {required.length === 0 ? tr("No documents required") : tr("{done} of {count} required document{value} uploaded", { done, count: required.length, value: required.length === 1 ? "" : "s" })}{" "}{tr("· Reference {reference}", { reference: application.reference })}
           </div>
         </div>
         <StatusBadge status={application.status} />
@@ -79,23 +82,23 @@ function ApplicationUploads({ application, mine }: { application: MyApplication;
 
       {!application.canUploadDocuments && (
         <p className="mt-3 rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2 text-xs text-[var(--color-ink-soft)]">
-          This application has been submitted, so its documents can&apos;t be changed unless the institution sends it back.
+          {tr("This application has been submitted, so its documents can't be changed unless the institution sends it back.")}
         </p>
       )}
 
       {application.requirements.length === 0 ? (
-        <p className="mt-4 text-sm text-[var(--color-ink-soft)]">This institution doesn&apos;t ask for any documents.</p>
+        <p className="mt-4 text-sm text-[var(--color-ink-soft)]">{tr("This institution doesn't ask for any documents.")}</p>
       ) : (
         <div className="mt-4">
           {required.length > 0 && (
             <>
-              <div className="mb-1 text-sm font-medium">Required documents</div>
+              <div className="mb-1 text-sm font-medium">{tr("Required documents")}</div>
               <div className="divide-y divide-dashed divide-[var(--color-line-strong)]">{rows(required)}</div>
             </>
           )}
           {optional.length > 0 && (
             <>
-              <div className="mb-1 mt-4 text-sm font-medium">Optional documents</div>
+              <div className="mb-1 mt-4 text-sm font-medium">{tr("Optional documents")}</div>
               <div className="divide-y divide-dashed divide-[var(--color-line-strong)]">{rows(optional)}</div>
             </>
           )}

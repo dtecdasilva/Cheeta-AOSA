@@ -12,7 +12,6 @@ import {
   CATEGORY_META,
   CHANNEL_LABELS,
   HISTORY_LABELS,
-  notificationStore,
   useNotifications,
   type Audience,
   type CentreNotification,
@@ -22,29 +21,32 @@ import {
 import { EMPTY_RANGE, inRange, matchesSearch, type DateRange } from "@/lib/admin/filters";
 import { useHydrated } from "@/lib/admin/store";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 // ---------------------------------------------------------------------------
 // Small pieces
 // ---------------------------------------------------------------------------
 
 export function CategoryBadge({ category }: { category: NotificationCategory }) {
+  const tr = useT();
   const m = CATEGORY_META[category];
-  return <ToneBadge tone={m.tone}>{m.label}</ToneBadge>;
+  return <ToneBadge tone={m.tone}>{tr(m.label)}</ToneBadge>;
 }
 
 const CHANNEL_ICONS: Record<Channel, typeof Mail> = { IN_APP: Monitor, EMAIL: Mail, SMS: MessageSquare };
 
 function ChannelIcons({ n }: { n: CentreNotification }) {
+  const tr = useT();
   return (
     <span className="inline-flex items-center gap-1.5 text-[var(--color-ink-faint)]">
       {n.deliveries.map((d) => {
         const Icon = CHANNEL_ICONS[d.channel];
         const failed = d.status === "FAILED";
         return (
-          <span key={d.channel} title={`${CHANNEL_LABELS[d.channel]}: ${failed ? "failed" : d.status.toLowerCase()}`} className={failed ? "text-[var(--color-danger)]" : undefined}>
+          <span key={d.channel} title={`${tr(CHANNEL_LABELS[d.channel])}: ${failed ? "failed" : d.status.toLowerCase()}`} className={failed ? "text-[var(--color-danger)]" : undefined}>
             <Icon className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
             <span className="sr-only">
-              {CHANNEL_LABELS[d.channel]} {failed ? "failed" : d.status.toLowerCase()}
+              {tr(CHANNEL_LABELS[d.channel])} {failed ? "failed" : d.status.toLowerCase()}
             </span>
           </span>
         );
@@ -81,6 +83,7 @@ type ReadFilter = "all" | "unread" | "read";
 // ---------------------------------------------------------------------------
 
 export function NotificationCentre({ audience, basePath }: { audience: Audience; basePath: string }) {
+  const tr = useT();
   const { inbox, all, unreadCount, markRead, markUnread, archive, markAllRead } = useNotifications(audience);
   const hydrated = useHydrated();
   const [category, setCategory] = useState<NotificationCategory | "">("");
@@ -125,19 +128,19 @@ export function NotificationCentre({ audience, basePath }: { audience: Audience;
       <StatStrip
         columns={4}
         stats={[
-          { label: "Unread", value: unreadCount, detail: unreadCount ? "Newest first below" : "You're all caught up" },
-          { label: "Important and unread", value: importantUnread, detail: "Need your attention" },
-          { label: "Received this week", value: thisWeek ?? "—" },
-          { label: "Archived", value: archivedCount, detail: <Link href={`${basePath}/history`} className="underline underline-offset-4">See history</Link> },
+          { label: tr("Unread"), value: unreadCount, detail: unreadCount ? tr("Newest first below") : tr("You're all caught up") },
+          { label: tr("Important and unread"), value: importantUnread, detail: tr("Need your attention") },
+          { label: tr("Received this week"), value: thisWeek ?? "—" },
+          { label: tr("Archived"), value: archivedCount, detail: <Link href={`${basePath}/history`} className="underline underline-offset-4">{tr("See history")}</Link> },
         ]}
       />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-        <nav aria-label="Notification categories" className="self-start overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
+        <nav aria-label={tr("Notification categories")} className="self-start overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
           <ul className="divide-y divide-[var(--color-line)]">
-            <CategoryLink label="All notifications" count={inbox.length} unread={unreadCount} current={category === ""} onClick={() => setCategory("")} />
+            <CategoryLink label={tr("All notifications")} count={inbox.length} unread={unreadCount} current={category === ""} onClick={() => setCategory("")} />
             {CATEGORIES.map((c) => (
-              <CategoryLink key={c} label={CATEGORY_META[c].label} count={countBy(c)} unread={unreadBy(c)} current={category === c} onClick={() => setCategory(c)} />
+              <CategoryLink key={c} label={tr(CATEGORY_META[c].label)} count={countBy(c)} unread={unreadBy(c)} current={category === c} onClick={() => setCategory(c)} />
             ))}
           </ul>
         </nav>
@@ -145,7 +148,7 @@ export function NotificationCentre({ audience, basePath }: { audience: Audience;
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
             <div className="flex flex-wrap items-end gap-4">
-              <div role="radiogroup" aria-label="Show" className="flex overflow-hidden rounded-lg border border-[var(--color-line-strong)]">
+              <div role="radiogroup" aria-label={tr("Show")} className="flex overflow-hidden rounded-lg border border-[var(--color-line-strong)]">
                 {(["all", "unread", "read"] as ReadFilter[]).map((r) => (
                   <button
                     key={r}
@@ -159,45 +162,45 @@ export function NotificationCentre({ audience, basePath }: { audience: Audience;
                         : "text-[var(--color-ink-soft)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]"
                     }`}
                   >
-                    {r}
+                    {tr(r)}
                   </button>
                 ))}
               </div>
               <label className="inline-flex items-center gap-2 pb-2 text-sm text-[var(--color-ink-soft)]">
                 <input type="checkbox" checked={importantOnly} onChange={(e) => setImportantOnly(e.target.checked)} className="h-4 w-4 accent-[var(--color-brand)]" />
-                Important only
+                {tr("Important only")}
               </label>
             </div>
             <div className="w-full sm:w-72">
-              <SearchField value={search} onChange={setSearch} placeholder="Search notifications" wide={false} />
+              <SearchField value={search} onChange={setSearch} placeholder={tr("Search notifications")} wide={false} />
             </div>
           </div>
 
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <ResultCount shown={filtered.length} total={inbox.length} noun="notifications" />
+            <ResultCount shown={filtered.length} total={inbox.length} noun={tr("notifications")} />
             <div className="flex items-center gap-4 text-sm">
               {unreadInView.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
                     markAllRead(unreadInView.map((n) => n.id));
-                    setNotice(`${unreadInView.length} marked as read.`);
+                    setNotice(tr("{count} marked as read.", { count: unreadInView.length }));
                   }}
                   className="inline-flex items-center gap-1.5 text-[var(--color-ink)] underline underline-offset-4"
                 >
                   <CheckCheck className="h-4 w-4" strokeWidth={1.75} />
-                  Mark {category || readFilter !== "all" || search || importantOnly ? "these" : "all"} as read
+                  {tr("Mark")}{" "}{category || readFilter !== "all" || search || importantOnly ? "these" : "all"}{" "}{tr("as read")}
                 </button>
               )}
               <Link href={`${basePath}/history`} className="text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]">
-                Notification history
+                {tr("Notification history")}
               </Link>
             </div>
           </div>
 
           {notice && (
             <p role="status" className="mb-3 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-              {notice}
+              {tr(notice)}
             </p>
           )}
 
@@ -205,17 +208,17 @@ export function NotificationCentre({ audience, basePath }: { audience: Audience;
             <EmptyState
               message={
                 inbox.length === 0
-                  ? "You have no notifications yet."
+                  ? tr("You have no notifications yet.")
                   : readFilter === "unread" && !category && !search && !importantOnly
-                    ? "No unread notifications. You're all caught up."
-                    : "No notifications match these filters."
+                    ? tr("No unread notifications. You're all caught up.")
+                    : tr("No notifications match these filters.")
               }
             />
           ) : (
             <div className="space-y-5">
               {groups.map((g) => (
-                <section key={g.label + g.items[0].id} aria-label={g.label}>
-                  <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-ink-faint)]">{g.label}</h3>
+                <section key={g.label + g.items[0].id} aria-label={tr(g.label)}>
+                  <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.08em] text-[var(--color-ink-faint)]">{tr(g.label)}</h3>
                   <ul className="divide-y divide-[var(--color-line)] overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
                     {g.items.map((n) => (
                       <NotificationRow
@@ -229,7 +232,7 @@ export function NotificationCentre({ audience, basePath }: { audience: Audience;
                         }}
                         onArchive={() => {
                           archive(n.id);
-                          setNotice(`“${n.title}” archived. Find it in notification history.`);
+                          setNotice(tr("“{title}” archived. Find it in notification history.", { title: tr(n.title) }));
                         }}
                       />
                     ))}
@@ -284,6 +287,7 @@ function NotificationRow({
   onToggleRead: () => void;
   onArchive: () => void;
 }) {
+  const tr = useT();
   const unread = !n.readAt;
   return (
     <li className={`group relative flex items-start gap-3 px-4 py-3.5 ${unread ? "bg-[var(--color-surface)]" : "bg-[var(--color-paper)]/40"}`}>
@@ -294,29 +298,29 @@ function NotificationRow({
           {n.important && (
             <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-danger)]">
               <AlertCircle className="h-3.5 w-3.5" strokeWidth={2} />
-              Important
+              {tr("Important")}
             </span>
           )}
           <span className="ml-auto text-xs tabular-nums text-[var(--color-ink-faint)]">{timeOf(n.createdAt)}</span>
         </div>
         <Link href={href} className="mt-1.5 block after:absolute after:inset-0">
           <span className={`block text-sm ${unread ? "font-semibold text-[var(--color-ink)]" : "text-[var(--color-ink-soft)]"}`}>
-            {unread && <span className="sr-only">Unread: </span>}
-            {n.title}
+            {unread && <span className="sr-only">{tr("Unread:")}{" "}</span>}
+            {tr(n.title)}
           </span>
-          <span className="mt-0.5 block text-sm text-[var(--color-ink-soft)]">{n.summary}</span>
+          <span className="mt-0.5 block text-sm text-[var(--color-ink-soft)]">{tr(n.summary)}</span>
         </Link>
         <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-[var(--color-ink-faint)]">
-          {n.institutionName && <span>{n.institutionName}</span>}
+          {n.institutionName && <span>{tr(n.institutionName)}</span>}
           {n.reference && <span className="tabular-nums">{n.reference}</span>}
           <ChannelIcons n={n} />
         </div>
       </div>
       <div className="relative z-10 flex shrink-0 items-center gap-1">
-        <IconButton label={unread ? "Mark as read" : "Mark as unread"} onClick={onToggleRead}>
+        <IconButton label={unread ? tr("Mark as read") : tr("Mark as unread")} onClick={onToggleRead}>
           {unread ? <MailOpen className="h-4 w-4" strokeWidth={1.75} /> : <Mail className="h-4 w-4" strokeWidth={1.75} />}
         </IconButton>
-        <IconButton label="Archive" onClick={onArchive}>
+        <IconButton label={tr("Archive")} onClick={onArchive}>
           <Archive className="h-4 w-4" strokeWidth={1.75} />
         </IconButton>
       </div>
@@ -343,9 +347,10 @@ function IconButton({ label, onClick, children }: { label: string; onClick: () =
 // ---------------------------------------------------------------------------
 
 export function NotificationDetail({ audience, basePath, id }: { audience: Audience; basePath: string; id: string }) {
+  const tr = useT();
   const router = useRouter();
   const hydrated = useHydrated();
-  const { all, markRead, markUnread, archive, restore } = useNotifications(audience);
+  const { all, loaded, markRead, markUnread, archive, restore } = useNotifications(audience);
   const n = all.find((x) => x.id === id);
   const [openedUnread, setOpenedUnread] = useState(false);
   const handled = useRef<string | null>(null);
@@ -356,21 +361,21 @@ export function NotificationDetail({ audience, basePath, id }: { audience: Audie
   useEffect(() => {
     if (!hydrated || !found || handled.current === id) return;
     handled.current = id;
-    const current = notificationStore.getAll().find((x) => x.id === id);
-    if (current && !current.readAt) {
+    if (n && !n.readAt) {
       markRead(id);
       setOpenedUnread(true);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, found, id, markRead]);
 
   if (!n) {
-    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    if (!hydrated || !loaded) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     return (
       <EmptyState
-        message="This notification doesn't exist or belongs to someone else."
+        message={tr("This notification doesn't exist or belongs to someone else.")}
         action={
           <Link href={basePath} className={ButtonLinkClass("secondary")}>
-            Back to notifications
+            {tr("Back to notifications")}
           </Link>
         }
       />
@@ -383,7 +388,7 @@ export function NotificationDetail({ audience, basePath, id }: { audience: Audie
     <>
       <Link href={basePath} className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
         <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-        All notifications
+        {tr("All notifications")}
       </Link>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -394,32 +399,32 @@ export function NotificationDetail({ audience, basePath, id }: { audience: Audie
               {n.important && (
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-danger)]">
                   <AlertCircle className="h-3.5 w-3.5" strokeWidth={2} />
-                  Important
+                  {tr("Important")}
                 </span>
               )}
-              {n.archivedAt && <ToneBadge tone="neutral">Archived</ToneBadge>}
+              {n.archivedAt && <ToneBadge tone="neutral">{tr("Archived")}</ToneBadge>}
             </div>
-            <h2 className="mt-3 font-bold tracking-tight text-2xl text-[var(--color-ink)]">{n.title}</h2>
+            <h2 className="mt-3 font-bold tracking-tight text-2xl text-[var(--color-ink)]">{tr(n.title)}</h2>
             <p className="mt-1 text-sm text-[var(--color-ink-faint)]">{formatDateTime(n.createdAt)}</p>
           </div>
           <div className="space-y-3 px-6 py-5 text-[15px] leading-relaxed text-[var(--color-ink)]">
             {paragraphs.map((p, i) => (
-              <p key={i}>{p}</p>
+              <p key={i}>{tr(p)}</p>
             ))}
           </div>
           <div className="flex flex-wrap items-center gap-3 border-t border-[var(--color-line)] px-6 py-4">
             {n.action && (
               <Link href={n.action.href} className={ButtonLinkClass("primary")}>
-                {n.action.label}
+                {tr(n.action.label)}
               </Link>
             )}
             <SecondaryButton type="button" onClick={() => (n.readAt ? markUnread(n.id) : markRead(n.id))}>
-              {n.readAt ? "Mark as unread" : "Mark as read"}
+              {n.readAt ? tr("Mark as unread") : tr("Mark as read")}
             </SecondaryButton>
             {n.archivedAt ? (
               <SecondaryButton type="button" onClick={() => restore(n.id)}>
                 <ArchiveRestore className="h-4 w-4" strokeWidth={1.75} />
-                Restore to inbox
+                {tr("Restore to inbox")}
               </SecondaryButton>
             ) : (
               <SecondaryButton
@@ -430,7 +435,7 @@ export function NotificationDetail({ audience, basePath, id }: { audience: Audie
                 }}
               >
                 <Archive className="h-4 w-4" strokeWidth={1.75} />
-                Archive
+                {tr("Archive")}
               </SecondaryButton>
             )}
           </div>
@@ -438,54 +443,54 @@ export function NotificationDetail({ audience, basePath, id }: { audience: Audie
 
         <div className="space-y-6">
           <Card padded={false}>
-            <CardHeader title="Details" />
+            <CardHeader title={tr("Details")} />
             <DescriptionList
               items={[
-                { label: "Category", value: CATEGORY_META[n.category].label },
-                { label: "Status", value: n.archivedAt ? "Archived" : n.readAt ? "Read" : "Unread" },
-                { label: "Read", value: n.readAt ? formatDateTime(n.readAt) : "Not yet" },
-                ...(n.reference ? [{ label: "Reference", value: n.reference }] : []),
-                ...(n.institutionName ? [{ label: "Institution", value: n.institutionName }] : []),
-                ...(n.templateCode ? [{ label: "Template", value: n.templateCode }] : []),
+                { label: tr("Category"), value: CATEGORY_META[n.category].label },
+                { label: tr("Status"), value: n.archivedAt ? tr("Archived") : n.readAt ? tr("Read") : tr("Unread") },
+                { label: tr("Read"), value: n.readAt ? formatDateTime(n.readAt) : tr("Not yet") },
+                ...(n.reference ? [{ label: tr("Reference"), value: n.reference }] : []),
+                ...(n.institutionName ? [{ label: tr("Institution"), value: n.institutionName }] : []),
+                ...(n.templateCode ? [{ label: tr("Template"), value: n.templateCode }] : []),
               ]}
             />
           </Card>
           <Card padded={false}>
-            <CardHeader title="Delivery" description="Where this message was sent." />
+            <CardHeader title={tr("Delivery")} description={tr("Where this message was sent.")} />
             <ul className="divide-y divide-[var(--color-line)]">
               {n.deliveries.map((d) => (
                 <li key={d.channel} className="px-5 py-3 text-sm">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[var(--color-ink)]">{CHANNEL_LABELS[d.channel]}</span>
-                    <ToneBadge tone={d.status === "FAILED" ? "danger" : d.status === "SENT" ? "info" : "success"}>
-                      {d.status === "FAILED" ? "Failed" : d.status === "SENT" ? "Sent" : "Delivered"}
+                    <span className="text-[var(--color-ink)]">{tr(CHANNEL_LABELS[d.channel])}</span>
+                    <ToneBadge tone={d.status === "FAILED" ? "danger" : d.status === "SENT" ? "info" : d.status === "DELIVERED" ? "success" : "neutral"}>
+                      {{ FAILED: "Failed", SENT: "Sent", DELIVERED: "Delivered", QUEUED: "Sending", SKIPPED: "Not sent" }[d.status]}
                     </ToneBadge>
                   </div>
                   <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                    {d.to} · {formatDateTime(d.at)}
+                    {tr(d.to)} · {formatDateTime(d.at)}
                   </p>
-                  {d.detail && <p className="mt-0.5 text-xs text-[var(--color-danger)]">{d.detail}</p>}
+                  {d.detail && <p className="mt-0.5 text-xs text-[var(--color-danger)]">{tr(d.detail)}</p>}
                 </li>
               ))}
             </ul>
           </Card>
           <Card padded={false}>
-            <CardHeader title="History" />
+            <CardHeader title={tr("History")} />
             <ol className="px-5 py-4">
               {[...n.history].reverse().map((h, i) => (
                 <li key={i} className="relative border-l border-[var(--color-line)] pb-4 pl-4 last:pb-0">
                   <span className={`absolute -left-[4px] top-1.5 h-2 w-2 rounded-full ${h.kind === "FAILED" ? "bg-[var(--color-danger)]" : "bg-[var(--color-ink-faint)]"}`} />
                   <p className="text-sm text-[var(--color-ink)]">
-                    {HISTORY_LABELS[h.kind]}
-                    {h.channel ? ` — ${CHANNEL_LABELS[h.channel]}` : ""}
+                    {tr(HISTORY_LABELS[h.kind])}
+                    {h.channel ? ` — ${tr(CHANNEL_LABELS[h.channel])}` : ""}
                   </p>
                   <p className="text-xs text-[var(--color-ink-faint)]">{formatDateTime(h.at)}</p>
-                  {h.note && <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">{h.note}</p>}
+                  {h.note && <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">{tr(h.note)}</p>}
                 </li>
               ))}
             </ol>
           </Card>
-          {openedUnread && <p className="text-xs text-[var(--color-ink-faint)]">Marked as read when you opened it.</p>}
+          {openedUnread && <p className="text-xs text-[var(--color-ink-faint)]">{tr("Marked as read when you opened it.")}</p>}
         </div>
       </div>
     </>
@@ -497,6 +502,7 @@ export function NotificationDetail({ audience, basePath, id }: { audience: Audie
 // ---------------------------------------------------------------------------
 
 export function NotificationHistory({ audience, basePath }: { audience: Audience; basePath: string }) {
+  const tr = useT();
   const { all, restore, archive } = useNotifications(audience);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
@@ -526,16 +532,16 @@ export function NotificationHistory({ audience, basePath }: { audience: Audience
     <>
       <Link href={basePath} className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
         <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-        Notification centre
+        {tr("Notification centre")}
       </Link>
 
       <StatStrip
         columns={4}
         stats={[
-          { label: "All notifications", value: all.length },
-          { label: "In inbox", value: all.filter((n) => !n.archivedAt).length },
-          { label: "Archived", value: all.filter((n) => n.archivedAt).length },
-          { label: "With a failed delivery", value: failed, detail: failed ? "Email or SMS didn't arrive" : undefined },
+          { label: tr("All notifications"), value: all.length },
+          { label: tr("In inbox"), value: all.filter((n) => !n.archivedAt).length },
+          { label: tr("Archived"), value: all.filter((n) => n.archivedAt).length },
+          { label: tr("With a failed delivery"), value: failed, detail: failed ? tr("Email or SMS didn't arrive") : undefined },
         ]}
       />
 
@@ -551,46 +557,46 @@ export function NotificationHistory({ audience, basePath }: { audience: Audience
             setRange(EMPTY_RANGE);
           }}
         >
-          <SearchField value={search} onChange={setSearch} placeholder="Title, reference, institution or template" />
-          <FilterSelect label="Category" value={category} onChange={setCategory} options={CATEGORIES.map((c) => ({ value: c, label: CATEGORY_META[c].label }))} />
+          <SearchField value={search} onChange={setSearch} placeholder={tr("Title, reference, institution or template")} />
+          <FilterSelect label={tr("Category")} value={category} onChange={setCategory} options={CATEGORIES.map((c) => ({ value: c, label: CATEGORY_META[c].label }))} />
           <FilterSelect
-            label="State"
+            label={tr("State")}
             value={state}
             onChange={setState}
             options={[
-              { value: "unread", label: "Unread" },
-              { value: "read", label: "Read" },
-              { value: "archived", label: "Archived" },
+              { value: "unread", label: tr("Unread") },
+              { value: "read", label: tr("Read") },
+              { value: "archived", label: tr("Archived") },
             ]}
           />
-          <FilterSelect label="Sent by" value={channel} onChange={setChannel} options={(Object.keys(CHANNEL_LABELS) as Channel[]).map((c) => ({ value: c, label: CHANNEL_LABELS[c] }))} />
+          <FilterSelect label={tr("Sent by")} value={channel} onChange={setChannel} options={(Object.keys(CHANNEL_LABELS) as Channel[]).map((c) => ({ value: c, label: tr(CHANNEL_LABELS[c]) }))} />
           <FilterSelect
-            label="Delivery"
+            label={tr("Delivery")}
             value={delivery}
             onChange={setDelivery}
             options={[
-              { value: "ok", label: "All delivered" },
-              { value: "failed", label: "Something failed" },
+              { value: "ok", label: tr("All delivered") },
+              { value: "failed", label: tr("Something failed") },
             ]}
           />
-          <DateRangeFilter value={range} onChange={setRange} label="Received" />
+          <DateRangeFilter value={range} onChange={setRange} label={tr("Received")} />
         </FilterBar>
       </div>
 
-      <ResultCount shown={filtered.length} total={all.length} noun="notifications" />
+      <ResultCount shown={filtered.length} total={all.length} noun={tr("notifications")} />
       {filtered.length === 0 ? (
-        <EmptyState message="No notifications match these filters." />
+        <EmptyState message={tr("No notifications match these filters.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Received</Th>
-              <Th>Notification</Th>
-              <Th>Category</Th>
-              <Th>Delivery</Th>
-              <Th>Read</Th>
+              <Th>{tr("Received")}</Th>
+              <Th>{tr("Notification")}</Th>
+              <Th>{tr("Category")}</Th>
+              <Th>{tr("Delivery")}</Th>
+              <Th>{tr("Read")}</Th>
               <Th>
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{tr("Actions")}</span>
               </Th>
             </tr>
           </thead>
@@ -600,7 +606,7 @@ export function NotificationHistory({ audience, basePath }: { audience: Audience
                 <Td className="whitespace-nowrap tabular-nums">{formatDateTime(n.createdAt)}</Td>
                 <Td>
                   <Link href={`${basePath}/${n.id}`} className="text-[var(--color-ink)] underline-offset-4 hover:underline">
-                    {n.title}
+                    {tr(n.title)}
                   </Link>
                   <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{[n.reference, n.institutionName].filter(Boolean).join(" · ") || n.summary}</p>
                 </Td>
@@ -611,23 +617,23 @@ export function NotificationHistory({ audience, basePath }: { audience: Audience
                   <ul className="space-y-0.5 text-xs">
                     {n.deliveries.map((d) => (
                       <li key={d.channel} className={d.status === "FAILED" ? "text-[var(--color-danger)]" : "text-[var(--color-ink-soft)]"}>
-                        {CHANNEL_LABELS[d.channel]}: {d.status === "FAILED" ? "failed" : d.status.toLowerCase()}
+                        {tr(CHANNEL_LABELS[d.channel])}: {d.status === "FAILED" ? "failed" : d.status.toLowerCase()}
                       </li>
                     ))}
                   </ul>
                 </Td>
                 <Td className="whitespace-nowrap text-xs">
-                  {n.readAt ? formatDateTime(n.readAt) : <span className="font-medium text-[var(--color-ink)]">Unread</span>}
-                  {n.archivedAt && <p className="mt-0.5 text-[var(--color-ink-faint)]">Archived {formatDate(n.archivedAt)}</p>}
+                  {n.readAt ? formatDateTime(n.readAt) : <span className="font-medium text-[var(--color-ink)]">{tr("Unread")}</span>}
+                  {n.archivedAt && <p className="mt-0.5 text-[var(--color-ink-faint)]">{tr("Archived {value}", { value: formatDate(n.archivedAt) })}</p>}
                 </Td>
                 <Td className="whitespace-nowrap text-right">
                   {n.archivedAt ? (
                     <button type="button" onClick={() => restore(n.id)} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                      Restore
+                      {tr("Restore")}
                     </button>
                   ) : (
                     <button type="button" onClick={() => archive(n.id)} className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]">
-                      Archive
+                      {tr("Archive")}
                     </button>
                   )}
                 </Td>

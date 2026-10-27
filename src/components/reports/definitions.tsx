@@ -8,7 +8,7 @@ import { CLEARANCE_META, MEDICAL_REQUIREMENTS, MEDICAL_RESULT_META, MEDICAL_STAT
 import { ADMISSION_META, MATRIC_STATUS_META, TUITION_CLEARANCE_META } from "@/lib/matriculation/data";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import type { Column, FilterDef, ReportDef, Scope } from "./ReportScreen";
-import * as src from "./sources";
+import type * as src from "./sources";
 
 type Row<F extends (...a: never[]) => unknown[]> = ReturnType<F>[number];
 type Tone = "neutral" | "info" | "amber" | "success" | "danger";
@@ -490,30 +490,11 @@ type AnyReport = { def: ReportDef<any>; rows: any[] };
 export { REPORT_KEYS, isReportKey, reportsFor, type ReportKey } from "./keys";
 import { type ReportKey } from "./keys";
 
-export function buildReport(key: ReportKey, s: src.Sources, institutionId?: string): AnyReport {
-  const make = <R extends { id: string; masked: boolean; maskedName: string }>(rows: R[], def: (rows: R[]) => ReportDef<R>): AnyReport => ({ rows, def: def(rows) });
-  switch (key) {
-    case "student-registration":
-      return make(src.registrationRows(s), registration);
-    case "applications":
-      return make(src.applicationRows(s, institutionId), applications);
-    case "application-progression":
-      return make(src.progressionRows(s, institutionId), progression);
-    case "payments":
-      return make(src.paymentRows(s, institutionId), payments);
-    case "acknowledged-applications":
-      return make(src.acknowledgedRows(s, institutionId), acknowledged);
-    case "rejected-applications":
-      return make(src.rejectedRows(s, institutionId), rejected);
-    case "deliberation":
-      return make(src.deliberationRows(s, institutionId), deliberation);
-    case "admission":
-      return make(src.admissionRows(s, institutionId), admission);
-    case "tuition":
-      return make(src.tuitionRows(s, institutionId), tuition);
-    case "medical-verification":
-      return make(src.medicalRows(s, institutionId), medical);
-    case "matriculation":
-      return make(src.matriculationRows(s, institutionId), matriculation);
-  }
+
+/** A report's definition built over rows that came from the server (/api/reports/<key>), which match the builders' shapes. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function reportFromRows(key: ReportKey, rows: any[]): AnyReport {
+  const defs = { "student-registration": registration, applications, "application-progression": progression, payments, "acknowledged-applications": acknowledged, "rejected-applications": rejected, deliberation, admission, tuition, "medical-verification": medical, matriculation } as const;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return { rows, def: (defs[key] as (r: any[]) => ReportDef<any>)(rows) };
 }

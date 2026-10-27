@@ -16,6 +16,7 @@ import { audit } from "@/server/audit/audit";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/http/errors";
 import { pagination, parseQuery, parseWith } from "@/server/http/validate";
 import { notify } from "@/server/notifications/notifications.service";
+import { notifyEvent } from "@/server/notifications/engine";
 import { fileUrl, getFile } from "@/server/storage/files.service";
 import { loadApplicationInstitution, type LoadedApplication } from "./applications.queries";
 import { syncCompletion } from "./applications.workflow";
@@ -359,14 +360,18 @@ export async function reviewFeePayment(user: PublicUser, id: string, input: unkn
       after: { approval: updated.approval, bankCode, rejectionReason: reason },
     });
 
-    await notify(tx, {
-      audience: "student",
-      recipientUserId: app.application.applicantId,
-      category: "PAYMENT",
-      title: v.decision === "approve" ? "Application fee approved" : "Application fee payment rejected",
-      summary: v.decision === "approve" ? `Your payment for ${app.institution.name} is approved. Bank code ${bankCode}.` : `Your payment for ${app.institution.name} was rejected: ${reason}`,
+    // The method is a parameter id ("payment-method-types:MOMO") or, for older records, its label.
+    const [method] = updated.method.includes(":") ? await tx.select({ label: parameters.label }).from(parameters).where(eq(parameters.id, updated.method)).limit(1) : [];
+    await notifyEvent(tx, {
+      event: v.decision === "approve" ? "payment.received" : "payment.rejected",
+      to: { userId: app.application.applicantId },
+      applicationId: app.id,
+      values: { "payment.amount": `${updated.amount.toLocaleString("en-US")} ${updated.currency}`, "payment.method": method?.label ?? updated.method, "payment.reference": updated.reference, reason },
+      inApp: {
+        title: v.decision === "approve" ? "Application fee approved" : "Application fee payment rejected",
+        summary: v.decision === "approve" ? `Your payment for ${app.institution.name} is approved. Bank code ${bankCode}.` : `Your payment for ${app.institution.name} was rejected: ${reason}`,
+      },
       important: v.decision === "reject",
-      reference: app.reference,
       action: { label: v.decision === "approve" ? "Submit your application" : "Record the payment again", href: v.decision === "approve" ? "/student/submit/print-submit" : "/student/fees/payment-options" },
     });
     if (v.decision === "approve") {
@@ -440,39 +445,3 @@ async function reopenFeePayment(tx: Executor, payment: typeof feePayments.$infer
 // Audit trail
 // ---------------------------------------------------------------------------
 
-export async function listAudit(req: NextRequest) {
-  const query = parseQuery(
-    req,
-    pagination.extend({
-      entityType: z.string().max(60).optional(),
-      entityId: z.string().max(100).optional(),
-      actorUserId: z.string().max(100).optional(),
-      institutionId: z.string().max(100).optional(),
-      action: z.string().max(60).optional(),
-      from: z.iso.date().optional(),
-      to: z.iso.date().optional(),
-    })
-  );
-  const conditions: (SQL | undefined)[] = [
-    query.entityType ? eq(auditLog.entityType, query.entityType) : undefined,
-    query.entityId ? eq(auditLog.entityId, query.entityId) : undefined,
-    query.actorUserId ? eq(auditLog.actorUserId, query.actorUserId) : undefined,
-    query.institutionId ? eq(auditLog.institutionId, query.institutionId) : undefined,
-    query.action ? eq(auditLog.action, query.action) : undefined,
-    query.from ? gte(auditLog.at, new Date(`${query.from}T00:00:00Z`)) : undefined,
-    query.to ? lte(auditLog.at, new Date(`${query.to}T23:59:59.999Z`)) : undefined,
-  ];
-  const where = and(...conditions);
-  const db = getDb();
-  const [rows, [{ total }]] = await Promise.all([
-    db
-      .select()
-      .from(auditLog)
-      .where(where)
-      .orderBy(desc(auditLog.at))
-      .limit(query.pageSize)
-      .offset((query.page - 1) * query.pageSize),
-    db.select({ total: count() }).from(auditLog).where(where),
-  ]);
-  return { data: rows, meta: { page: query.page, pageSize: query.pageSize, total } };
-}

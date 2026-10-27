@@ -23,8 +23,10 @@ export interface UploadRequirement {
   institutionId: string;
   /** Null only on a requirement entered before document types were chosen from the list. */
   documentTypeId: string | null;
-  /** The document type's name, as applicants see it. */
+  /** The document type's name, as applicants see it (or the institution's own name for a custom document). */
   name: string;
+  /** A document the institution named itself because the platform's list has nothing that fits. */
+  custom?: boolean;
   description: string;
   required: boolean;
   fileTypes: string[];
@@ -32,6 +34,9 @@ export interface UploadRequirement {
   status: "ACTIVE" | "INACTIVE";
   updatedAt: string;
 }
+
+/** The pseudo document type an institution picks to name a document of its own ("Additional uploads"). */
+export const CUSTOM_DOCUMENT_TYPE = "custom";
 
 /** A document type an institution can ask for, with the limits it sets. */
 export interface DocumentTypeOption {

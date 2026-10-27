@@ -1,15 +1,16 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, notInArray } from "drizzle-orm";
 import { EDITABLE_STATUSES } from "@/lib/applications/statusFlow";
 import type { PublicUser } from "@/lib/auth/users";
 import { formatFileSize, normaliseFileType } from "@/lib/institution/uploadRequirements";
 import type { ApplicationStatus } from "@/lib/types";
 import { env } from "@/server/config/env";
 import { getDb, type Executor } from "@/server/db/client";
-import { applicationDocuments, applicationInstitutions, feePayments, files } from "@/server/db/schema";
+import { admissions, applicantProfiles, applicationDocuments, applicationInstitutions, applications, disabilityMedia, feePayments, files } from "@/server/db/schema";
 import { newId } from "@/server/db/ids";
 import { audit } from "@/server/audit/audit";
+import { hasPermission } from "@/server/auth/access";
 import { BadRequestError, ConflictError, NotFoundError, PayloadTooLargeError } from "@/server/http/errors";
 import { logger } from "@/server/logging/logger";
 import { getStorage, storageFor } from "./driver";
@@ -30,13 +31,17 @@ import { getStorage, storageFor } from "./driver";
  * ends the moment the reason for it does.
  */
 
-export type FilePurpose = "application-document" | "payment-receipt" | "medical-certificate" | "admission-letter" | "other";
+export type FilePurpose = "application-document" | "payment-receipt" | "medical-certificate" | "admission-letter" | "disability-media" | "applicant-photo" | "other";
 
 const PURPOSES: Record<FilePurpose, { types: string[]; maxMb?: number }> = {
   "application-document": { types: ["pdf", "jpg", "jpeg", "png"] },
   "payment-receipt": { types: ["pdf", "jpg", "jpeg", "png"], maxMb: 5 },
   "medical-certificate": { types: ["pdf", "jpg", "jpeg", "png"], maxMb: 5 },
   "admission-letter": { types: ["pdf"] },
+  // Photos, and one short video. A video is capped by STORAGE_MAX_UPLOAD_MB too (4 MB on Vercel).
+  "disability-media": { types: ["jpg", "jpeg", "png", "mp4", "mov", "webm"], maxMb: 25 },
+  // A passport-style photo of the applicant, shown on their application.
+  "applicant-photo": { types: ["jpg", "jpeg", "png"], maxMb: 2 },
   other: { types: ["pdf", "jpg", "jpeg", "png"] },
 };
 
@@ -44,7 +49,7 @@ export function isFilePurpose(v: string): v is FilePurpose {
   return v in PURPOSES;
 }
 
-const MIME: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", png: "image/png" };
+const MIME: Record<string, string> = { pdf: "application/pdf", jpg: "image/jpeg", png: "image/png", mp4: "video/mp4", mov: "video/quicktime", webm: "video/webm" };
 
 /** Leading bytes each allowed type must start with. */
 const SIGNATURES: Record<string, number[][]> = {
@@ -59,6 +64,9 @@ function extensionOf(name: string) {
 }
 
 function matchesSignature(ext: string, bytes: Uint8Array) {
+  // MP4 and QuickTime files carry "ftyp" at byte 4; WebM starts with the EBML header.
+  if (ext === "mp4" || ext === "mov") return bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70;
+  if (ext === "webm") return bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3;
   const sigs = SIGNATURES[ext];
   if (!sigs) return false;
   return sigs.some((sig) => sig.every((b, i) => bytes[i] === b));
@@ -197,12 +205,101 @@ export async function fileAccess(db: Executor, user: PublicUser, file: StoredFil
       .from(feePayments)
       .where(and(eq(feePayments.applicationInstitutionId, doc.applicationInstitutionId), eq(feePayments.approval, "APPROVED")))
       .limit(1);
-    return approved ? "institution" : null;
+    if (!approved) return null;
+    // Opening an applicant's documents is part of "Student Payments & Uploads".
+    return (await hasPermission(db, user, "PAYMENTS_UPLOADS")) ? "institution" : null;
+  }
+
+  if (file.purpose === "admission-letter") {
+    // A letter opens for the applicant it was issued to, and for staff of the admitting institution who hold
+    // "Deliberation List". A letter that has been reissued is attached to nothing, and opens for nobody.
+    const [adm] = await db
+      .select({ applicantId: applications.applicantId, institutionId: applicationInstitutions.institutionId })
+      .from(admissions)
+      .innerJoin(applicationInstitutions, eq(applicationInstitutions.id, admissions.applicationInstitutionId))
+      .innerJoin(applications, eq(applications.id, applicationInstitutions.applicationId))
+      .where(eq(admissions.letterFileId, file.id))
+      .limit(1);
+    if (!adm) return null;
+    if (user.role === "STUDENT") return adm.applicantId === user.id ? "owner" : null;
+    if (!isInstitutionStaff(user) || adm.institutionId !== user.institutionId) return null;
+    return (await hasPermission(db, user, "DELIBERATION")) ? "institution" : null;
+  }
+
+  if (file.purpose === "disability-media") {
+    // The applicant's own; and staff of an institution the applicant has submitted to, once the fee is approved
+    // (the moment that institution sees the application at all). Never another applicant.
+    const [m] = await db.select({ userId: disabilityMedia.userId }).from(disabilityMedia).where(eq(disabilityMedia.fileId, file.id)).limit(1);
+    if (!m) return null;
+    if (user.role === "STUDENT") return m.userId === user.id ? "owner" : null;
+    if (!isInstitutionStaff(user) || !user.institutionId) return null;
+    const [seen] = await db
+      .select({ id: applicationInstitutions.id })
+      .from(applicationInstitutions)
+      .innerJoin(applications, eq(applications.id, applicationInstitutions.applicationId))
+      .innerJoin(feePayments, and(eq(feePayments.applicationInstitutionId, applicationInstitutions.id), eq(feePayments.approval, "APPROVED")))
+      .where(and(eq(applications.applicantId, m.userId), eq(applicationInstitutions.institutionId, user.institutionId), notInArray(applicationInstitutions.status, EDITABLE_STATUSES)))
+      .limit(1);
+    return seen ? "institution" : null;
+  }
+
+  if (file.purpose === "applicant-photo") {
+    // The applicant's own (only while it is their current photo); and, like their documents, staff of an institution
+    // they have submitted to once the fee is approved.
+    const [p] = await db.select({ userId: applicantProfiles.userId }).from(applicantProfiles).where(eq(applicantProfiles.photoFileId, file.id)).limit(1);
+    if (!p) return null;
+    if (user.role === "STUDENT") return p.userId === user.id ? "owner" : null;
+    if (!isInstitutionStaff(user) || !user.institutionId) return null;
+    const [seen] = await db
+      .select({ id: applicationInstitutions.id })
+      .from(applicationInstitutions)
+      .innerJoin(applications, eq(applications.id, applicationInstitutions.applicationId))
+      .innerJoin(feePayments, and(eq(feePayments.applicationInstitutionId, applicationInstitutions.id), eq(feePayments.approval, "APPROVED")))
+      .where(and(eq(applications.applicantId, p.userId), eq(applicationInstitutions.institutionId, user.institutionId), notInArray(applicationInstitutions.status, EDITABLE_STATUSES)))
+      .limit(1);
+    return seen ? "institution" : null;
   }
 
   if (file.ownerUserId === user.id) return "owner";
   if (file.purpose === "payment-receipt") return null;
   return isInstitutionStaff(user) && !!file.institutionId && file.institutionId === user.institutionId ? "institution" : null;
+}
+
+/**
+ * Stores a file the platform made itself (an admission letter), owned by
+ * `ownerUserId`. Nothing about it comes from an upload, so it isn't checked
+ * against upload rules; the caller says what it is.
+ */
+export async function storeGenerated(
+  tx: Executor,
+  params: { ownerUserId: string; institutionId: string | null; purpose: FilePurpose; name: string; ext: "pdf"; bytes: Uint8Array }
+): Promise<StoredFile> {
+  const id = newId("file");
+  const now = new Date();
+  const key = `${params.purpose}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${id}.${params.ext}`;
+  const storage = getStorage();
+  await storage.put(key, params.bytes, MIME[params.ext]);
+  try {
+    const [row] = await tx
+      .insert(files)
+      .values({
+        id,
+        ownerUserId: params.ownerUserId,
+        institutionId: params.institutionId,
+        purpose: params.purpose,
+        originalName: safeName(params.name),
+        mimeType: MIME[params.ext],
+        sizeBytes: params.bytes.byteLength,
+        sha256: createHash("sha256").update(params.bytes).digest("hex"),
+        storageDriver: storage.name,
+        storageKey: key,
+      })
+      .returning();
+    return row;
+  } catch (err) {
+    await storage.delete(key).catch((e) => logger.warn("Could not remove orphaned file", { key, err: e }));
+    throw err;
+  }
 }
 
 /**
@@ -270,6 +367,10 @@ export async function deleteFile(user: PublicUser, id: string) {
   const db = getDb();
   const file = await getFile(db, id);
   if (file.ownerUserId !== user.id && user.role !== "AOSA_ADMIN") throw new NotFoundError("File");
+  // Letters are issued records of an offer, kept even once reissued.
+  if (file.purpose === "admission-letter") throw new ConflictError("An admission letter is a record of the offer, so it can't be deleted.");
+  if (file.purpose === "disability-media") throw new ConflictError("Remove it from your disability information instead.");
+  if (file.purpose === "applicant-photo") throw new ConflictError("Remove it from your demographic information instead.");
   const [document] = await db.select({ id: applicationDocuments.id }).from(applicationDocuments).where(eq(applicationDocuments.fileId, id)).limit(1);
   if (document) throw new ConflictError("This file is attached to an application. Remove it from the application first.");
   // A receipt is the evidence for a payment record; it stays as long as the payment does.

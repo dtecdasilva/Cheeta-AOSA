@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ButtonLinkClass, FormError } from "@/components/Form";
 import { EmptyState, RowList, SectionHeading } from "@/components/ui";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * The frame every institution list shares: a heading with its "Add"
@@ -33,29 +34,30 @@ export function InstitutionListShell({
   note?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const tr = useT();
   return (
     <div className="space-y-4">
       <SectionHeading
-        title={title}
+        title={tr(title)}
         actions={
           canEdit ? (
             <Link href={addHref} className={ButtonLinkClass("primary")}>
-              {addLabel}
+              {tr(addLabel)}
             </Link>
           ) : undefined
         }
       />
-      {note}
-      {error && <FormError>{error}</FormError>}
+      {tr(note)}
+      {error && <FormError>{tr(error)}</FormError>}
       {loading ? (
-        <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>
       ) : isEmpty ? (
         <EmptyState
-          message={emptyMessage}
+          message={tr(emptyMessage)}
           action={
             canEdit ? (
               <Link href={addHref} className={ButtonLinkClass("secondary")}>
-                {addLabel}
+                {tr(addLabel)}
               </Link>
             ) : undefined
           }

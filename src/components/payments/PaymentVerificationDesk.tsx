@@ -10,6 +10,7 @@ import { EMPTY_RANGE, type DateRange } from "@/lib/admin/filters";
 import { useOptions } from "@/lib/institution/api";
 import { VERIFICATION_META, usePaymentRecords, type Decision, type PaymentFilters, type PaymentRecord } from "@/lib/payments/records";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Cheeta administration's desk for verifying the payments applicants
@@ -30,6 +31,7 @@ const OTHER = "other";
 const NO_FILTERS: PaymentFilters = { approval: "AWAITING", institutionId: "", method: "", from: "", to: "", q: "" };
 
 export function PaymentVerificationDesk() {
+  const tr = useT();
   const money = useMoneyFormat();
   const [filters, setFilters] = useState<PaymentFilters>(NO_FILTERS);
   const [search, setSearch] = useState("");
@@ -78,17 +80,17 @@ export function PaymentVerificationDesk() {
     else if (pending.action === "reopen") decision = { decision: "reopen" };
     else {
       const standard = reasonId && reasonId !== OTHER ? reasonId : undefined;
-      if (!reasonId) return setProblem("Choose why the payment is rejected. The applicant sees this.");
-      if (!standard && !text.trim()) return setProblem("Say why the payment is rejected. The applicant sees this.");
+      if (!reasonId) return setProblem(tr("Choose why the payment is rejected. The applicant sees this."));
+      if (!standard && !text.trim()) return setProblem(tr("Say why the payment is rejected. The applicant sees this."));
       decision = { decision: "reject", reasonId: standard, reason: text.trim() || undefined };
     }
     setSaving(true);
     const result = await decide(p.id, decision);
     setSaving(false);
     if (!result.ok) return setProblem(Object.values(result.fieldErrors)[0] ?? result.error);
-    if (pending.action === "approve") setNotice(`Approved ${p.applicantName}'s payment. Bank code ${result.record.bankCode} issued; ${p.institutionName} can now see this applicant as paid.`);
-    else if (pending.action === "reject") setNotice(`Rejected ${p.applicantName}'s payment. They have been told why and can record a payment again. ${p.institutionName} still sees them as awaiting payment.`);
-    else setNotice(`${p.applicantName}'s payment is back in the queue${p.bankCode ? ". Its bank code was withdrawn" : ""}.`);
+    if (pending.action === "approve") setNotice(tr("Approved {applicantName}'s payment. Bank code {bankCode} issued; {institutionName} can now see this applicant as paid.", { applicantName: p.applicantName, bankCode: result.record.bankCode, institutionName: p.institutionName }));
+    else if (pending.action === "reject") setNotice(tr("Rejected {applicantName}'s payment. They have been told why and can record a payment again. {institutionName} still sees them as awaiting payment.", { applicantName: p.applicantName, institutionName: p.institutionName }));
+    else setNotice(tr("{applicantName}'s payment is back in the queue{value}.", { applicantName: p.applicantName, value: p.bankCode ? ". Its bank code was withdrawn" : "" }));
     close();
   }
 
@@ -101,22 +103,22 @@ export function PaymentVerificationDesk() {
     <>
       <p className="mb-6 flex items-start gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-info-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
         <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-info)]" strokeWidth={1.75} />
-        A payment is never marked as paid automatically. It waits here until you check it against the account statement and approve or reject it. Only Cheeta administration sees these details and the web fee; approving issues the bank code the institution identifies the paid applicant by.
+        {tr("A payment is never marked as paid automatically. It waits here until you check it against the account statement and approve or reject it. Only Cheeta administration sees these details and the web fee; approving issues the bank code the institution identifies the paid applicant by.")}
       </p>
 
       <StatStrip
         columns={4}
         stats={[
-          { label: "Awaiting verification", value: summary?.awaiting.count ?? "…", detail: summary ? money(summary.awaiting.amount, base) : undefined },
-          { label: "Approved", value: summary?.approved.count ?? "…", detail: summary ? `${money(summary.approved.applicationFee, base)} in application fees` : undefined },
-          { label: "Web fees approved", value: summary ? money(summary.approved.webFee, base) : "…", detail: "Not visible to institutions" },
-          { label: "Rejected", value: summary?.rejected.count ?? "…" },
+          { label: tr("Awaiting verification"), value: summary?.awaiting.count ?? "…", detail: summary ? money(summary.awaiting.amount, base) : undefined },
+          { label: tr("Approved"), value: summary?.approved.count ?? "…", detail: summary ? tr("{value} in application fees", { value: money(summary.approved.applicationFee, base) }) : undefined },
+          { label: tr("Web fees approved"), value: summary ? money(summary.approved.webFee, base) : "…", detail: tr("Not visible to institutions") },
+          { label: tr("Rejected"), value: summary?.rejected.count ?? "…" },
         ]}
       />
 
       {notice && (
         <p role="status" className="mt-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-          {notice}
+          {tr(notice)}
         </p>
       )}
 
@@ -129,33 +131,33 @@ export function PaymentVerificationDesk() {
             setPage(1);
           }}
         >
-          <SearchField value={search} onChange={setSearch} placeholder="Applicant, application, payment reference or bank code" />
-          <FilterSelect label="Verification" value={filters.approval} onChange={(approval) => filter({ approval })} options={Object.entries(VERIFICATION_META).map(([value, m]) => ({ value, label: m.label }))} />
-          <FilterSelect label="Institution" value={filters.institutionId} onChange={(institutionId) => filter({ institutionId })} options={(summary?.institutions ?? []).map((i) => ({ value: i.id, label: i.name }))} />
-          <FilterSelect label="Method" value={filters.method} onChange={(method) => filter({ method })} options={(summary?.methods ?? []).map((m) => ({ value: m.id, label: m.label }))} />
-          <DateRangeFilter value={range} onChange={(r) => filter({ from: r.from, to: r.to })} label="Recorded" />
+          <SearchField value={search} onChange={setSearch} placeholder={tr("Applicant, application, payment reference or bank code")} />
+          <FilterSelect label={tr("Verification")} value={filters.approval} onChange={(approval) => filter({ approval })} options={Object.entries(VERIFICATION_META).map(([value, m]) => ({ value, label: m.label }))} />
+          <FilterSelect label={tr("Institution")} value={filters.institutionId} onChange={(institutionId) => filter({ institutionId })} options={(summary?.institutions ?? []).map((i) => ({ value: i.id, label: i.name }))} />
+          <FilterSelect label={tr("Method")} value={filters.method} onChange={(method) => filter({ method })} options={(summary?.methods ?? []).map((m) => ({ value: m.id, label: m.label }))} />
+          <DateRangeFilter value={range} onChange={(r) => filter({ from: r.from, to: r.to })} label={tr("Recorded")} />
         </FilterBar>
       </div>
 
       {error && (
         <div className="mt-4">
-          <FormError>{error}</FormError>
+          <FormError>{tr(error)}</FormError>
         </div>
       )}
-      <ResultCount shown={total} total={all} noun="payment records" />
+      <ResultCount shown={total} total={all} noun={tr("payment records")} />
       {!records ? (
-        !error && <p className="text-sm text-[var(--color-ink-soft)]">Loading payment records…</p>
+        !error && <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading payment records…")}</p>
       ) : records.length === 0 ? (
-        <EmptyState message={filters.approval === "AWAITING" && !filtering ? "Nothing waiting to be verified." : "No payment records match these filters."} />
+        <EmptyState message={filters.approval === "AWAITING" && !filtering ? tr("Nothing waiting to be verified.") : tr("No payment records match these filters.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Applicant</Th>
-              <Th>Institution and program</Th>
-              <Th>Payment</Th>
-              <Th className="text-right">Amount</Th>
-              <Th>Verification</Th>
+              <Th>{tr("Applicant")}</Th>
+              <Th>{tr("Institution and program")}</Th>
+              <Th>{tr("Payment")}</Th>
+              <Th className="text-right">{tr("Amount")}</Th>
+              <Th>{tr("Verification")}</Th>
               <Th />
             </tr>
           </thead>
@@ -166,92 +168,91 @@ export function PaymentVerificationDesk() {
               return (
                 <tr key={p.id} className="align-top">
                   <Td>
-                    <p className="text-[var(--color-ink)]">{p.applicantName}</p>
-                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{p.applicationReference}</p>
+                    <p className="text-[var(--color-ink)]">{tr(p.applicantName)}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(p.applicationReference)}</p>
                     <p className="mt-0.5 break-all text-xs text-[var(--color-ink-faint)]">{p.applicantEmail}</p>
                   </Td>
                   <Td>
-                    <p className="text-[var(--color-ink)]">{p.institutionName}</p>
-                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{p.programName ?? "No program chosen yet"}</p>
+                    <p className="text-[var(--color-ink)]">{tr(p.institutionName)}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{p.programName ?? tr("No program chosen yet")}</p>
                   </Td>
                   <Td className="min-w-[14rem]">
-                    <p className="text-[var(--color-ink)]">{p.methodLabel}</p>
+                    <p className="text-[var(--color-ink)]">{tr(p.methodLabel)}</p>
                     {p.paymentAccount && (
                       <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">
-                        Into {p.paymentAccount.label}: {p.paymentAccount.provider}, {p.paymentAccount.accountNumber}
+                        {tr("Into {label}: {provider}, {accountNumber}", { label: tr(p.paymentAccount.label), provider: p.paymentAccount.provider, accountNumber: p.paymentAccount.accountNumber })}
                       </p>
                     )}
                     <p className="mt-0.5 break-all font-mono text-xs text-[var(--color-ink)]">{p.reference}</p>
                     {p.sameReferenceElsewhere > 0 && (
                       <p className="mt-0.5 flex items-start gap-1 text-xs text-[var(--color-warning-strong)]">
                         <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
-                        This reference is on {p.sameReferenceElsewhere} other application{p.sameReferenceElsewhere === 1 ? "" : "s"}.
+                        {tr("This reference is on {sameReferenceElsewhere} other application", { sameReferenceElsewhere: p.sameReferenceElsewhere })}{p.sameReferenceElsewhere === 1 ? "" : "s"}.
                       </p>
                     )}
                     <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                      Paid {formatDate(p.paidAt)}, recorded {formatDateTime(p.submittedAt)}
+                      {tr("Paid {value}, recorded {value2}", { value: formatDate(p.paidAt), value2: formatDateTime(p.submittedAt) })}
                     </p>
-                    {p.paidFrom && <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">Sent from {p.paidFrom}</p>}
+                    {p.paidFrom && <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr("Sent from {paidFrom}", { paidFrom: p.paidFrom })}</p>}
                     <p className="mt-1 text-xs">
                       {p.evidence ? (
                         <a href={p.evidence.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-medium text-[var(--color-ink)] underline underline-offset-4">
                           <FileText className="h-3.5 w-3.5" strokeWidth={1.75} aria-hidden />
-                          View receipt
+                          {tr("View receipt")}
                           <span className="sr-only">
-                            {" "}
-                            for {p.reference} ({p.evidence.name})
+                            {" "}{tr("for {reference} ({name})", { reference: p.reference, name: tr(p.evidence.name) })}
                           </span>
                         </a>
                       ) : (
-                        <span className="text-[var(--color-warning-strong)]">No receipt uploaded</span>
+                        <span className="text-[var(--color-warning-strong)]">{tr("No receipt uploaded")}</span>
                       )}
                     </p>
                   </Td>
                   <Td className="text-right tabular-nums">
                     <p className="whitespace-nowrap text-[var(--color-ink)]">{money(p.amount, p.currency)}</p>
                     <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                      {money(p.applicationFee, p.currency)} + {money(p.webFee, p.currency)} web
+                      {tr("{value} + {value2} web", { value: money(p.applicationFee, p.currency), value2: money(p.webFee, p.currency) })}
                     </p>
                     {/* Conversions are the ones stored with the payment when it was recorded; today's rates play no part. */}
                     {p.feeConversion && (
                       <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                        Fee set at {money(p.feeConversion.fromAmount, p.feeConversion.fromCurrency)}
+                        {tr("Fee set at {value}", { value: money(p.feeConversion.fromAmount, p.feeConversion.fromCurrency) })}
                       </p>
                     )}
                     {p.displayConversion && (
                       <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                        Shown to the applicant as {money(p.displayConversion.toAmount, p.displayConversion.toCurrency)}
+                        {tr("Shown to the applicant as {value}", { value: money(p.displayConversion.toAmount, p.displayConversion.toCurrency) })}
                       </p>
                     )}
                   </Td>
                   <Td>
-                    <ToneBadge tone={meta.tone}>{meta.label}</ToneBadge>
+                    <ToneBadge tone={meta.tone}>{tr(meta.label)}</ToneBadge>
                     {p.bankCode && <p className="mt-1 whitespace-nowrap font-mono text-xs text-[var(--color-ink)]">{p.bankCode}</p>}
                     {p.verifiedAt && (
                       <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                        {p.verifiedBy?.name ? `By ${p.verifiedBy.name}, ` : ""}
+                        {p.verifiedBy?.name ? tr("By {name}, ", { name: tr(p.verifiedBy.name) }) : ""}
                         {formatDate(p.verifiedAt)}
                       </p>
                     )}
-                    {p.rejectionReason && <p className="mt-1 max-w-[16rem] text-xs text-[var(--color-ink-soft)]">Reason: {p.rejectionReason}</p>}
-                    {p.note && <p className="mt-1 max-w-[16rem] text-xs text-[var(--color-ink-soft)]">Note: {p.note}</p>}
+                    {p.rejectionReason && <p className="mt-1 max-w-[16rem] text-xs text-[var(--color-ink-soft)]">{tr("Reason: {rejectionReason}", { rejectionReason: p.rejectionReason })}</p>}
+                    {p.note && <p className="mt-1 max-w-[16rem] text-xs text-[var(--color-ink-soft)]">{tr("Note: {note}", { note: p.note })}</p>}
                   </Td>
                   {/* Narrow until a decision is being made in it, so the payment details keep the room. */}
                   <Td className={isOpen ? "min-w-[14rem] text-right" : "whitespace-nowrap text-right"}>
                     {isOpen ? (
                       <div className="space-y-2 text-left">
                         <p className="text-sm font-medium text-[var(--color-ink)]">
-                          {pending.action === "approve" ? "Approve and issue a bank code?" : pending.action === "reject" ? "Reject this payment" : p.approval === "APPROVED" ? "Reopen and withdraw the bank code?" : "Reopen this payment?"}
+                          {pending.action === "approve" ? tr("Approve and issue a bank code?") : pending.action === "reject" ? tr("Reject this payment") : p.approval === "APPROVED" ? tr("Reopen and withdraw the bank code?") : tr("Reopen this payment?")}
                         </p>
                         {pending.action === "reject" && (
-                          <SelectInput value={reasonId} onChange={(e) => (setReasonId(e.target.value), setProblem(""))} aria-label="Reason for rejecting">
-                            <option value="">Choose a reason…</option>
+                          <SelectInput value={reasonId} onChange={(e) => (setReasonId(e.target.value), setProblem(""))} aria-label={tr("Reason for rejecting")}>
+                            <option value="">{tr("Choose a reason…")}</option>
                             {reasons.map((r) => (
                               <option key={r.id} value={r.id}>
-                                {r.label}
+                                {tr(r.label)}
                               </option>
                             ))}
-                            <option value={OTHER}>Another reason</option>
+                            <option value={OTHER}>{tr("Another reason")}</option>
                           </SelectInput>
                         )}
                         {pending.action !== "reopen" && (
@@ -260,33 +261,33 @@ export function PaymentVerificationDesk() {
                             value={text}
                             onChange={(e) => (setText(e.target.value), setProblem(""))}
                             maxLength={500}
-                            placeholder={pending.action === "approve" ? "Note for the record (optional)" : reasonId === OTHER ? "Reason, shown to the applicant" : "Anything to add (optional)"}
-                            aria-label={pending.action === "approve" ? "Note" : "Reason in your own words"}
+                            placeholder={pending.action === "approve" ? tr("Note for the record (optional)") : reasonId === OTHER ? tr("Reason, shown to the applicant") : tr("Anything to add (optional)")}
+                            aria-label={pending.action === "approve" ? tr("Note") : tr("Reason in your own words")}
                           />
                         )}
-                        {pending.action === "reopen" && <p className="text-xs text-[var(--color-ink-soft)]">It goes back to awaiting verification. The decision made so far stays in the audit trail.</p>}
-                        {problem && <FormError>{problem}</FormError>}
+                        {pending.action === "reopen" && <p className="text-xs text-[var(--color-ink-soft)]">{tr("It goes back to awaiting verification. The decision made so far stays in the audit trail.")}</p>}
+                        {problem && <FormError>{tr(problem)}</FormError>}
                         <div className="flex flex-wrap gap-2">
                           <PrimaryButton type="button" onClick={() => confirm(p)} disabled={saving}>
-                            {saving ? "Saving…" : pending.action === "approve" ? "Approve" : pending.action === "reject" ? "Reject" : "Reopen"}
+                            {saving ? tr("Saving…") : pending.action === "approve" ? tr("Approve") : pending.action === "reject" ? tr("Reject") : tr("Reopen")}
                           </PrimaryButton>
                           <SecondaryButton type="button" onClick={close} disabled={saving}>
-                            Cancel
+                            {tr("Cancel")}
                           </SecondaryButton>
                         </div>
                       </div>
                     ) : p.approval === "AWAITING" ? (
                       <span className="inline-flex gap-4 text-sm">
                         <button type="button" onClick={() => open(p.id, "approve")} className="font-medium text-[var(--color-success-strong)] underline underline-offset-4">
-                          Approve
+                          {tr("Approve")}
                         </button>
                         <button type="button" onClick={() => open(p.id, "reject")} className="text-[var(--color-danger)] underline underline-offset-4">
-                          Reject
+                          {tr("Reject")}
                         </button>
                       </span>
                     ) : p.canReopen ? (
                       <button type="button" onClick={() => open(p.id, "reopen")} className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]">
-                        Reopen
+                        {tr("Reopen")}
                       </button>
                     ) : null}
                   </Td>

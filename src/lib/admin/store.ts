@@ -46,6 +46,8 @@ export interface Collection<T extends { id: string }> {
   clearError(): void;
   /** The records can be deleted (API-backed collections whose API allows it). */
   canRemove?: boolean;
+  /** The records an empty database is filled from (server/db/seed.ts). Never shown on screen. */
+  getSeed?: () => T[];
   /**
    * API-backed collections only: create a record (no `id`) or update one,
    * and wait for the server's answer. For forms that need to know the
@@ -156,21 +158,30 @@ export interface RemoteSpec<T> {
   toApi: (item: Partial<T>) => Record<string, unknown>;
   /** The API accepts DELETE for this collection. */
   canRemove?: boolean;
+  /**
+   * Where to read the list from for an account the collection URL refuses
+   * (a student or institution reading what administration configures).
+   * It answers `{ data: [...] }` with everything, unpaged.
+   */
+  readFallback?: string;
 }
 
 /**
  * A collection whose records live in the database, behind the same
  * interface as createCollection so screens built on it don't change.
  *
- * - Until the first load finishes (and on the server) it shows the seed.
+ * - Only what the database holds is ever shown: until the first load
+ *   finishes (and on the server) the list is empty. `seed` is not shown;
+ *   it is what server/db/seed.ts fills an empty database from.
  * - A change is applied on screen at once and sent to the API. If the
  *   server refuses it, the change is undone and the reason is available
  *   through `useError`, so nothing stays on screen that wasn't saved.
- * - If the list can't be read (not signed in as someone allowed to), the
- *   seed stays in place and nothing is reported.
+ * - If the list can't be read because the account isn't allowed to, it
+ *   stays empty; if the server fails or can't be reached, that is
+ *   reported through `useError`.
  */
 export function createApiCollection<T extends { id: string }>(name: string, seed: () => T[], remote: RemoteSpec<T>): Collection<T> {
-  const seedItems = seed();
+  const seedItems: T[] = [];
   let items: T[] | null = null;
   let started = false;
   let error: string | null = null;
@@ -181,17 +192,34 @@ export function createApiCollection<T extends { id: string }>(name: string, seed
   async function fetchAll() {
     try {
       const out: T[] = [];
+      let total: number | undefined;
       for (let page = 1; page <= 50; page++) {
         const res = await fetch(`${remote.url}?page=${page}&pageSize=200`, { cache: "no-store" });
-        if (!res.ok) return; // Not allowed to read it, or the server is down: keep the seed.
+        if ((res.status === 401 || res.status === 403) && remote.readFallback) {
+          const other = await fetch(remote.readFallback, { cache: "no-store" });
+          if (!other.ok) return;
+          out.push(...((await other.json()) as { data: Record<string, unknown>[] }).data.map(remote.fromApi));
+          break;
+        }
+        if (res.status === 401 || res.status === 403) return; // Not allowed to read it: nothing to show.
+        if (!res.ok) {
+          error = "This list could not be loaded. Refresh the page to try again.";
+          notify();
+          return;
+        }
         const body = (await res.json()) as { data: Record<string, unknown>[]; meta?: { total?: number } };
         out.push(...body.data.map(remote.fromApi));
-        if (body.data.length < 200 || (body.meta?.total !== undefined && out.length >= body.meta.total)) break;
+        total = body.meta?.total;
+        // An unpaged answer is the whole list.
+        if (!body.meta || body.data.length < 200 || (body.meta.total !== undefined && out.length >= body.meta.total)) break;
       }
       items = out;
+      // Never a silent cut: if the list is longer than this screen loads, say so.
+      if (total !== undefined && total > out.length) error = `Only the first ${out.length.toLocaleString()} of ${total.toLocaleString()} records are shown here; the totals on this screen leave out the rest.`;
       notify();
     } catch {
-      // Offline: keep the seed.
+      error = "This list could not be loaded. Check your connection and refresh the page.";
+      notify();
     }
   }
 
@@ -282,6 +310,7 @@ export function createApiCollection<T extends { id: string }>(name: string, seed
       notify();
     },
     canRemove: remote.canRemove,
+    getSeed: seed,
     async save(values, id) {
       try {
         const res = await fetch(id ? itemUrl(id) : remote.url, { method: id ? "PATCH" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(remote.toApi(values)) });

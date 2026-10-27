@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminDataNotice } from "@/components/admin/AdminDataNotice";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Plus } from "lucide-react";
@@ -10,8 +11,10 @@ import { useAdminData } from "@/lib/admin/useAdminData";
 import { institutionStore } from "@/lib/admin/institutions";
 import { matchesSearch } from "@/lib/admin/filters";
 import { formatCurrency } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export function InstitutionList() {
+  const tr = useT();
   const data = useAdminData();
   const [search, setSearch] = useState("");
   const [typeId, setTypeId] = useState("");
@@ -42,13 +45,14 @@ export function InstitutionList() {
 
   return (
     <>
+      <AdminDataNotice />
       <PageHeading
-        title="Institutions"
-        description="Every institution on the platform, with its accreditation, location and contact."
+        title={tr("Institutions")}
+        description={tr("Every institution on the platform, with its accreditation, location and contact.")}
         actions={
           <Link href="/admin/institutions/add" className={ButtonLinkClass("primary")}>
             <Plus className="h-4 w-4" strokeWidth={2} />
-            Add institution
+            {tr("Add institution")}
           </Link>
         }
       />
@@ -63,29 +67,29 @@ export function InstitutionList() {
           setStatus("");
         }}
       >
-        <SearchField value={search} onChange={setSearch} placeholder="Name, accreditation code, contact, town" />
-        <FilterSelect label="Institution type" value={typeId} onChange={setTypeId} options={data.options("institution-types")} />
-        <FilterSelect label="Accredited by" value={bodyId} onChange={setBodyId} options={data.options("accreditation-bodies")} />
-        <FilterSelect label="Region" value={regionId} onChange={setRegionId} options={data.options("regions")} />
+        <SearchField value={search} onChange={setSearch} placeholder={tr("Name, accreditation code, contact, town")} />
+        <FilterSelect label={tr("Institution type")} value={typeId} onChange={setTypeId} options={data.options("institution-types")} />
+        <FilterSelect label={tr("Accredited by")} value={bodyId} onChange={setBodyId} options={data.options("accreditation-bodies")} />
+        <FilterSelect label={tr("Region")} value={regionId} onChange={setRegionId} options={data.options("regions")} />
         <FilterSelect
-          label="Status"
+          label={tr("Status")}
           value={status}
           onChange={setStatus}
           options={[
-            { value: "ACTIVE", label: "Active" },
-            { value: "INACTIVE", label: "Inactive" },
+            { value: "ACTIVE", label: tr("Active") },
+            { value: "INACTIVE", label: tr("Inactive") },
           ]}
         />
       </FilterBar>
 
-      <ResultCount shown={filtered.length} total={data.institutions.length} noun="institutions" />
+      <ResultCount shown={filtered.length} total={data.institutions.length} noun={tr("institutions")} />
 
       {filtered.length === 0 ? (
         <EmptyState
-          message="No institutions match these filters. Clear a filter or add the institution."
+          message={tr("No institutions match these filters. Clear a filter or add the institution.")}
           action={
             <Link href="/admin/institutions/add" className={ButtonLinkClass("secondary")}>
-              Add institution
+              {tr("Add institution")}
             </Link>
           }
         />
@@ -94,15 +98,15 @@ export function InstitutionList() {
           <TableFrame>
             <thead>
               <tr>
-                <Th>Institution</Th>
-                <Th>Accreditation</Th>
-                <Th>Location</Th>
-                <Th>Contact</Th>
-                <Th className="text-right">Web fee</Th>
-                <Th className="text-right">Applications</Th>
-                <Th>Status</Th>
+                <Th>{tr("Institution")}</Th>
+                <Th>{tr("Accreditation")}</Th>
+                <Th>{tr("Location")}</Th>
+                <Th>{tr("Contact")}</Th>
+                <Th className="text-right">{tr("Web fee")}</Th>
+                <Th className="text-right">{tr("Applications")}</Th>
+                <Th>{tr("Status")}</Th>
                 <Th>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{tr("Actions")}</span>
                 </Th>
               </tr>
             </thead>
@@ -111,7 +115,7 @@ export function InstitutionList() {
                 <tr key={i.id} className="align-top">
                   <Td>
                     <Link href={`/admin/institutions/${i.id}`} className="font-medium text-[var(--color-ink)] hover:underline">
-                      {i.name}
+                      {tr(i.name)}
                     </Link>
                     <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{data.label(i.typeId)}</p>
                   </Td>
@@ -127,10 +131,10 @@ export function InstitutionList() {
                     <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{data.label(i.regionId)}</p>
                   </Td>
                   <Td>
-                    <p className="text-[var(--color-ink)]">{i.contactName}</p>
+                    <p className="text-[var(--color-ink)]">{tr(i.contactName)}</p>
                     <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{i.phone}</p>
                   </Td>
-                  <Td className="whitespace-nowrap text-right tabular-nums">{i.webFee === null ? <span className="text-[var(--color-ink-soft)]">Platform fee</span> : formatCurrency(i.webFee)}</Td>
+                  <Td className="whitespace-nowrap text-right tabular-nums">{i.webFee === null ? <span className="text-[var(--color-ink-soft)]">{tr("Platform fee")}</span> : formatCurrency(i.webFee)}</Td>
                   <Td className="text-right tabular-nums">
                     <Link href={`/admin/applications?institution=${i.id}`} className="hover:underline">
                       {appCount(i.id)}
@@ -142,10 +146,10 @@ export function InstitutionList() {
                   <Td>
                     <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1 whitespace-nowrap">
                       <Link href={`/admin/institutions/${i.id}`} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                        View
+                        {tr("View")}
                       </Link>
                       <Link href={`/admin/institutions/${i.id}/edit`} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                        Edit
+                        {tr("Edit")}
                       </Link>
                       <StatusToggle active={i.status === "ACTIVE"} name="this institution" onChange={(next) => setActive(i.id, next)} />
                     </div>

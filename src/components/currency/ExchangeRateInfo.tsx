@@ -2,6 +2,7 @@
 
 import { AlertTriangle } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * States the exchange rate behind a set of converted amounts —
@@ -31,11 +32,12 @@ export function ExchangeRateInfo({
   unavailable?: boolean;
   className?: string;
 }) {
+  const tr = useT();
   if (unavailable || !basePerUnit) {
     return (
       <p className={`flex items-center gap-1.5 text-xs text-[var(--color-warning-strong)] ${className ?? ""}`}>
         <AlertTriangle className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
-        There is no exchange rate for {code} at the moment, so amounts are shown in {baseCode} only.
+        {tr("There is no exchange rate for {code} at the moment, so amounts are shown in {baseCode} only.", { code, baseCode })}
       </p>
     );
   }
@@ -43,9 +45,9 @@ export function ExchangeRateInfo({
   const rate = basePerUnit.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 6 });
   return (
     <p className={`text-xs text-[var(--color-ink-faint)] ${className ?? ""}`}>
-      1 {code} = {rate} {baseCode}
+      1 {code} = {tr(rate)} {baseCode}
       {source ? ` · ${source}` : ""}
-      {effectiveFrom ? `, in effect since ${formatDate(effectiveFrom)}` : ""}
+      {effectiveFrom ? tr(", in effect since {value}", { value: formatDate(effectiveFrom) }) : ""}
     </p>
   );
 }

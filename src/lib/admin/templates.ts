@@ -1,4 +1,5 @@
-import { createCollection } from "./store";
+import { createApiCollection } from "./store";
+import { FR_SEED_WORDING } from "./templates.fr";
 import type { Audience, Channel, NotificationCategory } from "@/lib/notifications/center";
 
 /**
@@ -13,6 +14,8 @@ import type { Audience, Channel, NotificationCategory } from "@/lib/notification
  */
 
 export type TemplateStatus = "ACTIVE" | "INACTIVE";
+export type TemplateLanguage = "en" | "fr";
+export const TEMPLATE_LANGUAGE_LABELS: Record<TemplateLanguage, string> = { en: "English", fr: "French" };
 
 export interface NotificationTemplate {
   id: string;
@@ -20,6 +23,8 @@ export interface NotificationTemplate {
   name: string;
   channel: Channel;
   event: string;
+  /** "en" or "fr": a person gets the active template in their language, or the English one. */
+  language: TemplateLanguage;
   /** Email subject, or in-app title. Unused for SMS. */
   subject: string;
   body: string;
@@ -49,6 +54,8 @@ export const PLACEHOLDERS: PlaceholderDef[] = [
   { key: "platform.name", label: "Platform name" },
   { key: "portal.url", label: "Sign-in address" },
   { key: "login.code", label: "Temporary login code" },
+  { key: "reset.url", label: "Password reset link" },
+  { key: "verify.url", label: "Email confirmation link" },
   { key: "application.reference", label: "Application reference" },
   { key: "application.program", label: "Program applied for" },
   { key: "academicYear", label: "Academic year" },
@@ -59,8 +66,11 @@ export const PLACEHOLDERS: PlaceholderDef[] = [
   { key: "payment.reference", label: "Payment reference" },
   { key: "tuition.amount", label: "Tuition for the year" },
   { key: "tuition.outstanding", label: "Tuition still to pay" },
+  { key: "admission.number", label: "Admission number" },
+  { key: "letter.url", label: "Admission letter link" },
   { key: "reason", label: "Reason given by the reviewer" },
   { key: "deadline", label: "Deadline" },
+  { key: "conditions", label: "Conditions of a provisional admission" },
 ];
 
 const COMMON = ["student.firstName", "student.lastName", "student.fullName", "student.email", "student.phone", "platform.name", "portal.url"];
@@ -76,17 +86,22 @@ export interface TemplateEvent {
   category: NotificationCategory;
   audience: Audience;
   placeholders: string[];
+  /** Placeholders an active template for this event must use: without them the message is useless (a welcome with no login code). */
+  required?: string[];
 }
 
 export const TEMPLATE_EVENTS: TemplateEvent[] = [
-  { key: "registration.account_created", label: "Account created", category: "REGISTRATION", audience: "student", placeholders: [...COMMON, "login.code"] },
-  { key: "registration.password_reset", label: "Password reset requested", category: "REGISTRATION", audience: "student", placeholders: [...COMMON, "login.code"] },
+  { key: "registration.account_created", label: "Account created", category: "REGISTRATION", audience: "student", placeholders: [...COMMON, "login.code", "verify.url"], required: ["login.code"] },
+  { key: "registration.email_verification", label: "Confirm email address", category: "REGISTRATION", audience: "student", placeholders: [...COMMON, "verify.url"], required: ["verify.url"] },
+  { key: "registration.password_reset", label: "Password reset requested", category: "REGISTRATION", audience: "student", placeholders: [...COMMON, "reset.url"], required: ["reset.url"] },
   { key: "application.submitted", label: "Application submitted", category: "APPLICATION", audience: "student", placeholders: APP },
   { key: "application.deadline_reminder", label: "Application deadline reminder", category: "APPLICATION", audience: "student", placeholders: [...APP, "deadline"] },
-  { key: "payment.received", label: "Fee payment received", category: "PAYMENT", audience: "student", placeholders: [...APP, "payment.amount", "payment.method", "payment.reference"] },
+  { key: "payment.received", label: "Fee payment approved", category: "PAYMENT", audience: "student", placeholders: [...APP, "payment.amount", "payment.method", "payment.reference"] },
+  { key: "payment.rejected", label: "Fee payment not accepted", category: "PAYMENT", audience: "student", placeholders: [...APP, "payment.amount", "payment.method", "payment.reference", "reason"] },
   { key: "payment.failed", label: "Fee payment failed", category: "PAYMENT", audience: "student", placeholders: [...APP, "payment.amount", "payment.method"] },
   { key: "tuition.payment_recorded", label: "Tuition payment recorded", category: "PAYMENT", audience: "student", placeholders: [...APP, "payment.amount", "payment.method", "payment.reference", "tuition.outstanding"] },
   { key: "upload.received", label: "Document received", category: "UPLOAD", audience: "student", placeholders: [...APP, "document.name"] },
+  { key: "verification.payment_verified", label: "Fee confirmed by the institution", category: "VERIFICATION", audience: "student", placeholders: [...APP, "payment.reference"] },
   { key: "verification.application_acknowledged", label: "Application acknowledged", category: "VERIFICATION", audience: "student", placeholders: APP },
   { key: "verification.documents_verified", label: "Documents verified", category: "VERIFICATION", audience: "student", placeholders: APP },
   { key: "verification.tuition_verified", label: "Tuition payment verified", category: "VERIFICATION", audience: "student", placeholders: [...APP, "payment.amount", "payment.reference", "tuition.amount", "tuition.outstanding"] },
@@ -95,7 +110,10 @@ export const TEMPLATE_EVENTS: TemplateEvent[] = [
   { key: "rejection.tuition_rejected", label: "Tuition payment rejected", category: "REJECTION", audience: "student", placeholders: [...APP, "payment.amount", "payment.reference", "reason"] },
   { key: "resubmission.requested", label: "Resubmission requested", category: "RESUBMISSION", audience: "student", placeholders: [...APP, "document.name", "reason", "deadline"] },
   { key: "resubmission.received", label: "Resubmission received", category: "RESUBMISSION", audience: "institution", placeholders: [...APP, "document.name"] },
-  { key: "admission.offer", label: "Offer of admission", category: "ADMISSION", audience: "student", placeholders: [...APP, "tuition.amount", "deadline"] },
+  { key: "admission.offer", label: "Offer of admission", category: "ADMISSION", audience: "student", placeholders: [...APP, "admission.number", "letter.url", "tuition.amount", "deadline"] },
+  { key: "admission.provisional_offer", label: "Provisional offer of admission", category: "ADMISSION", audience: "student", placeholders: [...APP, "admission.number", "letter.url", "conditions", "deadline"] },
+  { key: "admission.conditions_met", label: "Provisional admission confirmed", category: "ADMISSION", audience: "student", placeholders: [...APP, "admission.number", "letter.url"] },
+  { key: "admission.withdrawn", label: "Provisional admission withdrawn", category: "ADMISSION", audience: "student", placeholders: [...APP, "admission.number", "conditions", "reason"] },
   { key: "admission.registration_open", label: "Registration open", category: "ADMISSION", audience: "student", placeholders: [...APP, "deadline"] },
 ];
 
@@ -136,6 +154,7 @@ export const SAMPLE_PROFILES: SampleProfile[] = [
       "tuition.outstanding": "250 000 XAF",
       reason: "The document can't be read",
       deadline: "12 Oct 2026",
+      conditions: "GCE A Level results with at least 2 passes, including Mathematics.",
     },
   },
   {
@@ -160,6 +179,7 @@ export const SAMPLE_PROFILES: SampleProfile[] = [
       "tuition.outstanding": "230 000 XAF",
       reason: "No matching payment was found in our account",
       deadline: "20 Oct 2026",
+      conditions: "BTS results confirming a pass in Electrical Engineering.",
     },
   },
 ];
@@ -235,7 +255,7 @@ function t(
   event: string,
   subject: string,
   body: string,
-  opts: { inactive?: boolean; version?: number; updatedAt?: string; notes?: string } = {}
+  opts: { inactive?: boolean; version?: number; updatedAt?: string; notes?: string; language?: TemplateLanguage } = {}
 ): NotificationTemplate {
   return {
     id: `tpl-${code.toLowerCase()}`,
@@ -243,6 +263,7 @@ function t(
     name,
     channel,
     event,
+    language: opts.language ?? "en",
     subject,
     body,
     status: opts.inactive ? "INACTIVE" : "ACTIVE",
@@ -261,7 +282,9 @@ function seedTemplates(): NotificationTemplate[] {
     t("REG-WELCOME-SMS", "Welcome SMS", "SMS", "registration.account_created", "",
       "{{platform.name}}: your account is ready. Check {{student.email}} for your login details."),
     t("REG-RESET-EMAIL", "Password reset", "EMAIL", "registration.password_reset", "Reset your {{platform.name}} password",
-      "Hello {{student.firstName}},\n\nSomeone asked to reset the password for {{student.email}}. Your reset code is {{login.code}}. It expires in 30 minutes.\n\nIf this wasn't you, ignore this email. Your password won't change."),
+      "Hello {{student.firstName}},\n\nSomeone asked to reset the password for {{student.email}}. Open this link to choose a new one:\n\n{{reset.url}}\n\nThe link expires in 30 minutes. If this wasn't you, ignore this email. Your password won't change.", { version: 2 }),
+    t("REG-VERIFY-EMAIL", "Confirm email address", "EMAIL", "registration.email_verification", "Confirm your email address for {{platform.name}}",
+      "Hello {{student.firstName}},\n\nOpen this link to confirm your email address on {{platform.name}}:\n\n{{verify.url}}\n\nThe link works for 48 hours. If you didn't register, you can ignore this message."),
     t("APP-SUBMITTED-EMAIL", "Application submitted", "EMAIL", "application.submitted", "Application {{application.reference}} submitted to {{institution.name}}",
       "Hello {{student.firstName}},\n\nYour application {{application.reference}} for {{application.program}} has been submitted to {{institution.name}}.\n\nWe'll let you know when the institution acknowledges it. You can follow its progress at {{portal.url}}.", { version: 2, updatedAt: "2026-04-09T15:40:00.000Z" }),
     t("APP-SUBMITTED-INAPP", "Application submitted (in-app)", "IN_APP", "application.submitted", "Application submitted to {{institution.name}}",
@@ -272,18 +295,26 @@ function seedTemplates(): NotificationTemplate[] {
       "Hello {{student.firstName}},\n\nWe've received {{payment.amount}} by {{payment.method}} (reference {{payment.reference}}) for application {{application.reference}} to {{institution.name}}.\n\nKeep this email as your receipt."),
     t("PAY-RECEIVED-SMS", "Fee payment SMS", "SMS", "payment.received", "",
       "{{platform.name}}: {{payment.amount}} received, ref {{payment.reference}}. Thank you."),
+    t("PAY-REJECTED-EMAIL", "Fee payment not accepted", "EMAIL", "payment.rejected", "We couldn't accept your payment for {{institution.name}}",
+      "Hello {{student.firstName}},\n\nYour payment of {{payment.amount}} (reference {{payment.reference}}) for application {{application.reference}} to {{institution.name}} couldn't be accepted.\n\nReason: {{reason}}\n\nCheck the details and record the payment again at {{portal.url}}."),
+    t("PAY-REJECTED-SMS", "Fee payment not accepted SMS", "SMS", "payment.rejected", "",
+      "{{platform.name}}: your payment ref {{payment.reference}} for {{institution.name}} wasn't accepted. See {{portal.url}}"),
     t("PAY-FAILED-SMS", "Fee payment failed SMS", "SMS", "payment.failed", "",
       "{{platform.name}}: your {{payment.method}} payment of {{payment.amount}} didn't go through. No money was taken. Please try again."),
     t("TUI-RECORDED-INAPP", "Tuition payment recorded", "IN_APP", "tuition.payment_recorded", "Tuition payment recorded",
       "We've recorded your payment of {{payment.amount}} ({{payment.reference}}). {{institution.name}} will verify it before it counts towards your tuition."),
     t("UPLOAD-RECEIVED-INAPP", "Document received", "IN_APP", "upload.received", "{{document.name}} received",
       "We've received your {{document.name}} for {{institution.name}}. The institution will check it when it reviews your application."),
+    t("VER-PAYMENT-EMAIL", "Fee confirmed by the institution", "EMAIL", "verification.payment_verified", "{{institution.name}} has confirmed your application fee",
+      "Hello {{student.firstName}},\n\n{{institution.name}} has confirmed it received your application fee for application {{application.reference}}."),
     t("VER-ACK-EMAIL", "Application acknowledged", "EMAIL", "verification.application_acknowledged", "{{institution.name}} is reviewing your application",
       "Hello {{student.firstName}},\n\n{{institution.name}} has acknowledged application {{application.reference}} and started reviewing it."),
     t("TUI-VERIFIED-SMS", "Tuition verified SMS", "SMS", "verification.tuition_verified", "",
       "{{platform.name}}: {{institution.name}} verified your tuition payment of {{payment.amount}}. Still to pay: {{tuition.outstanding}}."),
     t("TUI-VERIFIED-EMAIL", "Tuition verified email", "EMAIL", "verification.tuition_verified", "Tuition payment verified",
       "Hello {{student.firstName}},\n\n{{institution.name}} has verified your tuition payment of {{payment.amount}} (reference {{payment.reference}}).\n\nTuition for {{academicYear}}: {{tuition.amount}}\nStill to pay: {{tuition.outstanding}}"),
+    t("VER-ACK-SMS", "Application acknowledged SMS", "SMS", "verification.application_acknowledged", "",
+      "{{platform.name}}: {{institution.name}} is reviewing your application {{application.reference}}."),
     t("APP-REJECTED-EMAIL", "Application not successful", "EMAIL", "rejection.application_rejected", "Your application to {{institution.name}}",
       "Hello {{student.firstName}},\n\nWe're sorry — {{institution.name}} can't offer you a place on {{application.program}}.\n\nReason: {{reason}}\n\nThis doesn't affect your other applications."),
     t("UPLOAD-REJECTED-EMAIL", "Document rejected", "EMAIL", "rejection.document_rejected", "Action needed: {{document.name}}",
@@ -292,24 +323,81 @@ function seedTemplates(): NotificationTemplate[] {
       "Hello {{student.firstName}},\n\n{{institution.name}} couldn't verify your payment of {{payment.amount}} (reference {{payment.reference}}).\n\nReason: {{reason}}\n\nCheck the details and record the payment again, or contact the institution's bursary."),
     t("RESUB-REQUEST-EMAIL", "Resubmission requested", "EMAIL", "resubmission.requested", "Please resubmit your {{document.name}}",
       "Hello {{student.firstName}},\n\n{{institution.name}} has asked you to resubmit your {{document.name}} by {{deadline}}.\n\nReason: {{reason}}"),
+    t("RESUB-RECEIVED-INAPP", "Resubmission received", "IN_APP", "resubmission.received", "{{application.reference}} resubmitted",
+      "{{student.fullName}} corrected application {{application.reference}} and sent it again."),
     t("RESUB-REQUEST-SMS", "Resubmission SMS (old wording)", "SMS", "resubmission.requested", "",
       "Cheeta: pls resubmit {{document.name}} b4 {{deadline}}.", { inactive: true, notes: "Replaced by the email version; kept for reference." }),
-    t("ADM-OFFER-EMAIL", "Offer of admission", "EMAIL", "admission.offer", "Offer of admission — {{application.program}}",
-      "Dear {{student.fullName}},\n\nCongratulations! {{institution.name}} is pleased to offer you a place on {{application.program}} for {{academicYear}}.\n\nTuition for the year is {{tuition.amount}}. To secure your place, pay at least the first instalment by {{deadline}} and record the payment in your portal.\n\nThe institution verifies every tuition payment before your registration is confirmed.", { version: 4, updatedAt: "2026-08-21T09:05:00.000Z" }),
+    t("ADM-OFFER-EMAIL", "Offer of admission", "EMAIL", "admission.offer", "Offer of admission: {{application.program}}",
+      "Dear {{student.fullName}},\n\nCongratulations! {{institution.name}} is pleased to offer you a place on {{application.program}}.\n\nYour admission number is {{admission.number}}. Your admission letter is ready at {{letter.url}}\n\nSign in at {{portal.url}} to take up the offer, then follow {{institution.name}}'s instructions for registration.", { version: 5 }),
     t("ADM-OFFER-SMS", "Offer of admission SMS", "SMS", "admission.offer", "",
-      "{{platform.name}}: congratulations {{student.firstName}}! {{institution.name}} has offered you a place. Details at {{portal.url}}"),
+      "{{platform.name}}: congratulations {{student.firstName}}! {{institution.name}} has offered you a place ({{admission.number}}). Details at {{portal.url}}", { version: 2 }),
     t("ADM-OFFER-INAPP", "Offer of admission (in-app)", "IN_APP", "admission.offer", "Offer of admission from {{institution.name}}",
-      "{{application.program}}, {{academicYear}} intake. Pay your first tuition instalment by {{deadline}} to secure your place."),
+      "{{institution.name}} has offered you a place on {{application.program}} ({{admission.number}}). Take up the offer and download your admission letter from your application.", { version: 2 }),
+    t("ADM-PROV-EMAIL", "Provisional offer of admission", "EMAIL", "admission.provisional_offer", "Provisional offer of admission: {{application.program}}",
+      "Dear {{student.fullName}},\n\n{{institution.name}} is pleased to offer you a provisional place on {{application.program}} ({{admission.number}}).\n\nThe offer becomes final once these conditions are met, by {{deadline}}:\n{{conditions}}\n\nYour provisional admission letter is ready at {{letter.url}}. You can take up the offer now; you can't be matriculated until the institution confirms the conditions are met."),
+    t("ADM-PROV-SMS", "Provisional offer SMS", "SMS", "admission.provisional_offer", "",
+      "{{platform.name}}: {{institution.name}} has offered you a provisional place ({{admission.number}}), subject to conditions by {{deadline}}. Details at {{portal.url}}"),
+    t("ADM-PROV-INAPP", "Provisional offer (in-app)", "IN_APP", "admission.provisional_offer", "Provisional offer from {{institution.name}}",
+      "{{institution.name}} has offered you a provisional place on {{application.program}} ({{admission.number}}). Conditions, by {{deadline}}: {{conditions}}"),
+    t("ADM-MET-EMAIL", "Provisional admission confirmed", "EMAIL", "admission.conditions_met", "Your admission is confirmed: {{application.program}}",
+      "Dear {{student.fullName}},\n\n{{institution.name}} has confirmed that the conditions of your provisional admission are met. Your admission to {{application.program}} ({{admission.number}}) is now full.\n\nYour new admission letter is ready at {{letter.url}}"),
+    t("ADM-MET-INAPP", "Provisional admission confirmed (in-app)", "IN_APP", "admission.conditions_met", "Admission confirmed by {{institution.name}}",
+      "The conditions of your provisional admission are met: your admission to {{application.program}} ({{admission.number}}) is now full. Download your new admission letter from your application."),
+    t("ADM-WITHDRAWN-EMAIL", "Provisional admission withdrawn", "EMAIL", "admission.withdrawn", "Your provisional admission to {{institution.name}}",
+      "Dear {{student.fullName}},\n\nWe're sorry: the conditions of your provisional admission to {{application.program}} ({{admission.number}}) were not met, so {{institution.name}} has withdrawn the offer.\n\nConditions: {{conditions}}\n{{reason}}\n\nThis doesn't affect your other applications."),
+    t("ADM-WITHDRAWN-INAPP", "Provisional admission withdrawn (in-app)", "IN_APP", "admission.withdrawn", "Provisional admission withdrawn",
+      "{{institution.name}} has withdrawn your provisional admission to {{application.program}} ({{admission.number}}): the conditions were not met. {{reason}}"),
   ];
 }
 
-export const templateStore = createCollection<NotificationTemplate>("notification-templates", seedTemplates);
+/** Each English seed with its French twin (code + "-FR"), at the same version and status. */
+function withFrench(list: NotificationTemplate[]): NotificationTemplate[] {
+  const fr = list.flatMap((e) => {
+    const w = FR_SEED_WORDING[e.code];
+    return w ? [{ ...e, id: `${e.id}-fr`, code: `${e.code}-FR`, name: w.name, subject: w.subject, body: w.body, language: "fr" as const }] : [];
+  });
+  return [...list, ...fr];
+}
+
+/** The seeded wording, also what the server falls back to for messages that must always go out (login details, reset links). */
+export const SEED_TEMPLATES = withFrench(seedTemplates());
+
+/**
+ * Stored in the database: /api/admin/notification-templates. Saving a
+ * change to the wording makes a new version; the server keeps one active
+ * template per event and channel.
+ */
+export const templateStore = createApiCollection<NotificationTemplate>("notification-templates", () => withFrench(seedTemplates()), {
+  url: "/api/admin/notification-templates",
+  fromApi: (r) => ({
+    id: String(r.id),
+    code: String(r.code ?? ""),
+    name: String(r.name ?? ""),
+    channel: r.channel as Channel,
+    event: String(r.event ?? ""),
+    language: r.language === "fr" ? "fr" : "en",
+    subject: String(r.subject ?? ""),
+    body: String(r.body ?? ""),
+    status: r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    version: typeof r.version === "number" ? r.version : 1,
+    notes: String(r.notes ?? ""),
+    createdAt: String(r.createdAt ?? ""),
+    updatedAt: String(r.updatedAt ?? ""),
+    updatedBy: String(r.updatedByName ?? r.updatedBy ?? ""),
+  }),
+  toApi: (t) => {
+    const out: Record<string, unknown> = {};
+    for (const k of ["code", "name", "channel", "event", "language", "subject", "body", "status", "notes"] as const) if (t[k] !== undefined) out[k] = t[k];
+    if ((t as { replaceActive?: boolean }).replaceActive) out.replaceActive = true;
+    return out;
+  },
+});
 
 export function eventLabel(key: string) {
   return EVENT_INDEX.get(key)?.label ?? key;
 }
 
 /** The other ACTIVE template for the same event and channel, if any. */
-export function activeConflict(all: NotificationTemplate[], t: Pick<NotificationTemplate, "id" | "event" | "channel">) {
-  return all.find((o) => o.id !== t.id && o.status === "ACTIVE" && o.event === t.event && o.channel === t.channel);
+export function activeConflict(all: NotificationTemplate[], t: Pick<NotificationTemplate, "id" | "event" | "channel"> & { language?: TemplateLanguage }) {
+  return all.find((o) => o.id !== t.id && o.status === "ACTIVE" && o.event === t.event && o.channel === t.channel && (o.language ?? "en") === (t.language ?? "en"));
 }

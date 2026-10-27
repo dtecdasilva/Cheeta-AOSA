@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useId } from "react";
+import { useT } from "@/lib/i18n/client";
 import { buttonClass, type ButtonVariant } from "@/lib/ui/button";
 
 /**
@@ -41,6 +42,7 @@ export function Field({
   error?: string;
   children: React.ReactNode;
 }) {
+  const tr = useT();
   const generatedId = useId();
   const controlId = htmlFor ?? generatedId;
 
@@ -53,14 +55,14 @@ export function Field({
   return (
     <div>
       <label htmlFor={controlId} className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
-        {label}
+        {tr(label)}
         {required && <span className="text-[var(--color-danger)]"> *</span>}
       </label>
-      {child}
+      {tr(child)}
       {error ? (
-        <p className="mt-1 text-xs text-[var(--color-danger)]">{error}</p>
+        <p className="mt-1 text-xs text-[var(--color-danger)]">{tr(error)}</p>
       ) : (
-        hint && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{hint}</p>
+        hint && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{tr(hint)}</p>
       )}
     </div>
   );
@@ -128,12 +130,13 @@ export function ButtonLinkClass(variant: ButtonVariant = "primary") {
 
 /** Error summary shown above a form's submit button. */
 export function FormError({ children }: { children: React.ReactNode }) {
+  const tr = useT();
   return (
     <p
       role="alert"
       className="rounded-lg border border-[var(--color-danger)]/25 bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-strong)]"
     >
-      {children}
+      {tr(children)}
     </p>
   );
 }

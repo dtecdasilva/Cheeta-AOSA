@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { SectionHeading, TableFrame, Td, Th } from "@/components/ui";
 import { ActiveBadge } from "@/components/admin/ui";
 import { formatCurrency } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 interface Row {
   id: string;
@@ -19,6 +20,7 @@ interface Row {
  * saved to the database (/api/admin/institutions).
  */
 export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
+  const tr = useT();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
@@ -32,9 +34,9 @@ export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
         const body = await res.json();
         if (cancelled) return;
         if (res.ok) setRows([...(body.data as Row[])].sort((a, b) => a.name.localeCompare(b.name)));
-        else setError(body.error ?? "Could not load the institutions.");
+        else setError(body.error ?? tr("Could not load the institutions."));
       })
-      .catch(() => !cancelled && setError("Could not load the institutions. Check your connection."));
+      .catch(() => !cancelled && setError(tr("Could not load the institutions. Check your connection.")));
     return () => {
       cancelled = true;
     };
@@ -46,13 +48,13 @@ export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
     try {
       const res = await fetch(`/api/admin/institutions/${encodeURIComponent(id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ webFee }) });
       const body = await res.json();
-      if (!res.ok) setError(body.fieldErrors?.webFee ?? body.error ?? "Could not save the web fee.");
+      if (!res.ok) setError(body.fieldErrors?.webFee ?? body.error ?? tr("Could not save the web fee."));
       else {
         setRows((prev) => (prev ?? []).map((r) => (r.id === id ? { ...r, webFee: body.data.webFee } : r)));
         setEditing(null);
       }
     } catch {
-      setError("Could not save the web fee. Check your connection and try again.");
+      setError(tr("Could not save the web fee. Check your connection and try again."));
     } finally {
       setBusy(false);
     }
@@ -60,7 +62,7 @@ export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
 
   function submit(id: string) {
     const n = Number(value);
-    if (value.trim() === "" || !Number.isInteger(n) || n < 0) setError("Enter the web fee as a whole number of francs, 0 or more.");
+    if (value.trim() === "" || !Number.isInteger(n) || n < 0) setError(tr("Enter the web fee as a whole number of francs, 0 or more."));
     else void save(id, n);
   }
 
@@ -69,33 +71,33 @@ export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
   return (
     <section className="mt-10">
       <SectionHeading
-        title="Web fee by institution"
+        title={tr("Web fee by institution")}
         description={
           rows
-            ? `The platform web fee is ${formatCurrency(platformFee)}. ${own === 0 ? "Every institution uses it." : `${own} of ${rows.length} institutions have a web fee of their own instead.`}`
-            : "What applicants pay the platform on top of each institution's application fee."
+            ? `The platform web fee is ${formatCurrency(platformFee)}. ${own === 0 ? tr("Every institution uses it.") : tr("{own} of {count} institutions have a web fee of their own instead.", { own, count: rows.length })}`
+            : tr("What applicants pay the platform on top of each institution's application fee.")
         }
       />
       {error && (
         <p role="alert" className="mb-3 rounded-lg border border-[var(--color-danger)]/25 bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-strong)]">
-          {error}
+          {tr(error)}
         </p>
       )}
       <TableFrame>
         <thead>
           <tr>
-            <Th>Institution</Th>
-            <Th className="text-right">Web fee</Th>
-            <Th>Status</Th>
+            <Th>{tr("Institution")}</Th>
+            <Th className="text-right">{tr("Web fee")}</Th>
+            <Th>{tr("Status")}</Th>
             <Th>
-              <span className="sr-only">Actions</span>
+              <span className="sr-only">{tr("Actions")}</span>
             </Th>
           </tr>
         </thead>
         <tbody>
           {!rows && !error && (
             <tr>
-              <Td className="text-[var(--color-ink-soft)]">Loading…</Td>
+              <Td className="text-[var(--color-ink-soft)]">{tr("Loading…")}</Td>
             </tr>
           )}
           {(rows ?? []).map((r) => (
@@ -104,11 +106,11 @@ export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
               <Td className="text-right tabular-nums">
                 {r.webFee === null ? (
                   <>
-                    {formatCurrency(platformFee)} <span className="ml-1 text-xs text-[var(--color-ink-faint)]">platform fee</span>
+                    {formatCurrency(platformFee)} <span className="ml-1 text-xs text-[var(--color-ink-faint)]">{tr("platform fee")}</span>
                   </>
                 ) : (
                   <>
-                    {formatCurrency(r.webFee)} <span className="ml-1 text-xs text-[var(--color-ink-faint)]">own fee</span>
+                    {formatCurrency(r.webFee)} <span className="ml-1 text-xs text-[var(--color-ink-faint)]">{tr("own fee")}</span>
                   </>
                 )}
               </Td>
@@ -124,19 +126,19 @@ export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
                       step={500}
                       value={value}
                       onChange={(e) => setValue(e.target.value)}
-                      aria-label={`Web fee for ${r.name}, in XAF`}
+                      aria-label={tr("Web fee for {name}, in XAF", { name: tr(r.name) })}
                       className="w-28 rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-surface)] px-2 py-1 text-right text-sm"
                     />
                     <button type="button" disabled={busy} onClick={() => submit(r.id)} className="text-sm font-medium text-[var(--color-ink)] underline underline-offset-4">
-                      Save
+                      {tr("Save")}
                     </button>
                     {r.webFee !== null && (
                       <button type="button" disabled={busy} onClick={() => void save(r.id, null)} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                        Use platform fee
+                        {tr("Use platform fee")}
                       </button>
                     )}
                     <button type="button" onClick={() => setEditing(null)} className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
-                      Cancel
+                      {tr("Cancel")}
                     </button>
                   </span>
                 ) : (
@@ -149,7 +151,7 @@ export function InstitutionWebFees({ platformFee }: { platformFee: number }) {
                     }}
                     className="text-sm text-[var(--color-ink)] underline underline-offset-4"
                   >
-                    Change
+                    {tr("Change")}
                   </button>
                 )}
               </Td>

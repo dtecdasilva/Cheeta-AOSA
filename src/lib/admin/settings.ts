@@ -1,4 +1,4 @@
-import { createApiSettings, createCollection } from "./store";
+import { createApiSettings } from "./store";
 
 /**
  * Platform-wide settings. Each is a single record (id "platform") held in
@@ -105,6 +105,7 @@ export const PAYMENT_DEFAULTS: PaymentSettings = {
   updatedAt: "2026-01-01T09:00:00.000Z",
 };
 
-export const systemSettingsStore = createCollection<SystemSettings>("system-settings", () => [SYSTEM_DEFAULTS]);
+/** Stored in the database: read from and saved to /api/admin/settings/system. */
+export const systemSettingsStore = createApiSettings<SystemSettings>("/api/admin/settings/system", SYSTEM_DEFAULTS);
 /** Stored in the database: read from and saved to /api/admin/settings/payment. */
 export const paymentSettingsStore = createApiSettings<PaymentSettings>("/api/admin/settings/payment", PAYMENT_DEFAULTS);

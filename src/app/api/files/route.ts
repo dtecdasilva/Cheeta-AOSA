@@ -16,7 +16,7 @@ export const POST = handler({ auth: "authenticated" }, async ({ req, user }) => 
   const file = form.get("file");
   const purpose = String(form.get("purpose") ?? "");
   if (!(file instanceof File)) throw new ValidationError({ file: "Choose a file to upload." });
-  if (!isFilePurpose(purpose) || purpose === "application-document" || purpose === "admission-letter") throw new ValidationError({ purpose: "Unknown upload purpose." });
+  if (!isFilePurpose(purpose) || purpose === "application-document" || purpose === "admission-letter" || purpose === "disability-media" || purpose === "applicant-photo") throw new ValidationError({ purpose: "Unknown upload purpose." });
   const stored = await storeUpload({ owner: user, file, purpose });
   return created({ data: { id: stored.id, name: stored.originalName, size: stored.sizeBytes, mimeType: stored.mimeType, url: fileUrl(stored) } });
 });

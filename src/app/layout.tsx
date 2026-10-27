@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
-import { AppProvider } from "@/context/AppContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { BRAND } from "@/lib/brand";
+import { I18nProvider } from "@/lib/i18n/client";
+import { getLang } from "@/lib/i18n/server";
 
 // The brand typeface, Inter, served from this app's own files
 // (src/app/fonts) rather than fetched from Google Fonts: the app builds and
@@ -36,13 +37,16 @@ export const metadata: Metadata = {
   applicationName: BRAND.shortName,
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const lang = await getLang();
   return (
-    <html lang="en" className={`${inter.variable} ${interExt.variable} h-full antialiased`}>
+    <html lang={lang} className={`${inter.variable} ${interExt.variable} h-full antialiased`}>
       <body suppressHydrationWarning className="min-h-full">
-        <AuthProvider>
-          <AppProvider>{children}</AppProvider>
-        </AuthProvider>
+        <I18nProvider lang={lang}>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );

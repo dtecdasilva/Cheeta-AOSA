@@ -4,7 +4,7 @@ import { BASE_CURRENCY } from "@/lib/admin/reference";
 import { convertAt, roundTo } from "@/lib/currency/money";
 import type { DisplayAmounts } from "@/lib/fees/types";
 import type { Executor } from "@/server/db/client";
-import { feeConfigs, parameters } from "@/server/db/schema";
+import { demographicProfiles, feeConfigs, parameters } from "@/server/db/schema";
 import { getSettings } from "@/server/modules/settings/settings.service";
 import { decimalsOf, quoteRate, type RateQuote } from "@/server/modules/reference/conversion.service";
 
@@ -35,6 +35,18 @@ import { decimalsOf, quoteRate, type RateQuote } from "@/server/modules/referenc
  */
 
 export type FeeCategory = "national" | "international";
+
+/** National if the applicant's nationality is Cameroonian (or not given), international otherwise. */
+export function feeCategoryOf(nationality: string | null | undefined): FeeCategory {
+  const n = (nationality ?? "").trim().toLowerCase();
+  return !n || n === "cm" || n === "countries:cm" || n.startsWith("cameroon") ? "national" : "international";
+}
+
+/** The fee category an applicant is charged in, from the nationality on their demographic record. */
+export async function applicantFeeCategory(db: Executor, userId: string): Promise<FeeCategory> {
+  const [d] = await db.select({ nationality: demographicProfiles.nationality }).from(demographicProfiles).where(eq(demographicProfiles.userId, userId)).limit(1);
+  return feeCategoryOf(d?.nationality);
+}
 
 export interface ScheduledFee {
   /** The fee schedule entry it came from; null when the institution has none and the platform default applied. */
@@ -70,6 +82,8 @@ export async function scheduledApplicationFee(db: Executor, institutionId: strin
     .orderBy(desc(feeConfigs.effectiveDate))
     .limit(1);
   if (fee) return { feeConfigId: fee.id, name: fee.name, currency: fee.currency, amount: fee.amount };
+  // An institution that hasn't set a separate international fee charges everyone its national one.
+  if (category === "international") return scheduledApplicationFee(db, institutionId, "national");
   const [type] = await db.select({ attrs: parameters.attrs }).from(parameters).where(eq(parameters.id, "fee-types:APP")).limit(1);
   return { feeConfigId: null, name: "Application fee", currency: BASE_CURRENCY, amount: Number(type?.attrs?.defaultAmount ?? 0) };
 }
@@ -114,8 +128,8 @@ export type FeeAssessment = PricedFee | UnpricedFee;
  * platform's. A fee scheduled in a currency that has no exchange rate at
  * the moment can't be priced; that is reported, not guessed at.
  */
-export async function assessFee(db: Executor, institution: { id: string; webFee: number | null }, at: Date = new Date()): Promise<FeeAssessment> {
-  const [fee, webFee] = [await scheduledApplicationFee(db, institution.id), await webFeeFor(db, institution.webFee)];
+export async function assessFee(db: Executor, institution: { id: string; webFee: number | null }, at: Date = new Date(), category: FeeCategory = "national"): Promise<FeeAssessment> {
+  const [fee, webFee] = [await scheduledApplicationFee(db, institution.id, category), await webFeeFor(db, institution.webFee)];
   const feeRate = await quoteRate(db, fee.currency, BASE_CURRENCY, at);
   if (!feeRate) {
     return { priced: false, fee, currency: BASE_CURRENCY, webFee, reason: `This institution sets its fee in ${fee.currency}, and there is no exchange rate for ${fee.currency} at the moment. The amount will appear once Cheeta administration has added one.` };

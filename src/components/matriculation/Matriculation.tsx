@@ -4,43 +4,27 @@ import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Copy, Lock, Minus, X } from "lucide-react";
 import { EmptyState, TableFrame, Td, Th } from "@/components/ui";
-import { ButtonLinkClass, Field, PrimaryButton, SecondaryButton, TextArea } from "@/components/Form";
+import { ButtonLinkClass, Field, FormError, PrimaryButton, SecondaryButton, TextArea } from "@/components/Form";
 import { DateRangeFilter, FilterBar, FilterSelect, Pager, ResultCount, SearchField, StatStrip, ToneBadge, usePaged } from "@/components/admin/ui";
-import { tuitionStore } from "@/lib/tuition/data";
-import { CLEARANCE_META, MEDICAL_RESULT_META, MEDICAL_STATUS_META, medicalStore, recordsByAccount, requirementLabel } from "@/lib/medical/data";
-import {
-  ADMISSION_META,
-  MATRIC_STATUS_META,
-  TUITION_CLEARANCE_META,
-  buildRow,
-  canConfirmMatriculation,
-  confirmMatriculation,
-  matriculationStore,
-  revokeMatriculation,
-  type MatricRow,
-} from "@/lib/matriculation/data";
+import { CLEARANCE_META, MEDICAL_RESULT_META, MEDICAL_STATUS_META } from "@/lib/medical/data";
+import { ADMISSION_META, MATRIC_STATUS_META, TUITION_CLEARANCE_META, canConfirmMatriculation } from "@/lib/matriculation/data";
+import { cancelMatriculation, confirmMatriculation, useMatricRows as useMatricRowsApi, type MatricRow } from "@/lib/matriculation/api";
 import { institutionStore } from "@/lib/admin/institutions";
-import { maskFullName } from "@/lib/payments/privacy";
 import { EMPTY_RANGE, inRange, matchesSearch, type DateRange } from "@/lib/admin/filters";
 import { useHydrated } from "@/lib/admin/store";
 import type { Role } from "@/lib/auth/roles";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export interface Actor {
   name: string;
   role: Role;
 }
 
-/** Every admitted student with their three matriculation conditions. */
+/** Every admitted student with their three matriculation conditions, worked out by the server. */
 export function useMatricRows(institutionId?: string): MatricRow[] {
-  const accounts = tuitionStore.useItems();
-  const medical = medicalStore.useItems();
-  const records = matriculationStore.useItems();
-  return useMemo(() => {
-    const byAccount = recordsByAccount(medical);
-    const byId = new Map(records.map((r) => [r.id, r]));
-    return accounts.filter((a) => !institutionId || a.institutionId === institutionId).map((a) => buildRow(a, byAccount.get(a.id) ?? [], byId.get(a.id)));
-  }, [accounts, medical, records, institutionId]);
+  void institutionId;
+  return useMatricRowsApi().rows;
 }
 
 // ---------------------------------------------------------------------------
@@ -53,22 +37,23 @@ export function useMatricRows(institutionId?: string): MatricRow[] {
  * it gets the room and the type size.
  */
 export function MatricCodeDisplay({ code, name, program, institution, date }: { code: string; name: string; program: string; institution: string; date: string }) {
+  const tr = useT();
   const [copied, setCopied] = useState(false);
   return (
     <section
-      aria-label="Matriculation code"
+      aria-label={tr("Matriculation code")}
       className="relative rounded-xl border border-[var(--color-ink)] bg-[var(--color-surface)] px-6 py-7 sm:px-10 sm:py-9"
       style={{ backgroundImage: "repeating-linear-gradient(135deg, transparent 0 11px, rgba(247,148,29,0.09) 11px 12px)" }}
     >
       <span aria-hidden className="absolute inset-2 rounded border border-[var(--color-brand)] opacity-50" />
       <div className="relative">
-        <p className="text-sm text-[var(--color-ink-soft)]">Matriculation code</p>
+        <p className="text-sm text-[var(--color-ink-soft)]">{tr("Matriculation code")}</p>
         <p className="mt-2 font-bold text-3xl tabular-nums tracking-[0.06em] text-[var(--color-ink)] sm:text-4xl 2xl:text-5xl">
           {/* Break only between segments, never inside one: people copy this out by hand. */}
           {code.split("/").map((seg, i, all) => (
             <Fragment key={i}>
               <span className="whitespace-nowrap">
-                {seg}
+                {tr(seg)}
                 {i < all.length - 1 && "/"}
               </span>
               {i < all.length - 1 && <wbr />}
@@ -77,11 +62,11 @@ export function MatricCodeDisplay({ code, name, program, institution, date }: { 
         </p>
         <div className="mt-5 flex flex-wrap items-end justify-between gap-4 border-t border-[var(--color-line-strong)] pt-4">
           <div className="text-sm">
-            <p className="font-medium text-[var(--color-ink)]">{name}</p>
+            <p className="font-medium text-[var(--color-ink)]">{tr(name)}</p>
             <p className="text-[var(--color-ink-soft)]">
-              {program}, {institution}
+              {tr(program)}, {tr(institution)}
             </p>
-            <p className="text-xs text-[var(--color-ink-faint)]">Matriculated {formatDate(date)}</p>
+            <p className="text-xs text-[var(--color-ink-faint)]">{tr("Matriculated {value}", { value: formatDate(date) })}</p>
           </div>
           <button
             type="button"
@@ -91,7 +76,7 @@ export function MatricCodeDisplay({ code, name, program, institution, date }: { 
             className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-surface)] px-3 py-1.5 text-sm text-[var(--color-ink)] hover:border-[var(--color-ink)]"
           >
             {copied ? <Check className="h-4 w-4" strokeWidth={2} /> : <Copy className="h-4 w-4" strokeWidth={1.75} />}
-            {copied ? "Copied" : "Copy code"}
+            {copied ? tr("Copied") : tr("Copy code")}
           </button>
         </div>
       </div>
@@ -114,28 +99,29 @@ function Mark({ state }: { state: "done" | "pending" | "blocked" }) {
 }
 
 function Conditions({ row, tuitionHref, medicalHref }: { row: MatricRow; tuitionHref?: string; medicalHref?: string }) {
+  const tr = useT();
   const a = row.account;
-  const verified = a.payments.filter((p) => p.status === "VERIFIED").reduce((s, p) => s + p.amount, 0);
+  const verified = a.verified;
   const items = [
     {
-      title: "Admission",
+      title: tr("Admission"),
       state: row.admission === "ACCEPTED" ? ("done" as const) : ("pending" as const),
       badge: ADMISSION_META[row.admission],
-      detail: row.admission === "ACCEPTED" ? `Offer accepted. Admitted ${formatDate(a.admittedAt)}.` : "The student still has to accept the offer.",
+      detail: row.admission === "ACCEPTED" ? tr("Offer accepted. Admitted {value}.", { value: formatDate(a.admittedAt) }) : tr("The student still has to accept the offer."),
       href: undefined as string | undefined,
     },
     {
-      title: "Tuition",
+      title: tr("Tuition"),
       state: row.tuition === "NOT_CLEARED" ? ("pending" as const) : ("done" as const),
       badge: TUITION_CLEARANCE_META[row.tuition],
-      detail: `${formatCurrency(verified)} of ${formatCurrency(a.tuitionAmount)} verified by AOSA. The first instalment, ${formatCurrency(a.instalments[0]?.amount ?? 0)}, is the minimum.`,
+      detail: tr("{value} of {value2} verified by Cheeta administration. The first instalment, {value3}, is the minimum.", { value: formatCurrency(verified), value2: formatCurrency(a.tuitionAmount), value3: formatCurrency(a.firstInstalment) }),
       href: tuitionHref,
     },
     {
-      title: "Medical",
+      title: tr("Medical"),
       state: row.medical === "CLEARED" ? ("done" as const) : row.medical === "NOT_CLEARED" ? ("blocked" as const) : ("pending" as const),
       badge: CLEARANCE_META[row.medical],
-      detail: row.medicalRecords.map((m) => `${requirementLabel(m.requirementCode)}: ${m.result ? MEDICAL_RESULT_META[m.result].label : MEDICAL_STATUS_META[m.status].label}`).join(". ") + ".",
+      detail: row.medicalRecords.length ? row.medicalRecords.map((m) => `${m.requirementLabel}${m.required ? "" : " (optional)"}: ${m.result ? MEDICAL_RESULT_META[m.result].label : MEDICAL_STATUS_META[m.status].label}`).join(". ") + "." : tr("No medical requirements."),
       href: medicalHref,
     },
   ];
@@ -146,14 +132,14 @@ function Conditions({ row, tuitionHref, medicalHref }: { row: MatricRow; tuition
           <Mark state={i.state} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <p className="font-semibold text-base text-[var(--color-ink)]">{i.title}</p>
-              <ToneBadge tone={i.badge.tone}>{i.badge.label}</ToneBadge>
+              <p className="font-semibold text-base text-[var(--color-ink)]">{tr(i.title)}</p>
+              <ToneBadge tone={i.badge.tone}>{tr(i.badge.label)}</ToneBadge>
             </div>
-            <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{i.detail}</p>
+            <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{tr(i.detail)}</p>
           </div>
           {i.href && (
             <Link href={i.href} className="shrink-0 text-sm text-[var(--color-ink)] underline underline-offset-4">
-              Open
+              {tr("Open")}
             </Link>
           )}
         </li>
@@ -167,6 +153,7 @@ function Conditions({ row, tuitionHref, medicalHref }: { row: MatricRow; tuition
 // ---------------------------------------------------------------------------
 
 export function MatriculationList({ basePath, institutionId }: { basePath: string; institutionId?: string }) {
+  const tr = useT();
   const rows = useMatricRows(institutionId);
   const institutions = institutionStore.useItems();
   const instName = useMemo(() => new Map(institutions.map((i) => [i.id, i.name])), [institutions]);
@@ -182,7 +169,7 @@ export function MatriculationList({ basePath, institutionId }: { basePath: strin
   const isMasked = (r: MatricRow) => institutionScope && r.maskedForInstitution;
   const filtered = rows
     .filter((r) => {
-      if (isMasked(r)) return !inst && !status && !tuition && !medical && !range.from && !range.to && matchesSearch(search, [maskFullName(r.account.studentName)]);
+      if (isMasked(r)) return !inst && !status && !tuition && !medical && !range.from && !range.to && matchesSearch(search, [r.account.studentName]);
       return (
         (!inst || r.account.institutionId === inst) &&
         (!status || r.status === status) &&
@@ -205,48 +192,48 @@ export function MatriculationList({ basePath, institutionId }: { basePath: strin
       <StatStrip
         columns={4}
         stats={[
-          { label: "Admitted students", value: rows.length },
+          { label: tr("Admitted students"), value: rows.length },
           {
-            label: "Ready to matriculate",
+            label: tr("Ready to matriculate"),
             value: count("READY"),
             detail: (
               <button type="button" onClick={() => setStatus("READY")} className="underline underline-offset-4">
-                Show them
+                {tr("Show them")}
               </button>
             ),
           },
-          { label: "Matriculated", value: count("MATRICULATED"), detail: rows.length ? `${Math.round((count("MATRICULATED") / rows.length) * 100)}% of admitted` : undefined },
-          { label: "Requirements outstanding", value: count("NOT_READY") },
+          { label: tr("Matriculated"), value: count("MATRICULATED"), detail: rows.length ? tr("{value}% of admitted", { value: Math.round((count("MATRICULATED") / rows.length) * 100) }) : undefined },
+          { label: tr("Requirements outstanding"), value: count("NOT_READY") },
         ]}
       />
 
       <div className="mt-6">
         <FilterBar active={!!(search || inst || status || tuition || medical || range.from || range.to)} onClear={() => { setSearch(""); setInst(""); setStatus(""); setTuition(""); setMedical(""); setRange(EMPTY_RANGE); }}>
-          <SearchField value={search} onChange={setSearch} placeholder="Student, registration no. or matriculation code" />
+          <SearchField value={search} onChange={setSearch} placeholder={tr("Student, registration no. or matriculation code")} />
           {!institutionScope && (
-            <FilterSelect label="Institution" value={inst} onChange={setInst} options={[...new Set(rows.map((r) => r.account.institutionId))].map((id) => ({ value: id, label: instName.get(id) ?? id })).sort((a, b) => a.label.localeCompare(b.label))} />
+            <FilterSelect label={tr("Institution")} value={inst} onChange={setInst} options={[...new Set(rows.map((r) => r.account.institutionId))].map((id) => ({ value: id, label: instName.get(id) ?? id })).sort((a, b) => a.label.localeCompare(b.label))} />
           )}
-          <FilterSelect label="Matriculation" value={status} onChange={setStatus} options={Object.entries(MATRIC_STATUS_META).map(([k, m]) => ({ value: k, label: m.label }))} />
-          <FilterSelect label="Tuition" value={tuition} onChange={setTuition} options={Object.entries(TUITION_CLEARANCE_META).map(([k, m]) => ({ value: k, label: m.label }))} />
-          <FilterSelect label="Medical" value={medical} onChange={setMedical} options={Object.entries(CLEARANCE_META).map(([k, m]) => ({ value: k, label: m.label }))} />
-          <DateRangeFilter value={range} onChange={setRange} label="Matriculated" />
+          <FilterSelect label={tr("Matriculation")} value={status} onChange={setStatus} options={Object.entries(MATRIC_STATUS_META).map(([k, m]) => ({ value: k, label: m.label }))} />
+          <FilterSelect label={tr("Tuition")} value={tuition} onChange={setTuition} options={Object.entries(TUITION_CLEARANCE_META).map(([k, m]) => ({ value: k, label: m.label }))} />
+          <FilterSelect label={tr("Medical")} value={medical} onChange={setMedical} options={Object.entries(CLEARANCE_META).map(([k, m]) => ({ value: k, label: m.label }))} />
+          <DateRangeFilter value={range} onChange={setRange} label={tr("Matriculated")} />
         </FilterBar>
       </div>
 
-      <ResultCount shown={filtered.length} total={rows.length} noun="admitted students" />
+      <ResultCount shown={filtered.length} total={rows.length} noun={tr("admitted students")} />
       {filtered.length === 0 ? (
-        <EmptyState message={rows.length === 0 ? "No admitted students yet." : "No students match these filters."} />
+        <EmptyState message={rows.length === 0 ? tr("No admitted students yet.") : tr("No students match these filters.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Student</Th>
-              {!institutionScope && <Th>Institution</Th>}
-              <Th>Program</Th>
-              <Th>Admission</Th>
-              <Th>Tuition</Th>
-              <Th>Medical</Th>
-              <Th>Matriculation</Th>
+              <Th>{tr("Student")}</Th>
+              {!institutionScope && <Th>{tr("Institution")}</Th>}
+              <Th>{tr("Program")}</Th>
+              <Th>{tr("Admission")}</Th>
+              <Th>{tr("Tuition")}</Th>
+              <Th>{tr("Medical")}</Th>
+              <Th>{tr("Matriculation")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -256,34 +243,34 @@ export function MatriculationList({ basePath, institutionId }: { basePath: strin
                   <Td>
                     <span className="inline-flex items-center gap-2 text-[var(--color-ink)]">
                       <Lock className="h-3.5 w-3.5 text-[var(--color-ink-faint)]" strokeWidth={1.75} aria-hidden />
-                      {maskFullName(r.account.studentName)}
+                      {tr(r.account.studentName)}
                     </span>
                   </Td>
                   <Td colSpan={5}>
-                    <ToneBadge tone="info">Awaiting payment</ToneBadge>
+                    <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
                   </Td>
                 </tr>
               ) : (
                 <tr key={r.account.id}>
                   <Td>
                     <Link href={`${basePath}/${r.account.id}`} className="text-[var(--color-ink)] underline-offset-4 hover:underline">
-                      {r.account.studentName}
+                      {tr(r.account.studentName)}
                     </Link>
-                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{r.account.registrationNo}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(r.account.registrationNo)}</p>
                   </Td>
                   {!institutionScope && <Td>{instName.get(r.account.institutionId) ?? r.account.institutionId}</Td>}
                   <Td>{r.account.programName}</Td>
                   <Td>
-                    <ToneBadge tone={ADMISSION_META[r.admission].tone}>{ADMISSION_META[r.admission].label}</ToneBadge>
+                    <ToneBadge tone={ADMISSION_META[r.admission].tone}>{tr(ADMISSION_META[r.admission].label)}</ToneBadge>
                   </Td>
                   <Td>
-                    <ToneBadge tone={TUITION_CLEARANCE_META[r.tuition].tone}>{TUITION_CLEARANCE_META[r.tuition].label}</ToneBadge>
+                    <ToneBadge tone={TUITION_CLEARANCE_META[r.tuition].tone}>{tr(TUITION_CLEARANCE_META[r.tuition].label)}</ToneBadge>
                   </Td>
                   <Td>
-                    <ToneBadge tone={CLEARANCE_META[r.medical].tone}>{CLEARANCE_META[r.medical].label}</ToneBadge>
+                    <ToneBadge tone={CLEARANCE_META[r.medical].tone}>{tr(CLEARANCE_META[r.medical].label)}</ToneBadge>
                   </Td>
                   <Td>
-                    <ToneBadge tone={MATRIC_STATUS_META[r.status].tone}>{MATRIC_STATUS_META[r.status].label}</ToneBadge>
+                    <ToneBadge tone={MATRIC_STATUS_META[r.status].tone}>{tr(MATRIC_STATUS_META[r.status].label)}</ToneBadge>
                     {r.record && <p className="mt-1 whitespace-nowrap font-mono text-xs text-[var(--color-ink)]">{r.record.code}</p>}
                   </Td>
                 </tr>
@@ -302,10 +289,14 @@ export function MatriculationList({ basePath, institutionId }: { basePath: strin
 // ---------------------------------------------------------------------------
 
 export function MatriculationDetail({ accountId, basePath, institutionId, actor, links }: { accountId: string; basePath: string; institutionId?: string; actor: Actor; links: { tuition: string; medical: string; documents: string } }) {
+  const tr = useT();
   const hydrated = useHydrated();
-  const rows = useMatricRows(institutionId);
+  const { rows, loaded } = useMatricRowsApi();
   const institutions = institutionStore.useItems();
   const row = rows.find((r) => r.account.id === accountId);
+  const [error, setError] = useState("");
+  const [reason, setReason] = useState("");
+  const [working, setWorking] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [checked, setChecked] = useState(false);
   const [note, setNote] = useState("");
@@ -315,24 +306,24 @@ export function MatriculationDetail({ accountId, basePath, institutionId, actor,
   const back = (
     <Link href={basePath} className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
       <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-      All matriculation
+      {tr("All matriculation")}
     </Link>
   );
 
   if (!row) {
-    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    if (!hydrated || !loaded) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     return (
       <>
-        {back}
-        <EmptyState message="This student doesn't exist, or belongs to another institution." />
+        {tr(back)}
+        <EmptyState message={tr("This student doesn't exist, or belongs to another institution.")} />
       </>
     );
   }
   if (institutionId && row.maskedForInstitution) {
     return (
       <>
-        {back}
-        <EmptyState message={`${maskFullName(row.account.studentName)} — awaiting payment. Details appear once AOSA approves the payment.`} />
+        {tr(back)}
+        <EmptyState message={tr("{studentName} — awaiting payment. Details appear once Cheeta administration verifies the payment.", { studentName: row.account.studentName })} />
       </>
     );
   }
@@ -343,100 +334,129 @@ export function MatriculationDetail({ accountId, basePath, institutionId, actor,
 
   return (
     <>
-      {back}
+      {tr(back)}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{a.studentName}</h1>
+          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{tr(a.studentName)}</h1>
           <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-            {a.programName}, {institution?.name ?? a.institutionId}, {a.registrationNo}
+            {tr(a.programName)}, {a.institutionName || institution?.name || a.institutionId}, {tr(a.registrationNo)}
           </p>
         </div>
-        <ToneBadge tone={MATRIC_STATUS_META[row.status].tone}>{MATRIC_STATUS_META[row.status].label}</ToneBadge>
+        <ToneBadge tone={MATRIC_STATUS_META[row.status].tone}>{tr(MATRIC_STATUS_META[row.status].label)}</ToneBadge>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <div className="min-w-0 space-y-4">
-          <h2 className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">Conditions</h2>
+          <h2 className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("Conditions")}</h2>
           <Conditions row={row} tuitionHref={`${links.tuition}/${a.id}`} medicalHref={`${links.medical}/${a.id}`} />
         </div>
 
         <div className="min-w-0 space-y-4">
-          <h2 className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">Matriculation</h2>
+          <h2 className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("Matriculation")}</h2>
+          {error && <FormError>{tr(error)}</FormError>}
+          {row.cancelled.length > 0 && (
+            <p className="text-xs text-[var(--color-ink-faint)]">
+              {tr("Cancelled earlier:")}{" "}{row.cancelled.map((c) => `${c.code}${c.cancelReason ? ` (${c.cancelReason})` : ""}`).join("; ")}
+            </p>
+          )}
           {row.record ? (
             <>
               {justIssued && (
                 <p role="status" className="rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-                  {a.studentName} is matriculated. The student can see this code in their portal.
+                  {tr("{studentName} is matriculated. The student can see this code in their portal.", { studentName: a.studentName })}
                 </p>
               )}
-              <MatricCodeDisplay code={row.record.code} name={a.studentName} program={a.programName} institution={institution?.name ?? ""} date={row.record.matriculatedAt} />
+              <MatricCodeDisplay code={row.record.code} name={a.studentName} program={a.programName} institution={a.institutionName || institution?.name || ""} date={row.record.matriculatedAt} />
               <p className="text-sm text-[var(--color-ink-soft)]">
-                Confirmed by {row.record.confirmedBy} on {formatDateTime(row.record.matriculatedAt)}.{row.record.note ? ` “${row.record.note}”` : ""}
+                {tr("Confirmed by {confirmedBy} on {value}.", { confirmedBy: row.record.confirmedBy, value: formatDateTime(row.record.matriculatedAt) })}{row.record.note ? ` “${row.record.note}”` : ""}
               </p>
               <div className="flex flex-wrap items-center gap-3">
                 <Link href={`${links.documents}/${a.id}/matriculation-record`} className={ButtonLinkClass("secondary")}>
-                  Print matriculation record
+                  {tr("Print matriculation record")}
                 </Link>
                 {can &&
                   (revoking ? (
-                    <span className="inline-flex flex-wrap items-center gap-3 text-sm">
-                      <span className="text-[var(--color-ink-soft)]">Reverse this matriculation?</span>
-                      <button type="button" onClick={() => { revokeMatriculation(a.id, actor); setRevoking(false); setJustIssued(false); }} className="font-medium text-[var(--color-danger)] underline underline-offset-4">
-                        Reverse
-                      </button>
-                      <button type="button" onClick={() => setRevoking(false)} className="text-[var(--color-ink-soft)] underline underline-offset-4">
-                        Keep
-                      </button>
-                    </span>
+                    <div className="w-full space-y-2">
+                      <Field label={tr("Why is this matriculation being cancelled?")} hint={tr("The record and its code are kept, marked cancelled. The student is told.")}>
+                        <TextArea rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
+                      </Field>
+                      <div className="flex flex-wrap items-center gap-3 text-sm">
+                        <button
+                          type="button"
+                          disabled={working || reason.trim().length < 5}
+                          onClick={async () => {
+                            setWorking(true);
+                            const r = await cancelMatriculation(a.id, reason);
+                            setWorking(false);
+                            if (!r.ok) return setError(Object.values(r.fieldErrors)[0] ?? r.error);
+                            setError("");
+                            setRevoking(false);
+                            setJustIssued(false);
+                            setReason("");
+                          }}
+                          className="font-medium text-[var(--color-danger)] underline underline-offset-4 disabled:opacity-50"
+                        >
+                          {tr("Cancel matriculation")}
+                        </button>
+                        <button type="button" onClick={() => setRevoking(false)} className="text-[var(--color-ink-soft)] underline underline-offset-4">
+                          {tr("Keep")}
+                        </button>
+                      </div>
+                    </div>
                   ) : (
                     <button type="button" onClick={() => setRevoking(true)} className="text-sm text-[var(--color-danger)] underline underline-offset-4">
-                      Reverse matriculation
+                      {tr("Cancel matriculation")}
                     </button>
                   ))}
               </div>
             </>
           ) : row.status === "READY" ? (
             <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
-              <p className="text-sm text-[var(--color-ink)]">All three conditions are met. Confirming issues the matriculation code.</p>
+              <p className="text-sm text-[var(--color-ink)]">{tr("All three conditions are met. Confirming issues the matriculation code.")}</p>
               {!can ? (
-                <p className="mt-3 text-sm text-[var(--color-ink-soft)]">Confirming matriculation is limited to institution administrators and AOSA administrators.</p>
+                <p className="mt-3 text-sm text-[var(--color-ink-soft)]">{tr("Confirming matriculation is limited to institution administrators and AOSA administrators.")}</p>
               ) : confirming ? (
                 <div className="mt-4 space-y-4">
                   <label className="flex items-start gap-2 text-sm text-[var(--color-ink)]">
                     <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--color-brand)]" />
-                    I confirm {a.studentName} is enrolled in {a.programName} for 2026/2027.
+                    {tr("I confirm {studentName} is enrolled in {programName} for 2026/2027.", { studentName: a.studentName, programName: tr(a.programName) })}
                   </label>
-                  <Field label="Note (optional)">
+                  <Field label={tr("Note (optional)")}>
                     <TextArea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
                   </Field>
                   <div className="flex items-center gap-3">
                     <PrimaryButton
                       type="button"
-                      disabled={!checked}
-                      onClick={() => {
-                        if (confirmMatriculation(row, institution?.name ?? "Institution", actor, note)) setJustIssued(true);
+                      disabled={!checked || working}
+                      onClick={async () => {
+                        setWorking(true);
+                        const r = await confirmMatriculation(a.id, note);
+                        setWorking(false);
+                        if (!r.ok) return setError(r.error);
+                        setError("");
+                        setJustIssued(true);
                         setConfirming(false);
                       }}
                     >
-                      Confirm matriculation
+                      {tr("Confirm matriculation")}
                     </PrimaryButton>
                     <SecondaryButton type="button" onClick={() => setConfirming(false)}>
-                      Cancel
+                      {tr("Cancel")}
                     </SecondaryButton>
                   </div>
                 </div>
               ) : (
                 <PrimaryButton type="button" className="mt-4" onClick={() => setConfirming(true)}>
-                  Confirm matriculation
+                  {tr("Confirm matriculation")}
                 </PrimaryButton>
               )}
             </div>
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--color-line-strong)] p-5">
-              <p className="text-sm text-[var(--color-ink)]">Can&apos;t matriculate yet:</p>
+              <p className="text-sm text-[var(--color-ink)]">{tr("Can't matriculate yet:")}</p>
               <ul className="mt-2 list-inside list-disc space-y-1 text-sm text-[var(--color-ink-soft)]">
                 {row.blockers.map((b) => (
-                  <li key={b}>{b}</li>
+                  <li key={b}>{tr(b)}</li>
                 ))}
               </ul>
             </div>
@@ -451,12 +471,25 @@ export function MatriculationDetail({ accountId, basePath, institutionId, actor,
 // Student view
 // ---------------------------------------------------------------------------
 
-export function StudentMatriculation({ accountId }: { accountId: string }) {
+export function StudentMatriculation() {
+  const tr = useT();
   const hydrated = useHydrated();
-  const rows = useMatricRows();
+  const { rows, loaded, error } = useMatricRowsApi();
+  if (error) return <FormError>{tr(error)}</FormError>;
+  if (!hydrated || !loaded) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
+  if (!rows.length) return <EmptyState message={tr("Matriculation opens once you take up an offer of admission.")} />;
+  return (
+    <div className="space-y-10">
+      {rows.map((row) => (
+        <StudentMatriculationRow key={row.account.id} row={row} />
+      ))}
+    </div>
+  );
+}
+
+function StudentMatriculationRow({ row }: { row: MatricRow }) {
+  const tr = useT();
   const institutions = institutionStore.useItems();
-  const row = rows.find((r) => r.account.id === accountId);
-  if (!row) return hydrated ? <EmptyState message="Matriculation opens once an institution admits you." /> : <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
   const a = row.account;
   const institution = institutions.find((i) => i.id === a.institutionId);
 
@@ -464,21 +497,21 @@ export function StudentMatriculation({ accountId }: { accountId: string }) {
     <div className="space-y-6">
       {row.record ? (
         <>
-          <MatricCodeDisplay code={row.record.code} name={a.studentName} program={a.programName} institution={institution?.name ?? ""} date={row.record.matriculatedAt} />
+          <MatricCodeDisplay code={row.record.code} name={a.studentName} program={a.programName} institution={a.institutionName || institution?.name || ""} date={row.record.matriculatedAt} />
           <Link href="/student/documents/matriculation-record" className={ButtonLinkClass("secondary")}>
-            Print matriculation record
+            {tr("Print matriculation record")}
           </Link>
         </>
       ) : (
         <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-5 py-4">
-          <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{row.status === "READY" ? `Ready. ${institution?.name ?? "Your institution"} will confirm your matriculation.` : "Not matriculated yet"}</p>
+          <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{row.status === "READY" ? `Ready. ${a.institutionName || institution?.name || tr("Your institution")} will confirm your matriculation.` : tr("Not matriculated yet")}</p>
           <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-            {row.status === "READY" ? "You'll get your matriculation code as soon as they do." : `Still to do: ${row.blockers.join("; ").toLowerCase()}.`}
+            {row.status === "READY" ? tr("You'll get your matriculation code as soon as they do.") : tr("Still to do: {toLowerCase}.", { toLowerCase: row.blockers.join("; ").toLowerCase() })}
           </p>
         </div>
       )}
       <div>
-        <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">What matriculation needs</h2>
+        <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("What matriculation needs")}</h2>
         <Conditions row={row} tuitionHref="/student/tuition" />
       </div>
     </div>

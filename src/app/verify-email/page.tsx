@@ -2,10 +2,12 @@ import { Suspense } from "react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
 import { VerifyEmail } from "@/components/auth/VerifyEmail";
+import { getT } from "@/lib/i18n/server";
 
-export default function VerifyEmailPage() {
+export default async function VerifyEmailPage() {
+  const tr = await getT();
   return (
-    <AuthShell title="Email verification">
+    <AuthShell title={tr("Email verification")}>
       <Suspense fallback={null}>
         <VerifyEmail />
       </Suspense>

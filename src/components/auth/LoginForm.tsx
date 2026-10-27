@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Field, TextInput, PrimaryButton, FormError } from "@/components/Form";
+import { useT } from "@/lib/i18n/client";
 
 const ACCOUNT_INACTIVE_MESSAGE = "This account has been deactivated. Contact your administrator.";
 
@@ -22,6 +23,7 @@ function safeNext(next: string | null): string | null {
 }
 
 export function LoginForm() {
+  const tr = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = searchParams.get("next");
@@ -47,18 +49,18 @@ export function LoginForm() {
       // An answer that isn't JSON means the server failed before it could reply properly.
       const data = await res.json().catch(() => null);
       if (!data) {
-        setError(`The server couldn't sign you in (error ${res.status}). Please try again in a moment.`);
+        setError(tr("The server couldn't sign you in (error {status}). Please try again in a moment.", { status: res.status }));
         return;
       }
       if (!res.ok) {
-        setError(data.error ?? "Could not sign in.");
+        setError(data.error ?? tr("Could not sign in."));
         return;
       }
       router.push(safeNext(next) ?? data.redirectTo);
       router.refresh();
     } catch {
       // The request never got an answer: the server isn't reachable.
-      setError("Couldn't reach the server. Check your connection and try again.");
+      setError(tr("Couldn't reach the server. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
@@ -66,18 +68,18 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      <Field label="Email address" htmlFor="email" required>
+      <Field label={tr("Email address")} htmlFor="email" required>
         <TextInput
           id="email"
           type="email"
           autoComplete="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
+          placeholder={tr("you@example.com")}
           required
         />
       </Field>
-      <Field label="Password" htmlFor="password" required>
+      <Field label={tr("Password")} htmlFor="password" required>
         <TextInput
           id="password"
           type="password"
@@ -91,14 +93,14 @@ export function LoginForm() {
 
       <div className="flex justify-end">
         <a href="/forgot-password" className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
-          Forgot your password?
+          {tr("Forgot your password?")}
         </a>
       </div>
 
-      {error && <FormError>{error}</FormError>}
+      {error && <FormError>{tr(error)}</FormError>}
 
       <PrimaryButton type="submit" disabled={loading} className="w-full">
-        {loading ? "Signing in…" : "Sign in"}
+        {loading ? tr("Signing in…") : tr("Sign in")}
       </PrimaryButton>
     </form>
   );

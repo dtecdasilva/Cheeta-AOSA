@@ -1,5 +1,5 @@
 import type { ApplicationStatus } from "@/lib/types";
-import { createCollection, mockAnchor, seededRandom } from "./store";
+import { createApiCollection, mockAnchor, seededRandom } from "./store";
 import { paramId } from "./parameters";
 import { SEED_INSTITUTIONS } from "./institutions";
 
@@ -260,14 +260,61 @@ function data() {
   return (generated ??= generate());
 }
 
-export const studentStore = createCollection<AdminStudent>("students", () => data().students);
-export const applicationStore = createCollection<AdminApplication>("applications", () => data().applications);
+const text = (v: unknown) => (typeof v === "string" ? v : v == null ? "" : String(v));
+
+/**
+ * Every registered student, from /api/admin/students (administration only).
+ * Registering one sends POST there: the account is created and the student
+ * emailed their login details. Nothing is shown until the server answers.
+ */
+export const studentStore = createApiCollection<AdminStudent>("students", () => [], {
+  url: "/api/admin/students",
+  fromApi: (r) => ({
+    id: text(r.id),
+    registrationNo: text(r.registrationNo),
+    firstName: text(r.firstName),
+    lastName: text(r.lastName),
+    gender: (r.gender === "Female" ? "Female" : "Male") as Gender,
+    dateOfBirth: text(r.dateOfBirth),
+    email: text(r.email),
+    phone: text(r.phone),
+    regionId: text(r.regionId),
+    townId: text(r.townId),
+    address: text(r.address),
+    highestQualification: text(r.highestQualification),
+    registeredAt: text(r.registeredAt),
+    source: r.source === "Registered by admin" ? "Registered by admin" : "Self-registered",
+  }),
+  toApi: (s) => ({ firstName: s.firstName, lastName: s.lastName, gender: s.gender, dateOfBirth: s.dateOfBirth, email: s.email, phone: s.phone, regionId: s.regionId, townId: s.townId, address: s.address, highestQualification: s.highestQualification }),
+});
+
+/**
+ * Every application to every institution, with its status history and
+ * latest fee payment, from /api/admin/applications/dataset (administration
+ * only). Read-only: decisions are made through the application screens.
+ */
+export const applicationStore = createApiCollection<AdminApplication>("applications", () => [], {
+  url: "/api/admin/applications/dataset",
+  fromApi: (r) => ({
+    id: text(r.id),
+    reference: text(r.reference),
+    studentId: text(r.studentId),
+    institutionId: text(r.institutionId),
+    programName: text(r.programName),
+    createdAt: text(r.createdAt),
+    updatedAt: text(r.updatedAt),
+    status: r.status as ApplicationStatus,
+    history: ((r.history as Record<string, unknown>[]) ?? []).map((e) => ({ status: e.status as ApplicationStatus, at: text(e.at), actor: e.actor as EventActor, note: text(e.note) })),
+    payment: r.payment ? (r.payment as ApplicationPayment) : null,
+  }),
+  toApi: () => ({}),
+});
 
 export function studentName(s: Pick<AdminStudent, "firstName" | "lastName"> | undefined) {
   return s ? `${s.firstName} ${s.lastName}` : "Unknown student";
 }
 
-/** The generated seed records, for other mock domains built on them (tuition). */
+/** The generated sample records the development database is first filled from (server/db/seed.ts). */
 export function seedAdminRecords() {
   return data();
 }

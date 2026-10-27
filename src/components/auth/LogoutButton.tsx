@@ -2,8 +2,10 @@
 
 import { LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { useT } from "@/lib/i18n/client";
 
 export function LogoutButton({ className = "" }: { className?: string }) {
+  const tr = useT();
   const { logout } = useAuth();
   return (
     <button
@@ -11,7 +13,7 @@ export function LogoutButton({ className = "" }: { className?: string }) {
       className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--color-ink)] transition-colors hover:bg-[var(--color-paper)] ${className}`}
     >
       <LogOut className="h-4 w-4 shrink-0 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
-      Sign out
+      {tr("Sign out")}
     </button>
   );
 }

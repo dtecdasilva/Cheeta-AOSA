@@ -147,6 +147,7 @@ function present(s: Subscription) {
 export async function getDeliberationOverview(user: PublicUser) {
   const institutionId = institutionOf(user);
   const db = getDb();
+  if (!(await hasPermission(db, user, "DELIBERATION"))) throw new ForbiddenError("Your staff account doesn't have access to the deliberation list.");
   const [fees, active, [latest], [{ listed }]] = await Promise.all([
     getDeliberationFees(db),
     activeSubscription(db, institutionId),

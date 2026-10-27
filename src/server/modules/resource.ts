@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, count, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, asc, count, eq, ilike, or, type SQL, inArray } from "drizzle-orm";
 import type { AnyPgColumn, PgTableWithColumns } from "drizzle-orm/pg-core";
 import type { NextRequest } from "next/server";
 import { z } from "zod";
@@ -114,7 +114,7 @@ export async function listResource(def: ResourceDef<z.ZodObject>, req: NextReque
   if (query.status && def.statusColumn) conditions.push(eq(def.statusColumn, query.status));
   for (const k of filterKeys) {
     const v = (query as Record<string, unknown>)[k];
-    if (typeof v === "string" && v) conditions.push(eq(def.filters![k], v));
+    if (typeof v === "string" && v) conditions.push(v.includes(",") ? inArray(def.filters![k], v.split(",").slice(0, 50)) : eq(def.filters![k], v));
   }
   if (query.q) {
     const words = query.q.split(/\s+/).filter(Boolean).slice(0, 5);

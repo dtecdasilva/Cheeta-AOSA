@@ -37,8 +37,12 @@ export interface TuitionReview {
 
 export interface TuitionPayment {
   id: string;
-  /** payment-method-types parameter id */
+  /** payment-method-types parameter id (sample data), or the institution payment method's type. */
   methodId: string;
+  /** The institution payment method's name, from the API. */
+  methodLabel?: string;
+  /** Opens the receipt (signed-in, checked on every request). */
+  receiptUrl?: string | null;
   reference: string;
   amount: number;
   paidOn: string;
@@ -142,8 +146,9 @@ export function figures(a: TuitionAccount, today = mockAnchor().toISOString().sl
   const awaiting = waiting.reduce((s, p) => s + p.amount, 0);
   const outstanding = Math.max(0, a.tuitionAmount - verified);
 
+  // Tuition status counts verified money only: a payment the student has merely recorded never makes tuition "paid".
   const paymentStatus: PaymentStatus =
-    recorded === 0 ? "NOT_PAID" : recorded < a.tuitionAmount ? "PART_PAID" : recorded === a.tuitionAmount ? "PAID" : "OVERPAID";
+    verified === 0 ? "NOT_PAID" : verified < a.tuitionAmount ? "PART_PAID" : verified === a.tuitionAmount ? "PAID" : "OVERPAID";
 
   let verificationStatus: VerificationStatus;
   if (a.payments.length === 0) verificationStatus = "NO_PAYMENTS";

@@ -4,15 +4,17 @@ import { resolveInstitutionId } from "@/lib/auth/institution";
 import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { ScopedDocumentViewer } from "@/components/documents/ScopedDocumentCentre";
 import { isDocType } from "@/lib/documents/types";
+import { getT } from "@/lib/i18n/server";
 
 export default async function DocumentPage({ params }: { params: Promise<{ id: string; type: string }> }) {
+  const tr = await getT();
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   const { id, type } = await params;
   if (!isDocType(type)) notFound();
   const accountId = decodeURIComponent(id);
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <ScopedDocumentViewer accountId={accountId} type={type} audience="institution" backHref={`/institution/documents/${accountId}`} backLabel="All documents for this student" institutionId={resolveInstitutionId(user)} />
+      <ScopedDocumentViewer accountId={accountId} type={type} audience="institution" backHref={`/institution/documents/${accountId}`} backLabel={tr("All documents for this student")} institutionId={resolveInstitutionId(user)} />
     </main>
   );
 }

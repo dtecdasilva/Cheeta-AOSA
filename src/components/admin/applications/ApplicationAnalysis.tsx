@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminDataNotice } from "@/components/admin/AdminDataNotice";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
@@ -34,6 +35,7 @@ import {
   type StatusGroup,
 } from "@/lib/admin/status";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 const GROUPS: StatusGroup[] = ["draft", "awaiting", "acknowledged", "accepted", "rejected", "declined"];
 
@@ -82,6 +84,7 @@ function useScopedApplications() {
 // ---------------------------------------------------------------------------
 
 export function ApplicationSummary() {
+  const tr = useT();
   const { data, apps, active, clear, controls } = useScopedApplications();
 
   const byInstitution = useMemo(() => {
@@ -117,37 +120,38 @@ export function ApplicationSummary() {
   return (
     <>
       <SubNav items={STUDENT_NAV} current="/admin/applications/summary" />
-      <PageHeading title="Application summary" description="Applications by where they stand, per institution and program." />
+      <AdminDataNotice />
+      <PageHeading title={tr("Application summary")} description={tr("Applications by where they stand, per institution and program.")} />
       <FilterBar active={active} onClear={clear}>
-        {controls}
+        {tr(controls)}
       </FilterBar>
 
       <StatStrip
         columns={5}
         stats={[
-          { label: "Applications", value: apps.length },
+          { label: tr("Applications"), value: apps.length },
           { label: STATUS_GROUP_LABELS.awaiting, value: totals.awaiting + totals.acknowledged },
-          { label: "Accepted", value: totals.accepted },
-          { label: "Rejected", value: totals.rejected },
-          { label: "Fees received", value: formatCurrency(totalPaid) },
+          { label: tr("Accepted"), value: totals.accepted },
+          { label: tr("Rejected"), value: totals.rejected },
+          { label: tr("Fees received"), value: formatCurrency(totalPaid) },
         ]}
       />
 
-      <h2 className="mb-3 mt-8 font-semibold tracking-tight text-xl text-[var(--color-ink)]">By institution</h2>
+      <h2 className="mb-3 mt-8 font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("By institution")}</h2>
       {byInstitution.length === 0 ? (
-        <EmptyState message="No applications match these filters." />
+        <EmptyState message={tr("No applications match these filters.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Institution</Th>
+              <Th>{tr("Institution")}</Th>
               {GROUPS.map((g) => (
                 <Th key={g} className="text-right">
-                  {STATUS_GROUP_LABELS[g]}
+                  {tr(STATUS_GROUP_LABELS[g])}
                 </Th>
               ))}
-              <Th className="text-right">Total</Th>
-              <Th className="text-right">Fees received</Th>
+              <Th className="text-right">{tr("Total")}</Th>
+              <Th className="text-right">{tr("Fees received")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -168,7 +172,7 @@ export function ApplicationSummary() {
               </tr>
             ))}
             <tr className="bg-[var(--color-paper)]">
-              <Td className="font-medium">All institutions</Td>
+              <Td className="font-medium">{tr("All institutions")}</Td>
               {GROUPS.map((g) => (
                 <Td key={g} className="text-right font-medium tabular-nums">
                   {totals[g]}
@@ -183,28 +187,28 @@ export function ApplicationSummary() {
 
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         <Card padded={false}>
-          <CardHeader title="By status" />
+          <CardHeader title={tr("By status")} />
           <div className="px-5 py-3">
             {byStatus.map(({ s, n }) => (
-              <BarRow key={s} label={ADMIN_STATUS_LABELS[s]} value={n} max={maxStatus} tone={s === "INCOMPLETE" ? "neutral" : undefined} href={`/admin/applications?status=${s}`} />
+              <BarRow key={s} label={tr(ADMIN_STATUS_LABELS[s])} value={n} max={maxStatus} tone={s === "INCOMPLETE" ? "neutral" : undefined} href={`/admin/applications?status=${s}`} />
             ))}
           </div>
         </Card>
         <Card padded={false}>
-          <CardHeader title="Most applied-to programs" />
+          <CardHeader title={tr("Most applied-to programs")} />
           <table className="w-full text-sm">
             <thead>
               <tr>
-                <Th>Program</Th>
-                <Th className="text-right">Applications</Th>
-                <Th className="text-right">Accepted</Th>
+                <Th>{tr("Program")}</Th>
+                <Th className="text-right">{tr("Applications")}</Th>
+                <Th className="text-right">{tr("Accepted")}</Th>
               </tr>
             </thead>
             <tbody>
               {byProgram.map((r) => (
                 <tr key={`${r.institutionId}-${r.program}`}>
                   <Td>
-                    <p className="text-[var(--color-ink)]">{r.program}</p>
+                    <p className="text-[var(--color-ink)]">{tr(r.program)}</p>
                     <p className="text-xs text-[var(--color-ink-faint)]">{data.institutionName(r.institutionId)}</p>
                   </Td>
                   <Td className="text-right tabular-nums">{r.total}</Td>
@@ -245,6 +249,7 @@ const WAITS: { label: string; from: string; to: string[] }[] = [
 ];
 
 export function ApplicationProgression() {
+  const tr = useT();
   const { data, apps, active, clear, controls } = useScopedApplications();
   const [search, setSearch] = useState("");
   const [atStage, setAtStage] = useState("");
@@ -269,7 +274,7 @@ export function ApplicationProgression() {
   return (
     <>
       <SubNav items={STUDENT_NAV} current="/admin/applications/progression" />
-      <PageHeading title="Application progression" description="How applications move from start to decision, and where each one is now." />
+      <PageHeading title={tr("Application progression")} description={tr("How applications move from start to decision, and where each one is now.")} />
       <FilterBar
         active={active || !!search || !!atStage}
         onClear={() => {
@@ -278,12 +283,12 @@ export function ApplicationProgression() {
           setAtStage("");
         }}
       >
-        {controls}
+        {tr(controls)}
       </FilterBar>
 
       <div className="grid gap-6 xl:grid-cols-5">
         <Card padded={false} className="xl:col-span-3">
-          <CardHeader title="Stages reached" description="Of the applications in scope, how many got at least this far. Select a stage to list the applications that stopped there." />
+          <CardHeader title={tr("Stages reached")} description={tr("Of the applications in scope, how many got at least this far. Select a stage to list the applications that stopped there.")} />
           <div className="px-5 py-3">
             {funnel.map((s, i) => {
               const prev = i ? funnel[i - 1].count : 0;
@@ -297,11 +302,11 @@ export function ApplicationProgression() {
                   className={`block w-full text-left ${atStage === s.key ? "bg-[var(--color-paper)] outline outline-1 outline-[var(--color-line-strong)]" : ""}`}
                 >
                   <BarRow
-                    label={s.label}
+                    label={tr(s.label)}
                     value={s.count}
                     max={funnel[0].count}
                     tone="ink"
-                    detail={`${i ? `${prev ? Math.round((s.count / prev) * 100) : 0}% of previous, ` : ""}${stoppedHere} stopped here`}
+                    detail={`${i ? tr("{value}% of previous, ", { value: prev ? Math.round((s.count / prev) * 100) : 0 }) : ""}${stoppedHere} stopped here`}
                   />
                 </button>
               );
@@ -310,13 +315,13 @@ export function ApplicationProgression() {
         </Card>
 
         <Card padded={false} className="xl:col-span-2">
-          <CardHeader title="Typical time between steps" description="Median, in days." />
+          <CardHeader title={tr("Typical time between steps")} description={tr("Median, in days.")} />
           <dl className="divide-y divide-[var(--color-line)]">
             {waits.map((w) => (
               <div key={w.label} className="flex items-baseline justify-between gap-4 px-5 py-3.5">
                 <dt className="text-sm text-[var(--color-ink-soft)]">
-                  {w.label}
-                  <span className="block text-xs text-[var(--color-ink-faint)]">from {w.n} applications</span>
+                  {tr(w.label)}
+                  <span className="block text-xs text-[var(--color-ink-faint)]">{tr("from {n} applications", { n: w.n })}</span>
                 </dt>
                 <dd className="font-bold tracking-tight text-2xl tabular-nums text-[var(--color-ink)]">{w.median === null ? "—" : w.median.toFixed(1)}</dd>
               </div>
@@ -328,21 +333,21 @@ export function ApplicationProgression() {
       <div className="mt-8 grid gap-6 xl:grid-cols-5">
         <div className={selected ? "xl:col-span-3" : "xl:col-span-5"}>
           <div className="mb-3 grid gap-3 sm:grid-cols-2">
-            <SearchField value={search} onChange={setSearch} placeholder="Reference, student, institution" wide={false} />
-            <FilterSelect label="Stopped at" value={atStage} onChange={setAtStage} options={STAGES.map((s) => ({ value: s.key, label: s.label }))} allLabel="Any stage" />
+            <SearchField value={search} onChange={setSearch} placeholder={tr("Reference, student, institution")} wide={false} />
+            <FilterSelect label={tr("Stopped at")} value={atStage} onChange={setAtStage} options={STAGES.map((s) => ({ value: s.key, label: s.label }))} allLabel={tr("Any stage")} />
           </div>
-          <ResultCount shown={list.length} total={apps.length} noun="applications" />
+          <ResultCount shown={list.length} total={apps.length} noun={tr("applications")} />
           {list.length === 0 ? (
-            <EmptyState message="No applications match." />
+            <EmptyState message={tr("No applications match.")} />
           ) : (
             <>
               <TableFrame>
                 <thead>
                   <tr>
-                    <Th>Application</Th>
-                    <Th>Progress</Th>
-                    <Th>Now at</Th>
-                    <Th>Updated</Th>
+                    <Th>{tr("Application")}</Th>
+                    <Th>{tr("Progress")}</Th>
+                    <Th>{tr("Now at")}</Th>
+                    <Th>{tr("Updated")}</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -360,7 +365,7 @@ export function ApplicationProgression() {
                         <StageTrack app={a} compact />
                       </Td>
                       <Td>
-                        <p className="text-[var(--color-ink)]">{stageLabel(furthestStage(a))}</p>
+                        <p className="text-[var(--color-ink)]">{tr(stageLabel(furthestStage(a)))}</p>
                         <div className="mt-1">
                           <AdminStatusBadge status={a.status} />
                         </div>
@@ -382,10 +387,10 @@ export function ApplicationProgression() {
                 <div className="min-w-0">
                   <p className="font-semibold text-base text-[var(--color-ink)]">{data.studentLabel(selected.studentId)}</p>
                   <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                    {selected.reference}, {data.institutionName(selected.institutionId)}, {selected.programName}
+                    {selected.reference}, {data.institutionName(selected.institutionId)}, {tr(selected.programName)}
                   </p>
                 </div>
-                <button type="button" onClick={() => setSelectedId(null)} aria-label="Close progression" className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
+                <button type="button" onClick={() => setSelectedId(null)} aria-label={tr("Close progression")} className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
                   <X className="h-4 w-4" strokeWidth={2} />
                 </button>
               </div>
@@ -394,7 +399,7 @@ export function ApplicationProgression() {
               </div>
               <div className="border-t border-[var(--color-line)] px-5 py-3 text-right">
                 <Link href={`/admin/applications/${selected.id}`} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                  Open application
+                  {tr("Open application")}
                 </Link>
               </div>
             </Card>

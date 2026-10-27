@@ -40,11 +40,15 @@ export type DocBlock =
 
 export interface DocModel {
   type: DocType;
+  /** The language it is written in, for the PDF's own words (page numbers, dates). English when absent. */
+  lang?: "en" | "fr";
   title: string;
   number: string;
   issuedAt: string;
   issuer: { name: string; lines: string[] };
   recipient?: { name: string; lines: string[] };
+  /** The applicant's photo, on the completed application. Opened with the viewer's own session. */
+  photo?: { fileId: string; url: string } | null;
   blocks: DocBlock[];
   footnote: string;
 }

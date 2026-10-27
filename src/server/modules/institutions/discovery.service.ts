@@ -1,4 +1,5 @@
 import "server-only";
+import { stateOf } from "./applicationWindow.service";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import type { DocumentRequirement, FacultyOrSchool, InstitutionDetails, InstitutionListing } from "@/lib/institutionDiscovery/data";
 import { getDb, type Executor } from "@/server/db/client";
@@ -35,6 +36,7 @@ async function listing(db: Executor, row: InstitutionRow, labels: Awaited<Return
   const fee = await assessFee(db, { id: row.id, webFee: row.webFee });
   const type = labels.get(row.typeId);
   return {
+    applications: stateOf(row),
     id: row.id,
     name: row.name,
     type: type?.label ?? "",

@@ -4,8 +4,10 @@ import type { Department, Faculty } from "@/lib/institution/types";
 import { departmentResource, facultyResource } from "@/server/modules/institutions/institutions.resources";
 import { findOwn } from "@/server/modules/institutions/portal";
 import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
+import { getT } from "@/lib/i18n/server";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const tr = await getT();
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   const { id } = await params;
   // Confined to the caller's own institution: another institution's id is "not found".
@@ -14,11 +16,11 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title="Department" />
+      <PageHeading title={tr("Department")} />
       {record ? (
         <DepartmentView department={record} facultyName={faculty?.name} canEdit={user.role === "INSTITUTION_ADMIN"} />
       ) : (
-        <EmptyState message="This department doesn't exist, or belongs to another institution." />
+        <EmptyState message={tr("This department doesn't exist, or belongs to another institution.")} />
       )}
     </main>
   );

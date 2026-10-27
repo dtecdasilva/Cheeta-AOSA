@@ -12,7 +12,7 @@ import { clearUserPermissions } from "@/server/auth/access";
 import { ConflictError, NotFoundError, ValidationError } from "@/server/http/errors";
 import { requiredText } from "@/server/http/validate";
 import type { ResourceDef } from "@/server/modules/resource";
-import { sendLoginCredentials, recordPasswordResetSent } from "@/server/notifications/delivery";
+import { resetUrlFor, sendLoginCredentials, sendPasswordReset as sendResetEmail } from "@/server/notifications/delivery";
 import { env } from "@/server/config/env";
 
 /**
@@ -153,14 +153,14 @@ export async function updateAccount(id: string, input: unknown, actorId: string)
   });
 }
 
-/** Issues a reset link for an account. Returned outside production because no email provider is connected. */
+/** Emails the account a reset link. The link is also returned outside production, for testing. */
 export async function sendPasswordReset(id: string) {
   const [user] = await getDb().select().from(users).where(eq(users.id, id)).limit(1);
   if (!user) throw new NotFoundError("Account");
   if (user.status !== "ACTIVE") throw new ValidationError({ status: "Activate the account before resetting its password." });
   const token = await createResetToken(user.id, user.sessionVersion);
-  const resetUrl = `${env.APP_URL}/reset-password?token=${encodeURIComponent(token)}`;
-  await recordPasswordResetSent(user.id, user.email);
+  const resetUrl = resetUrlFor(token);
+  await sendResetEmail(user, token);
   await audit(getDb(), { action: "password_reset_requested", entityType: "account", entityId: id, institutionId: user.institutionId });
   return { ok: true, ...(env.NODE_ENV !== "production" ? { devResetUrl: resetUrl } : {}) };
 }

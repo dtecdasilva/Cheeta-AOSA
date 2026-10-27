@@ -10,6 +10,7 @@ import { ADMIN_STATUS_LABELS, ALL_STATUSES } from "@/lib/admin/status";
 import { useInstitutionApplications, type ApplicationFilters, type PaymentCheck } from "@/lib/institution/applications";
 import type { ApplicationStatus } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 const PAYMENT_CHECK: Record<PaymentCheck, { label: string; tone: "neutral" | "success" | "danger" }> = {
   PENDING: { label: "Payment to verify", tone: "neutral" },
@@ -26,8 +27,9 @@ const EMPTY: ApplicationFilters = { status: "", q: "", reference: "", from: "", 
  * can't find them either. `fixedStatus` pins the list to one status (the
  * Acknowledged and Rejected pages).
  */
-export default function ApplicationsTable({ fixedStatus }: { fixedStatus?: ApplicationStatus }) {
-  const [form, setForm] = useState<ApplicationFilters>({ ...EMPTY, status: fixedStatus ?? "" });
+export default function ApplicationsTable({ fixedStatus, initialStatus }: { fixedStatus?: ApplicationStatus; initialStatus?: string }) {
+  const tr = useT();
+  const [form, setForm] = useState<ApplicationFilters>({ ...EMPTY, status: fixedStatus ?? (initialStatus && (ALL_STATUSES as string[]).includes(initialStatus) ? initialStatus : "") });
   const [filters, setFilters] = useState<ApplicationFilters>(form);
   const [page, setPage] = useState(1);
   const { rows, counts, total, pages, error } = useInstitutionApplications(filters, page);
@@ -48,24 +50,24 @@ export default function ApplicationsTable({ fixedStatus }: { fixedStatus?: Appli
     <div className="space-y-4">
       <Card>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Field label="Applicant name or email">
-            <TextInput value={form.q} onChange={(e) => set("q", e.target.value)} placeholder="Search applicants" />
+          <Field label={tr("Applicant name or email")}>
+            <TextInput value={form.q} onChange={(e) => set("q", e.target.value)} placeholder={tr("Search applicants")} />
           </Field>
-          <Field label="Application ID or reference">
-            <TextInput value={form.reference} onChange={(e) => set("reference", e.target.value)} placeholder="AOSA-2026-000123" />
+          <Field label={tr("Application ID or reference")}>
+            <TextInput value={form.reference} onChange={(e) => set("reference", e.target.value)} placeholder={tr("AOSA-2026-000123")} />
           </Field>
-          <Field label="Submitted from">
+          <Field label={tr("Submitted from")}>
             <TextInput type="date" value={form.from} onChange={(e) => set("from", e.target.value)} />
           </Field>
-          <Field label="Submitted to">
+          <Field label={tr("Submitted to")}>
             <TextInput type="date" value={form.to} onChange={(e) => set("to", e.target.value)} />
           </Field>
-          <Field label="Status">
+          <Field label={tr("Status")}>
             <SelectInput value={form.status} onChange={(e) => set("status", e.target.value)} disabled={!!fixedStatus}>
-              <option value="">All statuses</option>
+              <option value="">{tr("All statuses")}</option>
               {ALL_STATUSES.map((s) => (
                 <option key={s} value={s}>
-                  {ADMIN_STATUS_LABELS[s]} ({counts[s] ?? 0})
+                  {tr(ADMIN_STATUS_LABELS[s])} ({counts[s] ?? 0})
                 </option>
               ))}
             </SelectInput>
@@ -73,28 +75,28 @@ export default function ApplicationsTable({ fixedStatus }: { fixedStatus?: Appli
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-xs text-[var(--color-ink-soft)]" aria-live="polite">
-            Showing {rows?.length ?? 0} of {total}
-            {total !== all ? ` (${all} in all)` : ""} application{total === 1 ? "" : "s"}
+            {tr("Showing")}{" "}{rows?.length ?? 0}{" "}{tr("of {total}", { total })}
+            {total !== all ? tr(" ({all} in all)", { all }) : ""} application{total === 1 ? "" : "s"}
           </p>
           <SecondaryButton
             onClick={() => {
               setForm({ ...EMPTY, status: fixedStatus ?? "" });
             }}
           >
-            Reset filters
+            {tr("Reset filters")}
           </SecondaryButton>
         </div>
       </Card>
 
-      {error && <FormError>{error}</FormError>}
+      {error && <FormError>{tr(error)}</FormError>}
       <TableFrame>
         <thead>
           <tr>
-            <Th className="w-44">Application</Th>
-            <Th>Applicant</Th>
-            <Th className="w-28">Submitted</Th>
-            <Th className="w-52">Status</Th>
-            <Th>Review</Th>
+            <Th className="w-44">{tr("Application")}</Th>
+            <Th>{tr("Applicant")}</Th>
+            <Th className="w-28">{tr("Submitted")}</Th>
+            <Th className="w-52">{tr("Status")}</Th>
+            <Th>{tr("Review")}</Th>
             <Th className="w-20" />
           </tr>
         </thead>
@@ -102,13 +104,13 @@ export default function ApplicationsTable({ fixedStatus }: { fixedStatus?: Appli
           {!rows ? (
             <tr>
               <Td colSpan={6} className="py-10 text-center text-sm text-[var(--color-ink-soft)]">
-                {error ? "" : "Loading applications…"}
+                {error ? "" : tr("Loading applications…")}
               </Td>
             </tr>
           ) : rows.length === 0 ? (
             <tr>
               <Td colSpan={6} className="py-10 text-center text-sm text-[var(--color-ink-soft)]">
-                {all === 0 ? "No applications yet." : "No applications match these filters."}
+                {all === 0 ? tr("No applications yet.") : tr("No applications match these filters.")}
               </Td>
             </tr>
           ) : (
@@ -119,11 +121,11 @@ export default function ApplicationsTable({ fixedStatus }: { fixedStatus?: Appli
                   <Td>
                     <span className="inline-flex items-center gap-2 text-[var(--color-ink)]">
                       <Lock className="h-3.5 w-3.5 text-[var(--color-ink-faint)]" strokeWidth={1.75} aria-hidden />
-                      {a.applicant}
+                      {tr(a.applicant)}
                     </span>
                   </Td>
                   <Td colSpan={4}>
-                    <ToneBadge tone="info">Awaiting payment</ToneBadge>
+                    <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
                   </Td>
                 </tr>
               ) : (
@@ -133,8 +135,8 @@ export default function ApplicationsTable({ fixedStatus }: { fixedStatus?: Appli
                     {a.applicationNumber && <p className="text-xs text-[var(--color-ink-faint)]">{a.reference}</p>}
                   </Td>
                   <Td>
-                    <p className="text-[var(--color-ink)]">{a.applicant}</p>
-                    <p className="text-xs text-[var(--color-ink-soft)]">{a.programName ?? "No program chosen"}</p>
+                    <p className="text-[var(--color-ink)]">{tr(a.applicant)}</p>
+                    <p className="text-xs text-[var(--color-ink-soft)]">{a.programName ?? tr("No program chosen")}</p>
                   </Td>
                   <Td className="text-[var(--color-ink-soft)]">{a.submittedAt ? formatDate(a.submittedAt) : "—"}</Td>
                   <Td>
@@ -143,21 +145,21 @@ export default function ApplicationsTable({ fixedStatus }: { fixedStatus?: Appli
                   <Td>
                     {a.documents ? (
                       <div className="space-y-1">
-                        <ToneBadge tone={PAYMENT_CHECK[a.paymentVerification].tone}>{PAYMENT_CHECK[a.paymentVerification].label}</ToneBadge>
+                        <ToneBadge tone={PAYMENT_CHECK[a.paymentVerification].tone}>{tr(PAYMENT_CHECK[a.paymentVerification].label)}</ToneBadge>
                         <p className="text-xs text-[var(--color-ink-soft)]">
-                          Documents: {a.documents.approved} approved
-                          {a.documents.pending ? `, ${a.documents.pending} to review` : ""}
-                          {a.documents.rejected ? `, ${a.documents.rejected} rejected` : ""}
+                          {tr("Documents: {approved} approved", { approved: a.documents.approved })}
+                          {a.documents.pending ? tr(", {pending} to review", { pending: a.documents.pending }) : ""}
+                          {a.documents.rejected ? tr(", {rejected} rejected", { rejected: a.documents.rejected }) : ""}
                         </p>
                       </div>
                     ) : (
-                      <span className="text-xs text-[var(--color-ink-soft)]">Not submitted yet</span>
+                      <span className="text-xs text-[var(--color-ink-soft)]">{tr("Not submitted yet")}</span>
                     )}
                   </Td>
                   <Td className="text-right">
                     <Link href={`/institution/applications/${a.id}`} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                      {a.documents ? "Review" : "View"}
-                      <span className="sr-only"> {a.applicant}</span>
+                      {a.documents ? tr("Review") : tr("View")}
+                      <span className="sr-only"> {tr(a.applicant)}</span>
                     </Link>
                   </Td>
                 </tr>

@@ -1,89 +1,65 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { Lock } from "lucide-react";
 import { EmptyState, TableFrame, Td, Th } from "@/components/ui";
-import { FilterBar, FilterSelect, Pager, ResultCount, SearchField, ToneBadge, usePaged } from "@/components/admin/ui";
-import { institutionTuitionView, tuitionStore } from "@/lib/tuition/data";
-import { matriculationStore } from "@/lib/matriculation/data";
-import { institutionStore } from "@/lib/admin/institutions";
+import { FilterBar, FilterSelect, Pager, ResultCount, SearchField, usePaged } from "@/components/admin/ui";
+import { useDocumentSubjects } from "@/lib/documents/api";
 import { matchesSearch } from "@/lib/admin/filters";
+import { useT } from "@/lib/i18n/client";
 
-/** Choose an admitted student to open their documents. */
+/**
+ * The applications whose documents the signed-in staff member may open,
+ * from /api/documents: an institution's submitted applications with an
+ * approved fee; every one for Cheeta administration.
+ */
 export function DocumentPicker({ basePath, institutionId }: { basePath: string; institutionId?: string }) {
-  const accounts = tuitionStore.useItems();
-  const matric = matriculationStore.useItems();
-  const institutions = institutionStore.useItems();
-  const instName = useMemo(() => new Map(institutions.map((i) => [i.id, i.name])), [institutions]);
-  const matriculated = useMemo(() => new Set(matric.map((m) => m.id)), [matric]);
+  const tr = useT();
+  const { data, error, loading } = useDocumentSubjects();
   const [search, setSearch] = useState("");
   const [inst, setInst] = useState("");
-
-  const rows = useMemo(
-    () =>
-      accounts
-        .filter((a) => !institutionId || a.institutionId === institutionId)
-        .map((a) => ({ a, masked: !!institutionId && institutionTuitionView(a).masked }))
-        .sort((x, y) => Number(x.masked) - Number(y.masked) || x.a.studentName.localeCompare(y.a.studentName)),
-    [accounts, institutionId]
-  );
-  const filtered = rows.filter(
-    ({ a, masked }) =>
-      (!inst || a.institutionId === inst) &&
-      (masked ? !inst && matchesSearch(search, [institutionTuitionView(a).displayName]) : matchesSearch(search, [a.studentName, a.registrationNo, a.applicationRef, a.programName]))
-  );
+  const rows = data ?? [];
+  const filtered = rows.filter((r) => (!inst || r.institutionId === inst) && matchesSearch(search, [r.studentName, r.registrationNo, r.applicationId, r.programName]));
   const { slice, page, pages, setPage } = usePaged(filtered, 25);
+  const institutions = [...new Map(rows.map((r) => [r.institutionId, r.institutionName])).entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
 
+  if (loading) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
+  if (error) return <EmptyState message={tr(error)} />;
   return (
     <>
       <FilterBar active={!!(search || inst)} onClear={() => { setSearch(""); setInst(""); }}>
-        <SearchField value={search} onChange={setSearch} placeholder="Student, registration no. or application" />
-        {!institutionId && (
-          <FilterSelect label="Institution" value={inst} onChange={setInst} options={[...new Set(accounts.map((a) => a.institutionId))].map((id) => ({ value: id, label: instName.get(id) ?? id })).sort((a, b) => a.label.localeCompare(b.label))} />
-        )}
+        <SearchField value={search} onChange={setSearch} placeholder={tr("Student, registration no. or Application ID")} />
+        {!institutionId && <FilterSelect label={tr("Institution")} value={inst} onChange={setInst} options={institutions} />}
       </FilterBar>
-      <ResultCount shown={filtered.length} total={rows.length} noun="admitted students" />
+      <ResultCount shown={filtered.length} total={rows.length} noun={tr("applications")} />
       {filtered.length === 0 ? (
-        <EmptyState message="No students match." />
+        <EmptyState message={tr("No applications match.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Student</Th>
-              {!institutionId && <Th>Institution</Th>}
-              <Th>Program</Th>
-              <Th>Documents</Th>
+              <Th>{tr("Student")}</Th>
+              <Th>{tr("Application ID")}</Th>
+              {!institutionId && <Th>{tr("Institution")}</Th>}
+              <Th>{tr("Program")}</Th>
+              <Th>{tr("Status")}</Th>
             </tr>
           </thead>
           <tbody>
-            {slice.map(({ a, masked }) =>
-              masked ? (
-                <tr key={a.id}>
-                  <Td>
-                    <span className="inline-flex items-center gap-2 text-[var(--color-ink)]">
-                      <Lock className="h-3.5 w-3.5 text-[var(--color-ink-faint)]" strokeWidth={1.75} aria-hidden />
-                      {institutionTuitionView(a).displayName}
-                    </span>
-                  </Td>
-                  <Td colSpan={2}>
-                    <ToneBadge tone="info">Awaiting payment</ToneBadge>
-                  </Td>
-                </tr>
-              ) : (
-                <tr key={a.id}>
-                  <Td>
-                    <Link href={`${basePath}/${a.id}`} className="text-[var(--color-ink)] underline-offset-4 hover:underline">
-                      {a.studentName}
-                    </Link>
-                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{a.registrationNo}</p>
-                  </Td>
-                  {!institutionId && <Td>{instName.get(a.institutionId) ?? a.institutionId}</Td>}
-                  <Td>{a.programName}</Td>
-                  <Td className="text-[var(--color-ink-soft)]">{matriculated.has(a.id) ? "All six" : "Five of six (not matriculated)"}</Td>
-                </tr>
-              )
-            )}
+            {slice.map((r) => (
+              <tr key={r.id}>
+                <Td>
+                  <Link href={`${basePath}/${r.id}`} className="text-[var(--color-ink)] underline-offset-4 hover:underline">
+                    {tr(r.studentName)}
+                  </Link>
+                  {r.registrationNo && <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(r.registrationNo)}</p>}
+                </Td>
+                <Td className="text-[var(--color-ink-soft)]">{r.applicationId}</Td>
+                {!institutionId && <Td>{r.institutionName}</Td>}
+                <Td>{r.programName}</Td>
+                <Td className="text-[var(--color-ink-soft)]">{r.statusLabel}</Td>
+              </tr>
+            ))}
           </tbody>
         </TableFrame>
       )}

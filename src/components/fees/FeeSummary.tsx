@@ -11,6 +11,7 @@ import type { FeeLine } from "@/lib/fees/types";
 import { useMoneyFormat } from "@/lib/currency/useCurrencies";
 import { formatDate } from "@/lib/utils";
 import { buttonClass } from "@/lib/ui/button";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * What each of the applicant's applications costs, from /api/student/fees.
@@ -23,9 +24,10 @@ import { buttonClass } from "@/lib/ui/button";
  * chosen currency are now.
  */
 export function FeeSummary() {
+  const tr = useT();
   const { fees, error, saving, setCurrency } = useMyFees();
 
-  if (!fees) return error ? <FormError>{error}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">Loading your fees…</p>;
+  if (!fees) return error ? <FormError>{tr(error)}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading your fees…")}</p>;
 
   const { baseCurrency: base, displayCurrency: shown, applications, totals } = fees;
   const converting = shown !== base;
@@ -34,25 +36,25 @@ export function FeeSummary() {
     <div className="max-w-4xl space-y-6">
       <Card>
         <div className="max-w-xs">
-          <CurrencySelector label="Show fees in" value={shown} onChange={setCurrency} disabled={saving} />
+          <CurrencySelector label={tr("Show fees in")} value={shown} onChange={setCurrency} disabled={saving} />
         </div>
         {converting && <ExchangeRateInfo className="mt-3" baseCode={base} code={shown} basePerUnit={fees.rate?.basePerUnit} source={fees.rate?.source} effectiveFrom={fees.rate?.effectiveFrom} unavailable={fees.conversionUnavailable} />}
         <p className="mt-3 text-xs text-[var(--color-ink-faint)]">
-          What you owe is always the {base} amount. {converting ? `The ${shown} figures are for reference, at today's rate, and move with it until you pay.` : "Choose another currency to see what it comes to."}
+          {tr("What you owe is always the {base} amount.", { base })}{" "}{converting ? tr("The {shown} figures are for reference, at today's rate, and move with it until you pay.", { shown }) : tr("Choose another currency to see what it comes to.")}
         </p>
         {error && (
           <div className="mt-3">
-            <FormError>{error}</FormError>
+            <FormError>{tr(error)}</FormError>
           </div>
         )}
       </Card>
 
       {applications.length === 0 ? (
         <EmptyState
-          message="You haven't added an institution to your application yet. Its fees will appear here once you have."
+          message={tr("You haven't added an institution to your application yet. Its fees will appear here once you have.")}
           action={
             <Link href="/student/institutions/add" className={buttonClass("secondary")}>
-              Add an institution
+              {tr("Add an institution")}
             </Link>
           }
         />
@@ -60,11 +62,11 @@ export function FeeSummary() {
         <TableFrame>
           <thead>
             <tr>
-              <Th>Institution</Th>
-              <Th>Application fee</Th>
-              <Th>Web fee</Th>
-              <Th>Total</Th>
-              <Th>Payment</Th>
+              <Th>{tr("Institution")}</Th>
+              <Th>{tr("Application fee")}</Th>
+              <Th>{tr("Web fee")}</Th>
+              <Th>{tr("Total")}</Th>
+              <Th>{tr("Payment")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -74,14 +76,14 @@ export function FeeSummary() {
           </tbody>
           <tfoot>
             <tr>
-              <Td className="font-medium text-[var(--color-ink)]">Still to pay</Td>
+              <Td className="font-medium text-[var(--color-ink)]">{tr("Still to pay")}</Td>
               <Td colSpan={4}>
                 <ConvertedAmount amount={totals.outstanding.base} fromCode={base} toCode={shown} converted={totals.outstanding.display} className="text-lg font-semibold tracking-tight text-[var(--color-ink)]" />
               </Td>
             </tr>
             {(totals.awaiting.base > 0 || totals.paid.base > 0) && (
               <tr>
-                <Td className="text-[var(--color-ink-soft)]">Already recorded</Td>
+                <Td className="text-[var(--color-ink-soft)]">{tr("Already recorded")}</Td>
                 <Td colSpan={4} className="text-[var(--color-ink-soft)]">
                   <Recorded awaiting={totals.awaiting.base} paid={totals.paid.base} base={base} />
                 </Td>
@@ -95,12 +97,14 @@ export function FeeSummary() {
 }
 
 function Recorded({ awaiting, paid, base }: { awaiting: number; paid: number; base: string }) {
+  const tr = useT();
   const format = useMoneyFormat();
-  const parts = [paid > 0 ? `${format(paid, base)} paid` : "", awaiting > 0 ? `${format(awaiting, base)} awaiting approval` : ""].filter(Boolean);
+  const parts = [paid > 0 ? `${format(paid, base)} paid` : "", awaiting > 0 ? tr("{value} awaiting approval", { value: format(awaiting, base) }) : ""].filter(Boolean);
   return <>{parts.join(" · ")}</>;
 }
 
 function FeeRow({ line }: { line: FeeLine }) {
+  const tr = useT();
   const format = useMoneyFormat();
   const base = line.currency;
   const d = line.display;
@@ -121,7 +125,7 @@ function FeeRow({ line }: { line: FeeLine }) {
         )}
         {scheduled && (
           <div className="text-xs text-[var(--color-ink-faint)]">
-            Set as {format(line.fee.amount, line.fee.currency)}, at {line.fee.basePerUnit!.toLocaleString("en-US", { maximumFractionDigits: 6 })} {base} per {line.fee.currency}
+            {tr("Set as {value}, at", { value: format(line.fee.amount, line.fee.currency) })}{" "}{line.fee.basePerUnit!.toLocaleString("en-US", { maximumFractionDigits: 6 })} {tr("{base} per {currency}", { base, currency: line.fee.currency })}
           </div>
         )}
       </Td>
@@ -134,7 +138,7 @@ function FeeRow({ line }: { line: FeeLine }) {
         ) : (
           <ConvertedAmount stacked amount={line.total} fromCode={base} toCode={d?.currency} converted={d?.total} className="text-sm font-semibold" />
         )}
-        {line.locked && <div className="text-xs font-normal text-[var(--color-ink-faint)]">{d ? "At the rate when you recorded the payment" : "As recorded with your payment"}</div>}
+        {line.locked && <div className="text-xs font-normal text-[var(--color-ink-faint)]">{d ? tr("At the rate when you recorded the payment") : tr("As recorded with your payment")}</div>}
       </Td>
       <Td className="text-[var(--color-ink-soft)]">
         <PaymentState line={line} />
@@ -144,46 +148,47 @@ function FeeRow({ line }: { line: FeeLine }) {
 }
 
 function PaymentState({ line }: { line: FeeLine }) {
+  const tr = useT();
   const payLink = (label: string) => (
     <Link href="/student/fees/payment-options" className="mt-0.5 block text-xs underline underline-offset-4">
-      {label}
+      {tr(label)}
     </Link>
   );
   switch (line.state) {
     case "PAID":
       return (
         <>
-          <span className="font-medium text-[var(--color-success-strong)]">Paid</span>
-          {line.payment?.bankCode && <div className="font-mono text-xs text-[var(--color-ink-soft)]">Bank code {line.payment.bankCode}</div>}
+          <span className="font-medium text-[var(--color-success-strong)]">{tr("Paid")}</span>
+          {line.payment?.bankCode && <div className="font-mono text-xs text-[var(--color-ink-soft)]">{tr("Bank code {bankCode}", { bankCode: line.payment.bankCode })}</div>}
         </>
       );
     case "AWAITING":
       return (
         <>
-          <span className="font-medium text-[var(--color-info-strong)]">Awaiting approval</span>
-          {line.payment && <div className="text-xs text-[var(--color-ink-faint)]">Recorded {formatDate(line.payment.submittedAt)}</div>}
+          <span className="font-medium text-[var(--color-info-strong)]">{tr("Awaiting approval")}</span>
+          {line.payment && <div className="text-xs text-[var(--color-ink-faint)]">{tr("Recorded {value}", { value: formatDate(line.payment.submittedAt) })}</div>}
         </>
       );
     case "REJECTED":
       return (
         <>
-          <span className="font-medium text-[var(--color-danger)]">Payment rejected</span>
-          {line.payment?.rejectionReason && <div className="text-xs text-[var(--color-ink-soft)]">{line.payment.rejectionReason}</div>}
-          {payLink("Record it again")}
+          <span className="font-medium text-[var(--color-danger)]">{tr("Payment rejected")}</span>
+          {line.payment?.rejectionReason && <div className="text-xs text-[var(--color-ink-soft)]">{tr(line.payment.rejectionReason)}</div>}
+          {payLink(tr("Record it again"))}
         </>
       );
     case "UNPRICED":
       return (
         <>
-          <span className="font-medium text-[var(--color-warning-strong)]">Amount not available yet</span>
-          <div className="text-xs text-[var(--color-ink-soft)]">{line.reason}</div>
+          <span className="font-medium text-[var(--color-warning-strong)]">{tr("Amount not available yet")}</span>
+          <div className="text-xs text-[var(--color-ink-soft)]">{tr(line.reason)}</div>
         </>
       );
     default:
       return (
         <>
-          <span className="font-medium text-[var(--color-danger)]">Not paid</span>
-          {payLink("See how to pay")}
+          <span className="font-medium text-[var(--color-danger)]">{tr("Not paid")}</span>
+          {payLink(tr("See how to pay"))}
         </>
       );
   }

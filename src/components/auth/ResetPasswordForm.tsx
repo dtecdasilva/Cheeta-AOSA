@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Field, TextInput, PrimaryButton, FormError } from "@/components/Form";
+import { useT } from "@/lib/i18n/client";
 
 export function ResetPasswordForm() {
+  const tr = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
@@ -18,7 +20,7 @@ export function ResetPasswordForm() {
   if (!token) {
     return (
       <p className="rounded-lg border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] px-3 py-2.5 text-sm text-[var(--color-danger-strong)]">
-        This reset link is missing its token. Request a new one from the forgot-password page.
+        {tr("This reset link is missing its token. Request a new one from the forgot-password page.")}
       </p>
     );
   }
@@ -27,11 +29,11 @@ export function ResetPasswordForm() {
     e.preventDefault();
     setError(null);
     if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+      setError(tr("Password must be at least 8 characters."));
       return;
     }
     if (password !== confirm) {
-      setError("Passwords do not match.");
+      setError(tr("Passwords do not match."));
       return;
     }
     setLoading(true);
@@ -43,13 +45,13 @@ export function ResetPasswordForm() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? "Could not reset your password.");
+        setError(data.error ?? tr("Could not reset your password."));
         return;
       }
       setDone(true);
       setTimeout(() => router.push("/login"), 1800);
     } catch {
-      setError("Something went wrong. Check your connection and try again.");
+      setError(tr("Something went wrong. Check your connection and try again."));
     } finally {
       setLoading(false);
     }
@@ -58,14 +60,14 @@ export function ResetPasswordForm() {
   if (done) {
     return (
       <p className="rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2.5 text-sm text-[var(--color-success-strong)]">
-        Your password has been reset. Redirecting you to sign in…
+        {tr("Your password has been reset. Redirecting you to sign in…")}
       </p>
     );
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-      <Field label="New password" htmlFor="password" required hint="At least 8 characters.">
+      <Field label={tr("New password")} htmlFor="password" required hint={tr("At least 8 characters.")}>
         <TextInput
           id="password"
           type="password"
@@ -75,7 +77,7 @@ export function ResetPasswordForm() {
           required
         />
       </Field>
-      <Field label="Confirm new password" htmlFor="confirm" required>
+      <Field label={tr("Confirm new password")} htmlFor="confirm" required>
         <TextInput
           id="confirm"
           type="password"
@@ -86,10 +88,10 @@ export function ResetPasswordForm() {
         />
       </Field>
 
-      {error && <FormError>{error}</FormError>}
+      {error && <FormError>{tr(error)}</FormError>}
 
       <PrimaryButton type="submit" disabled={loading} className="w-full">
-        {loading ? "Resetting…" : "Reset password"}
+        {loading ? tr("Resetting…") : tr("Reset password")}
       </PrimaryButton>
     </form>
   );

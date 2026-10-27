@@ -1,4 +1,5 @@
 import { itemRoutes, ADMIN_ONLY } from "@/server/modules/resource";
-import { facultyResource } from "@/server/modules/institutions/institutions.resources";
+import { adminFacultyResource } from "@/server/modules/institutions/institutions.resources";
 
-export const { GET, PATCH } = itemRoutes(facultyResource, ADMIN_ONLY);
+/** One record; administration may only change its status. */
+export const { GET, PATCH } = itemRoutes(adminFacultyResource, ADMIN_ONLY);

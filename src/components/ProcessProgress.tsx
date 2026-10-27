@@ -1,6 +1,9 @@
+"use client";
+
 import Link from "next/link";
 import { Check } from "lucide-react";
 import { PROCESS_STEPS, ApplicantProcessProgress, statusForStep, ProcessStepStatus } from "@/lib/processFlow";
+import { useT } from "@/lib/i18n/client";
 
 const STATUS_STYLES: Record<ProcessStepStatus, { node: string; line: string; text: string }> = {
   complete: {
@@ -31,6 +34,7 @@ export function ProcessProgress({ progress, variant = "compact" }: ProcessProgre
 }
 
 function CompactProgress({ progress }: { progress: ApplicantProcessProgress }) {
+  const tr = useT();
   return (
     <ol className="flex items-start">
       {PROCESS_STEPS.map((step, i) => {
@@ -42,12 +46,12 @@ function CompactProgress({ progress }: { progress: ApplicantProcessProgress }) {
             <div className="flex flex-col items-center">
               <span
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-xs font-semibold ${styles.node}`}
-                title={step.title}
+                title={tr(step.title)}
               >
                 {status === "complete" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : step.order}
               </span>
               <span className={`mt-2 max-w-[6.5rem] text-center text-[11px] leading-tight ${styles.text}`}>
-                {step.shortTitle}
+                {tr(step.shortTitle)}
               </span>
             </div>
             {!isLast && <span className={`mx-2 mt-[15px] h-0.5 flex-1 rounded-full ${styles.line}`} />}
@@ -59,6 +63,7 @@ function CompactProgress({ progress }: { progress: ApplicantProcessProgress }) {
 }
 
 function DetailedProgress({ progress }: { progress: ApplicantProcessProgress }) {
+  const tr = useT();
   return (
     <ol className="space-y-0">
       {PROCESS_STEPS.map((step, i) => {
@@ -78,20 +83,20 @@ function DetailedProgress({ progress }: { progress: ApplicantProcessProgress }) 
             <div className={`min-w-0 flex-1 ${isLast ? "" : "pb-8"}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <p className={`text-base font-semibold ${styles.text}`}>
-                  Step {step.order}: {step.title}
+                  {tr("Step {order}: {title}", { order: step.order, title: tr(step.title) })}
                 </p>
                 {status === "current" && (
                   <span className="rounded-full bg-[var(--color-brand-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-brand-strong)]">
-                    In progress
+                    {tr("In progress")}
                   </span>
                 )}
                 {status === "complete" && (
                   <span className="rounded-full bg-[var(--color-success-soft)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-success-strong)]">
-                    Complete
+                    {tr("Complete")}
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{step.description}</p>
+              <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{tr(step.description)}</p>
               <ul className="mt-3 flex flex-wrap gap-2">
                 {step.subItems.map((sub) => (
                   <li key={sub.href}>
@@ -99,7 +104,7 @@ function DetailedProgress({ progress }: { progress: ApplicantProcessProgress }) 
                       href={sub.href}
                       className="inline-block rounded-full border border-[var(--color-line)] bg-[var(--color-surface)] px-3 py-1 text-xs text-[var(--color-ink-soft)] transition-colors hover:border-[var(--color-ink)] hover:text-[var(--color-ink)]"
                     >
-                      {sub.label}
+                      {tr(sub.label)}
                     </Link>
                   </li>
                 ))}

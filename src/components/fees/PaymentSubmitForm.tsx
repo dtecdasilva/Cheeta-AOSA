@@ -10,6 +10,7 @@ import { PAYMENT_KINDS } from "@/lib/fees/paymentKinds";
 import { PAYMENT_METHOD_CHANNEL, describePaymentMethod, type PaymentMethodType } from "@/lib/institution/paymentMethods";
 import { buttonClass } from "@/lib/ui/button";
 import { AmountDue, isPayable } from "./PaymentInstructions";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Records a payment the applicant has made outside the platform by one
@@ -22,6 +23,7 @@ import { AmountDue, isPayable } from "./PaymentInstructions";
  * the server's current ones.
  */
 export function PaymentSubmitForm({ type, application, account }: { type: PaymentMethodType; application?: string; account?: string }) {
+  const tr = useT();
   const kind = PAYMENT_KINDS.find((k) => k.type === type)!;
   const { fees, error: feesError, reload } = useMyFees();
   const methods = useMyPaymentMethods(type);
@@ -41,7 +43,7 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
 
   if (!fees || !methods.loaded) {
     const problem = feesError ?? methods.error;
-    return problem ? <FormError>{problem}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    return problem ? <FormError>{tr(problem)}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
   }
 
   const accountsOf = (id: string) => methods.institutions?.find((i) => i.applicationId === id)?.methods ?? [];
@@ -50,22 +52,22 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
     const line = fees.applications.find((l) => l.id === recorded);
     return (
       <Card className="max-w-2xl">
-        <p className="text-lg font-semibold tracking-tight text-[var(--color-ink)]">Payment recorded</p>
+        <p className="text-lg font-semibold tracking-tight text-[var(--color-ink)]">{tr("Payment recorded")}</p>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          Cheeta administration will check it against the institution&apos;s account, usually within 48 hours. You will be notified when it is approved.
+          {tr("Cheeta administration will check it against the institution's account, usually within 48 hours. You will be notified when it is approved.")}
         </p>
         {line && line.total !== null && (
           <p className="mt-3 text-sm text-[var(--color-ink)]">
-            {line.institution.name}: <ConvertedAmount amount={line.total} fromCode={line.currency} toCode={line.display?.currency} converted={line.display?.total} className="font-semibold" />
-            <span className="block text-xs text-[var(--color-ink-faint)]">This amount is now fixed for this payment. Later exchange rates will not change it.</span>
+            {tr(line.institution.name)}: <ConvertedAmount amount={line.total} fromCode={line.currency} toCode={line.display?.currency} converted={line.display?.total} className="font-semibold" />
+            <span className="block text-xs text-[var(--color-ink-faint)]">{tr("This amount is now fixed for this payment. Later exchange rates will not change it.")}</span>
           </p>
         )}
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href="/student/fees/summary" className={buttonClass("primary")}>
-            View fee summary
+            {tr("View fee summary")}
           </Link>
           <Link href="/student/fees/payment-options" className={buttonClass("secondary")}>
-            Pay another institution
+            {tr("Pay another institution")}
           </Link>
         </div>
       </Card>
@@ -83,10 +85,10 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
       <div className="max-w-2xl space-y-4">
         {asked && <AmountDue line={asked} />}
         <EmptyState
-          message={asked && isPayable(asked) ? `${asked.institution.name} doesn't take payment by ${kind.label.toLowerCase()}.` : asked ? "There is nothing to record for this application." : `None of your unpaid applications can be paid by ${kind.label.toLowerCase()}.`}
+          message={asked && isPayable(asked) ? tr("{name} doesn't take payment by {toLowerCase}.", { name: tr(asked.institution.name), toLowerCase: kind.label.toLowerCase() }) : asked ? tr("There is nothing to record for this application.") : tr("None of your unpaid applications can be paid by {toLowerCase}.", { toLowerCase: kind.label.toLowerCase() })}
           action={
             <Link href="/student/fees/payment-options" className={buttonClass("secondary")}>
-              See your payment options
+              {tr("See your payment options")}
             </Link>
           }
         />
@@ -103,10 +105,10 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const next: Record<string, string> = {};
-    if (!reference.trim()) next.reference = `Enter the ${referenceLabel.toLowerCase()}.`;
-    if (!paidAt) next.paidAt = "Enter the date you paid.";
-    else if (paidAt > today) next.paidAt = "The payment date can't be in the future.";
-    if (methods.requireReceipt && !receipt) next.receiptFileId = "Upload the receipt.";
+    if (!reference.trim()) next.reference = tr("Enter the {toLowerCase}.", { toLowerCase: referenceLabel.toLowerCase() });
+    if (!paidAt) next.paidAt = tr("Enter the date you paid.");
+    else if (paidAt > today) next.paidAt = tr("The payment date can't be in the future.");
+    if (methods.requireReceipt && !receipt) next.receiptFileId = tr("Upload the receipt.");
     setErrors(next);
     setFormError(null);
     if (Object.keys(next).length || sending) return;
@@ -118,7 +120,7 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
       setRecorded(line!.id);
     } else {
       setErrors(result.fieldErrors);
-      setFormError(Object.keys(result.fieldErrors).length ? "Fix the fields marked above to record the payment." : result.error);
+      setFormError(Object.keys(result.fieldErrors).length ? tr("Fix the fields marked above to record the payment.") : result.error);
     }
     setSending(false);
   }
@@ -126,7 +128,7 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
   return (
     <form onSubmit={submit} className="max-w-2xl space-y-5" noValidate>
       <Card className="space-y-4">
-        <Field label="Institution">
+        <Field label={tr("Institution")}>
           <SelectInput
             value={line.id}
             onChange={(e) => {
@@ -136,16 +138,16 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
           >
             {candidates.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.institution.name}
+                {tr(l.institution.name)}
               </option>
             ))}
           </SelectInput>
         </Field>
-        <Field label="Account you paid into" error={errors.paymentMethodId}>
+        <Field label={tr("Account you paid into")} error={errors.paymentMethodId}>
           <SelectInput value={chosenAccount.id} onChange={(e) => setAccountId(e.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>
-                {a.label} ({a.provider})
+                {tr(a.label)} ({tr(a.provider)})
               </option>
             ))}
           </SelectInput>
@@ -159,7 +161,7 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
 
       <Card className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={referenceLabel} required error={errors.reference} hint="Exactly as it appears on your receipt.">
+          <Field label={tr(referenceLabel)} required error={errors.reference} hint={tr("Exactly as it appears on your receipt.")}>
             <TextInput
               value={reference}
               onChange={(e) => {
@@ -169,7 +171,7 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
               maxLength={80}
             />
           </Field>
-          <Field label="Payment date" required error={errors.paidAt}>
+          <Field label={tr("Payment date")} required error={errors.paidAt}>
             <TextInput
               type="date"
               max={today}
@@ -181,10 +183,10 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
             />
           </Field>
         </div>
-        <Field label={kind.paidFromLabel} error={errors.paidFrom} hint={kind.paidFromHint}>
+        <Field label={tr(kind.paidFromLabel)} error={errors.paidFrom} hint={tr(kind.paidFromHint)}>
           <TextInput value={paidFrom} onChange={(e) => setPaidFrom(e.target.value)} maxLength={120} />
         </Field>
-        <Field label={kind.receiptLabel} required={methods.requireReceipt} error={errors.receiptFileId} hint="A PDF or a photo (JPG or PNG).">
+        <Field label={tr(kind.receiptLabel)} required={methods.requireReceipt} error={errors.receiptFileId} hint={tr("A PDF or a photo (JPG or PNG).")}>
           <input type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => {
               setReceipt(e.target.files?.[0] ?? null);
               clear("receiptFileId");
@@ -192,13 +194,13 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
         </Field>
       </Card>
 
-      {formError && <FormError>{formError}</FormError>}
+      {formError && <FormError>{tr(formError)}</FormError>}
       <div className="flex items-center gap-3">
         <PrimaryButton type="submit" disabled={sending}>
-          {sending ? "Recording…" : "Record payment"}
+          {sending ? tr("Recording…") : tr("Record payment")}
         </PrimaryButton>
         <Link href={`/student/fees/payment/${kind.slug}?application=${encodeURIComponent(line.id)}`} className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
-          Back to the account details
+          {tr("Back to the account details")}
         </Link>
       </div>
     </form>

@@ -1,14 +1,14 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, FileText, Lock, Printer } from "lucide-react";
 import { EmptyState } from "@/components/ui";
 import { ButtonLinkClass } from "@/components/Form";
-import { useHydrated } from "@/lib/admin/store";
 import { formatDate } from "@/lib/utils";
-import { DOC_TYPES, availability, buildDocument, docLabel, type Audience, type DocBlock, type DocModel, type DocType } from "@/lib/documents/data";
-import { useDocContext } from "./useDocContext";
+import { docLabel, type Audience, type DocBlock, type DocModel, type DocType } from "@/lib/documents/data";
+import { pdfUrl, useDocumentModel, useDocumentSubjects, useSubjectDocuments, type SubjectDocuments } from "@/lib/documents/api";
+import { useT } from "@/lib/i18n/client";
 
 // ---------------------------------------------------------------------------
 // The sheet
@@ -66,16 +66,17 @@ export const DOC_CSS = `
 `;
 
 function Block({ b }: { b: DocBlock }) {
-  const title = "title" in b && b.title ? <h2 className="doc-block-title doc-display">{b.title}</h2> : null;
+  const tr = useT();
+  const title = "title" in b && b.title ? <h2 className="doc-block-title doc-display">{tr(b.title)}</h2> : null;
   switch (b.kind) {
     case "fields":
       return (
         <section className="doc-block">
-          {title}
+          {tr(title)}
           <dl className="doc-fields">
             {b.fields.map((f) => (
               <div key={f.label} className="doc-field">
-                <dt>{f.label}</dt>
+                <dt>{tr(f.label)}</dt>
                 <dd>{f.value || "—"}</dd>
               </div>
             ))}
@@ -85,13 +86,13 @@ function Block({ b }: { b: DocBlock }) {
     case "table":
       return (
         <section className="doc-block">
-          {title}
+          {tr(title)}
           <table className="doc-table">
             <thead>
               <tr>
                 {b.columns.map((c, i) => (
                   <th key={i} className={b.numeric?.includes(i) ? "num" : undefined}>
-                    {c}
+                    {tr(c)}
                   </th>
                 ))}
               </tr>
@@ -100,7 +101,7 @@ function Block({ b }: { b: DocBlock }) {
               {b.rows.length === 0 ? (
                 <tr>
                   <td colSpan={b.columns.length} className="doc-empty">
-                    {b.empty ?? "None."}
+                    {b.empty ?? tr("None.")}
                   </td>
                 </tr>
               ) : (
@@ -108,7 +109,7 @@ function Block({ b }: { b: DocBlock }) {
                   <tr key={i}>
                     {r.map((cell, j) => (
                       <td key={j} className={b.numeric?.includes(j) ? "num" : undefined}>
-                        {cell}
+                        {tr(cell)}
                       </td>
                     ))}
                   </tr>
@@ -120,7 +121,7 @@ function Block({ b }: { b: DocBlock }) {
                 <tr>
                   {b.foot.map((cell, j) => (
                     <td key={j} className={b.numeric?.includes(j) || j === b.foot!.length - 1 ? "num" : undefined}>
-                      {cell}
+                      {tr(cell)}
                     </td>
                   ))}
                 </tr>
@@ -132,9 +133,9 @@ function Block({ b }: { b: DocBlock }) {
     case "text":
       return (
         <section className="doc-block doc-text">
-          {title}
+          {tr(title)}
           {b.paragraphs.map((p, i) => (
-            <p key={i}>{p}</p>
+            <p key={i}>{tr(p)}</p>
           ))}
         </section>
       );
@@ -142,9 +143,9 @@ function Block({ b }: { b: DocBlock }) {
       return (
         <section className="doc-block">
           <div className="doc-code">
-            <p className="doc-code-label">{b.label}</p>
+            <p className="doc-code-label">{tr(b.label)}</p>
             <p className="doc-code-value doc-display">{b.value}</p>
-            {b.caption && <p className="doc-code-caption">{b.caption}</p>}
+            {b.caption && <p className="doc-code-caption">{tr(b.caption)}</p>}
           </div>
         </section>
       );
@@ -154,8 +155,8 @@ function Block({ b }: { b: DocBlock }) {
           {b.lines.map((l) => (
             <div key={l.name + l.role} className="doc-sig">
               <div className="doc-sig-line" />
-              <p>{l.name}</p>
-              <p className="doc-sig-role">{l.role}</p>
+              <p>{tr(l.name)}</p>
+              <p className="doc-sig-role">{tr(l.role)}</p>
             </div>
           ))}
         </section>
@@ -164,30 +165,35 @@ function Block({ b }: { b: DocBlock }) {
 }
 
 export function DocumentSheet({ model, sheetRef }: { model: DocModel; sheetRef?: React.Ref<HTMLElement> }) {
+  const tr = useT();
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: DOC_CSS }} />
-      <article ref={sheetRef} className="doc-sheet" aria-label={model.title}>
+      <article ref={sheetRef} className="doc-sheet" aria-label={tr(model.title)}>
         <header className="doc-head">
           <div>
-            <p className="doc-issuer-name doc-display">{model.issuer.name}</p>
+            <p className="doc-issuer-name doc-display">{tr(model.issuer.name)}</p>
             {model.issuer.lines.map((l) => (
               <p key={l} className="doc-issuer-line">
-                {l}
+                {tr(l)}
               </p>
             ))}
           </div>
           <div className="doc-meta">
-            <h1 className="doc-title doc-display">{model.title}</h1>
+            <h1 className="doc-title doc-display">{tr(model.title)}</h1>
             <p className="doc-number">{model.number}</p>
-            <p>Issued {formatDate(model.issuedAt)}</p>
+            <p>{tr("Issued {value}", { value: formatDate(model.issuedAt) })}</p>
           </div>
         </header>
+        {model.photo && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={model.photo.url} alt={tr("Applicant photo")} className="float-right ml-4 h-28 w-24 rounded border border-[var(--color-line)] object-cover" />
+        )}
         {model.recipient && (
           <div className="doc-recipient">
-            <p className="doc-rname">{model.recipient.name}</p>
+            <p className="doc-rname">{tr(model.recipient.name)}</p>
             {model.recipient.lines.map((l) => (
-              <p key={l}>{l}</p>
+              <p key={l}>{tr(l)}</p>
             ))}
           </div>
         )}
@@ -195,7 +201,7 @@ export function DocumentSheet({ model, sheetRef }: { model: DocModel; sheetRef?:
           <Block key={i} b={b} />
         ))}
         <footer className="doc-foot">
-          <p>{model.footnote}</p>
+          <p>{tr(model.footnote)}</p>
           <p>{model.number}</p>
         </footer>
       </article>
@@ -224,89 +230,84 @@ const actionClass =
   "inline-flex items-center gap-2 rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-surface)] px-3.5 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors hover:border-[var(--color-ink)] disabled:cursor-not-allowed disabled:text-[var(--color-ink-faint)] disabled:hover:border-[var(--color-line-strong)]";
 
 export function PrintButton({ disabled, label = "Print" }: { disabled?: boolean; label?: string }) {
+  const tr = useT();
+  label = tr(label);
   return (
     <button type="button" onClick={() => window.print()} disabled={disabled} className={actionClass}>
       <Printer className="h-4 w-4" strokeWidth={1.75} />
-      {label}
+      {tr(label)}
     </button>
   );
 }
 
 export function DownloadButton({ onDownload, disabled, label = "Download" }: { onDownload: () => void; disabled?: boolean; label?: string }) {
+  const tr = useT();
+  label = tr(label);
   return (
     <button type="button" onClick={onDownload} disabled={disabled} className={actionClass}>
       <Download className="h-4 w-4" strokeWidth={1.75} />
-      {label}
+      {tr(label)}
     </button>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Viewer: one document for one student
+// Viewer: one document for one application, from the database
 // ---------------------------------------------------------------------------
 
-export function DocumentViewer({ accountId, type, audience, backHref, backLabel }: { accountId: string; type: DocType; audience: Audience; backHref: string; backLabel: string }) {
-  const hydrated = useHydrated();
-  const ctx = useDocContext(accountId);
+/**
+ * Shows the document as the server built it, from the database, with Print
+ * and a PDF download. `id` is the application (or, from the admitted-student
+ * screens, the tuition account); without one, a student's most recent
+ * application is used.
+ */
+export function DocumentViewer({ id, type, audience, backHref, backLabel }: { id?: string | null; type: DocType; audience: Audience; backHref: string; backLabel: string }) {
+  const tr = useT();
+  void audience;
+  const subjects = useDocumentSubjects();
+  const subjectId = id ?? subjects.data?.[0]?.id ?? null;
+  const { data: model, error, loading } = useDocumentModel(subjectId, type);
   const ref = useRef<HTMLElement>(null);
-  const [saved, setSaved] = useState(false);
 
   const back = (
     <Link href={backHref} className="no-print mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
       <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-      {backLabel}
+      {tr(backLabel)}
     </Link>
   );
 
-  if (!ctx) {
-    return hydrated ? (
-      <>
-        {back}
-        <EmptyState message="This student's documents aren't available." />
-      </>
-    ) : (
-      <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>
-    );
-  }
-
-  const avail = availability(type, ctx, audience);
-  if (!avail.available) {
+  if (loading || (!id && subjects.loading)) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
+  if (!subjectId || error || !model) {
     return (
       <>
-        {back}
-        <EmptyState message={`${docLabel(type)} isn't available. ${avail.reason ?? ""}`} action={<Link href={backHref} className={ButtonLinkClass("secondary")}>{backLabel}</Link>} />
+        {tr(back)}
+        <EmptyState message={`${tr(docLabel(type))} isn't available. ${error ?? ""}`} action={<Link href={backHref} className={ButtonLinkClass("secondary")}>{tr(backLabel)}</Link>} />
       </>
     );
   }
-
-  const model = buildDocument(type, ctx, audience);
 
   return (
     <>
-      {back}
+      {tr(back)}
       <div className="no-print mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{model.title}</h1>
+          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{tr(model.title)}</h1>
           <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-            {ctx.student.firstName} {ctx.student.lastName}, {ctx.account.applicationRef}
+            {model.recipient?.name ?? ""} · {model.number}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <PrintButton />
-          <DownloadButton
-            onDownload={() => {
-              if (!ref.current) return;
-              saveHtmlCopy(ref.current, `${model.number}.html`, `${model.title} ${model.number}`);
-              setSaved(true);
-            }}
-          />
+          <a href={pdfUrl(subjectId, type, true)} className={actionClass}>
+            <Download className="h-4 w-4" strokeWidth={1.75} />
+            {tr("Download PDF")}
+          </a>
+          <a href={pdfUrl(subjectId, type)} target="_blank" rel="noopener" className={actionClass}>
+            <FileText className="h-4 w-4" strokeWidth={1.75} />
+            {tr("Open PDF")}
+          </a>
         </div>
       </div>
-      {saved && (
-        <p role="status" className="no-print mb-4 rounded-lg border border-[var(--color-line)] bg-[var(--color-info-soft)] px-3 py-2 text-sm text-[var(--color-ink)]">
-          Saved an HTML copy of this document. PDF downloads arrive when the document service is connected.
-        </p>
-      )}
       <div className="print-area overflow-x-auto">
         <DocumentSheet model={model} sheetRef={ref} />
       </div>
@@ -315,45 +316,37 @@ export function DocumentViewer({ accountId, type, audience, backHref, backLabel 
 }
 
 // ---------------------------------------------------------------------------
-// Centre: every document for one student
+// Centre: every document for one application, or each of a student's
 // ---------------------------------------------------------------------------
 
-export function DocumentCentre({ accountId, audience, basePath }: { accountId: string; audience: Audience; basePath: string }) {
-  const hydrated = useHydrated();
-  const ctx = useDocContext(accountId);
-  if (!ctx) {
-    return hydrated ? <EmptyState message="No documents yet. They appear once an institution admits you." /> : <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
-  }
-
+function DocumentGrid({ docs, hrefFor }: { docs: SubjectDocuments; hrefFor: (type: DocType) => string }) {
+  const tr = useT();
   return (
     <ul className="grid gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-2 xl:grid-cols-3">
-      {DOC_TYPES.map((d) => {
-        const a = availability(d.type, ctx, audience);
+      {docs.documents.map((d) => {
         const body = (
           <>
             <div className="flex items-start justify-between gap-3">
-              <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{d.label}</p>
-              {a.available ? (
+              <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{tr(d.label)}</p>
+              {d.available ? (
                 <FileText className="mt-1 h-5 w-5 shrink-0 text-[var(--color-brand)]" strokeWidth={1.5} />
               ) : (
                 <Lock className="mt-1 h-4 w-4 shrink-0 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
               )}
             </div>
-            <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{d.description}</p>
-            <p className={`mt-4 text-sm ${a.available ? "text-[var(--color-ink)] underline underline-offset-4" : "text-[var(--color-ink-faint)]"}`}>
-              {a.available ? "Open to print or download" : a.reason}
-            </p>
+            <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{tr(d.description)}</p>
+            <p className={`mt-4 text-sm ${d.available ? "text-[var(--color-ink)] underline underline-offset-4" : "text-[var(--color-ink-faint)]"}`}>{d.available ? tr("Open to print or download") : d.reason}</p>
           </>
         );
         return (
           <li key={d.type} className="bg-[var(--color-surface)]">
-            {a.available ? (
-              <Link href={`${basePath}/${d.type}`} className="block h-full px-5 py-5 transition-colors hover:bg-[var(--color-paper)]">
-                {body}
+            {d.available ? (
+              <Link href={hrefFor(d.type)} className="block h-full px-5 py-5 transition-colors hover:bg-[var(--color-paper)]">
+                {tr(body)}
               </Link>
             ) : (
               <div className="h-full px-5 py-5 opacity-75" aria-disabled>
-                {body}
+                {tr(body)}
               </div>
             )}
           </li>
@@ -361,4 +354,50 @@ export function DocumentCentre({ accountId, audience, basePath }: { accountId: s
       })}
     </ul>
   );
+}
+
+/** One application's documents (staff), at `${basePath}/${type}`. */
+export function DocumentCentre({ id, basePath }: { id: string; audience?: Audience; basePath: string }) {
+  const tr = useT();
+  const { data, error, loading } = useSubjectDocuments(id);
+  if (loading) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
+  if (!data) return <EmptyState message={error ?? tr("These documents aren't available.")} />;
+  return (
+    <>
+      <p className="-mt-4 mb-6 text-sm text-[var(--color-ink-soft)]">
+        {tr(data.studentName)}
+        {data.registrationNo ? `, ${data.registrationNo}` : ""}{tr(", {institutionName}, application {applicationId} ({status})", { institutionName: data.institutionName, applicationId: data.applicationId, status: data.status })}
+      </p>
+      <DocumentGrid docs={data} hrefFor={(t) => `${basePath}/${t}`} />
+    </>
+  );
+}
+
+/** A student's documents, one section per institution they applied to. */
+export function StudentDocumentCentre({ basePath }: { basePath: string }) {
+  const tr = useT();
+  const { data, error, loading } = useDocumentSubjects();
+  if (loading) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
+  if (error) return <EmptyState message={tr(error)} />;
+  if (!data?.length) return <EmptyState message={tr("No documents yet. They appear once you add an institution to your application.")} />;
+  return (
+    <div className="space-y-10">
+      {data.map((s) => (
+        <section key={s.id}>
+          <h2 className="mb-1 font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr(s.institutionName)}</h2>
+          <p className="mb-4 text-sm text-[var(--color-ink-soft)]">
+            {tr("Application {applicationId} · {statusLabel}", { applicationId: s.applicationId, statusLabel: s.statusLabel })}
+          </p>
+          <StudentGrid id={s.id} basePath={basePath} />
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function StudentGrid({ id, basePath }: { id: string; basePath: string }) {
+  const tr = useT();
+  const { data } = useSubjectDocuments(id);
+  if (!data) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
+  return <DocumentGrid docs={data} hrefFor={(t) => `${basePath}/${t}?for=${encodeURIComponent(id)}`} />;
 }

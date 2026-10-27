@@ -4,8 +4,10 @@ import type { PaymentMethod } from "@/lib/institution/paymentMethods";
 import { institutionPaymentMethodResource } from "@/server/modules/institutions/institutions.resources";
 import { findOwn } from "@/server/modules/institutions/portal";
 import { PageHeading, EmptyState, PAGE_MAIN_CLASS } from "@/components/ui";
+import { getT } from "@/lib/i18n/server";
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const tr = await getT();
   const user = await requireRole(["INSTITUTION_ADMIN"]);
   const { id } = await params;
   // Read from the database, confined to the caller's own institution: an id that
@@ -14,8 +16,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title="Edit payment method" />
-      {record ? <PaymentMethodForm initial={record} /> : <EmptyState message="This payment method doesn't exist, or belongs to another institution." />}
+      <PageHeading title={tr("Edit payment method")} />
+      {record ? <PaymentMethodForm initial={record} /> : <EmptyState message={tr("This payment method doesn't exist, or belongs to another institution.")} />}
     </main>
   );
 }

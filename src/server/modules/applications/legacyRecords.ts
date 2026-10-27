@@ -4,7 +4,7 @@ import { EDITABLE_STATUSES } from "@/lib/applications/statusFlow";
 import { nextCounter } from "@/server/db/ids";
 import { documentTypeMaxKb, normaliseFileType, supportedFileTypes } from "@/lib/institution/uploadRequirements";
 import type { Executor } from "@/server/db/client";
-import { applicationDocuments, applicationInstitutions, applications, feePayments, parameters, uploadRequirements } from "@/server/db/schema";
+import { admissions, applicationDocuments, applicationInstitutions, applications, feePayments, parameters, uploadRequirements } from "@/server/db/schema";
 import { logger } from "@/server/logging/logger";
 
 /**
@@ -101,7 +101,15 @@ export async function adoptLegacyRecords(db: Executor) {
     await db.update(applicationInstitutions).set({ applicationNumber }).where(eq(applicationInstitutions.id, app.id));
   }
 
-  if (requirements || owners.length || typed.length || reasons.length || unnumbered.length) {
-    logger.child({ module: "bootstrap" }).info("Earlier records brought up to date", { uploadRequirements: requirements, documentOwners: owners.length, documentTypes: typed.length, rejectionReasons: reasons.length, applicationNumbers: unnumbered.length });
+  // Admissions recorded before the institution was kept on them.
+  const admitted = await db
+    .update(admissions)
+    .set({ institutionId: applicationInstitutions.institutionId })
+    .from(applicationInstitutions)
+    .where(and(eq(admissions.applicationInstitutionId, applicationInstitutions.id), isNull(admissions.institutionId)))
+    .returning({ id: admissions.id });
+
+  if (admitted.length || requirements || owners.length || typed.length || reasons.length || unnumbered.length) {
+    logger.child({ module: "bootstrap" }).info("Earlier records brought up to date", { uploadRequirements: requirements, documentOwners: owners.length, documentTypes: typed.length, rejectionReasons: reasons.length, applicationNumbers: unnumbered.length, admissionInstitutions: admitted.length });
   }
 }

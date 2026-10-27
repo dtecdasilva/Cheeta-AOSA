@@ -9,6 +9,10 @@ import { ok } from "@/server/http/respond";
 import { parseBody } from "@/server/http/validate";
 import { rateLimit } from "@/server/http/rateLimit";
 import { sendLoginCredentials } from "@/server/notifications/delivery";
+import { eq } from "drizzle-orm";
+import { users } from "@/server/db/schema";
+import { getLang } from "@/lib/i18n/server";
+import { registrableInstitutionTypes } from "@/server/modules/institutions/institutionTypes";
 import { audit } from "@/server/audit/audit";
 import { getDb } from "@/server/db/client";
 
@@ -45,11 +49,16 @@ export const POST = handler({ auth: "public" }, async ({ req }) => {
   for (const [field, check] of checks) {
     if (!check.valid) throw new BadRequestError(check.message ?? "Check this field.", { field });
   }
+  if (!(await registrableInstitutionTypes()).includes(institutionType as InstitutionType)) {
+    throw new BadRequestError("Select a valid institution type.", { field: "institutionType" });
+  }
 
   const result = await createApplicantAccount({ email, institutionType: institutionType as InstitutionType, mobileNumber: normalizeMobileNumber(mobileNumber) });
   if (result.status === "exists") throw new ConflictError("An account already exists for this email address.", { accountExists: true });
 
   await audit(getDb(), { action: "register", entityType: "account", entityId: result.user.id, actorUserId: result.user.id });
+  // The account starts in the language the person registered in, so their login details already come in it.
+  await getDb().update(users).set({ language: await getLang() }).where(eq(users.id, result.user.id));
   const delivery = await sendLoginCredentials(result.user, result.temporaryCode);
   return ok({
     ok: true,

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { CheckCircle2, Lock } from "lucide-react";
 import { Field, TextInput, SelectInput, PrimaryButton, SecondaryButton } from "@/components/Form";
 import { CountrySelect } from "@/components/CountrySelect";
+import { DisabilityMediaUploader } from "@/components/demographic/DisabilityMedia";
+import { ApplicantPhotoUploader } from "@/components/demographic/ApplicantPhoto";
 import { DemographicCompletionPanel } from "@/components/demographic/DemographicCompletion";
 import type { DemographicCompletion } from "@/lib/demographic/completion";
 import { DemographicProfile, EMPTY_DEMOGRAPHIC_PROFILE } from "@/lib/demographic/types";
@@ -18,6 +20,7 @@ import {
   CAMEROON_REGIONS,
   DIVISIONS_BY_REGION,
 } from "@/lib/demographic/options";
+import { useT } from "@/lib/i18n/client";
 
 type FormState = Partial<Omit<DemographicProfile, "updatedAt">> & { updatedAt?: string };
 
@@ -27,10 +30,13 @@ function ErrorText({ message }: { message?: string }) {
 }
 
 export function DemographicForm() {
+  const tr = useT();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [account, setAccount] = useState<{ email: string; telephone: string }>({ email: "", telephone: "" });
   const [form, setForm] = useState<FormState>(EMPTY_DEMOGRAPHIC_PROFILE);
+  // The answer as last saved: photos and a video can be added only once "Yes" is saved.
+  const [savedDisability, setSavedDisability] = useState<string | undefined>(undefined);
   const [errors, setErrors] = useState<DemographicFieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -49,13 +55,15 @@ export function DemographicForm() {
         if (res.ok) {
           setAccount(data.account);
           setForm({ ...EMPTY_DEMOGRAPHIC_PROFILE, ...data.profile });
+      setSavedDisability(data.profile.disability);
+          setSavedDisability(data.profile.disability);
           setExists(!!data.exists);
           setCompletion(data.completion ?? null);
         } else {
-          setFormError(data.error ?? "Could not load your demographic information.");
+          setFormError(data.error ?? tr("Could not load your demographic information."));
         }
       } catch {
-        if (!cancelled) setFormError("Could not load your demographic information. Check your connection.");
+        if (!cancelled) setFormError(tr("Could not load your demographic information. Check your connection."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -95,7 +103,7 @@ export function DemographicForm() {
     const clientErrors = mode === "submit" ? validateDemographicForSubmit(form, { countries: null }) : validateDemographicForSave(form, { countries: null });
     if (Object.keys(clientErrors).length > 0) {
       setErrors(clientErrors);
-      setFormError("Some fields need attention before this can be saved.");
+      setFormError(tr("Some fields need attention before this can be saved."));
       showOutcome();
       return;
     }
@@ -117,7 +125,7 @@ export function DemographicForm() {
 
       if (!res.ok) {
         setErrors(data.fieldErrors ?? {});
-        setFormError(data.error ?? "Could not save your information.");
+        setFormError(data.error ?? tr("Could not save your information."));
         showOutcome();
         return;
       }
@@ -131,17 +139,17 @@ export function DemographicForm() {
         router.push("/student/application/summary");
         return;
       }
-      setSuccessMessage("Demographic information saved.");
+      setSuccessMessage(tr("Demographic information saved."));
       showOutcome();
     } catch {
-      setFormError("Could not save your information. Check your connection and try again.");
+      setFormError(tr("Could not save your information. Check your connection and try again."));
     } finally {
       setSaving(null);
     }
   }
 
   if (loading) {
-    return <p className="text-sm text-[var(--color-ink-soft)]">Loading your demographic information…</p>;
+    return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading your demographic information…")}</p>;
   }
 
   const divisionOptions = form.regionOfOrigin
@@ -152,13 +160,13 @@ export function DemographicForm() {
     <div className="max-w-4xl space-y-8">
       {formError && (
         <p role="alert" className="rounded-lg border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] px-4 py-2.5 text-sm text-[var(--color-danger-strong)]">
-          {formError}
+          {tr(formError)}
         </p>
       )}
       {successMessage && (
         <p className="flex items-center gap-2 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-4 py-2.5 text-sm text-[var(--color-success-strong)]">
           <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={2} />
-          {successMessage}
+          {tr(successMessage)}
         </p>
       )}
 
@@ -166,122 +174,126 @@ export function DemographicForm() {
 
       {/* Identity */}
       <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
-        <h2 className="font-semibold text-base text-[var(--color-ink)]">Identity</h2>
+        <h2 className="font-semibold text-base text-[var(--color-ink)]">{tr("Identity")}</h2>
+        <div className="mt-4">
+          <ApplicantPhotoUploader />
+        </div>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
-            <Field label="Applicant full name as shown on birth certificate" required>
+            <Field label={tr("Applicant full name as shown on birth certificate")} required>
               <TextInput
                 value={form.fullNameOnBirthCertificate ?? ""}
                 onChange={(e) => update("fullNameOnBirthCertificate", e.target.value)}
               />
-              <ErrorText message={errors.fullNameOnBirthCertificate} />
+              <ErrorText message={tr(errors.fullNameOnBirthCertificate)} />
             </Field>
           </div>
-          <Field label="Date of birth" required>
+          <Field label={tr("Date of birth")} required>
             <TextInput type="date" value={form.dateOfBirth ?? ""} onChange={(e) => update("dateOfBirth", e.target.value)} />
-            <ErrorText message={errors.dateOfBirth} />
+            <ErrorText message={tr(errors.dateOfBirth)} />
           </Field>
-          <Field label="Place of birth" required>
+          <Field label={tr("Place of birth")} required>
             <TextInput value={form.placeOfBirth ?? ""} onChange={(e) => update("placeOfBirth", e.target.value)} />
-            <ErrorText message={errors.placeOfBirth} />
+            <ErrorText message={tr(errors.placeOfBirth)} />
           </Field>
           <CountrySelect
-            label="Country of birth"
+            label={tr("Country of birth")}
             required
             value={form.countryOfBirth ?? ""}
             onChange={(v) => update("countryOfBirth", v)}
             error={errors.countryOfBirth}
           />
-          <Field label="Sex" required>
+          <Field label={tr("Sex")} required>
             <SelectInput value={form.sex ?? ""} onChange={(e) => update("sex", e.target.value)}>
-              <option value="">Select…</option>
+              <option value="">{tr("Select…")}</option>
               {SEX_OPTIONS.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tr(v)}
                 </option>
               ))}
             </SelectInput>
-            <ErrorText message={errors.sex} />
+            <ErrorText message={tr(errors.sex)} />
           </Field>
-          <Field label="Marital status" required>
+          <Field label={tr("Marital status")} required>
             <SelectInput value={form.maritalStatus ?? ""} onChange={(e) => update("maritalStatus", e.target.value)}>
-              <option value="">Select…</option>
+              <option value="">{tr("Select…")}</option>
               {MARITAL_STATUS_OPTIONS.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tr(v)}
                 </option>
               ))}
             </SelectInput>
-            <ErrorText message={errors.maritalStatus} />
+            <ErrorText message={tr(errors.maritalStatus)} />
           </Field>
         </div>
       </section>
 
       {/* Contact */}
       <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
-        <h2 className="font-semibold text-base text-[var(--color-ink)]">Contact</h2>
+        <h2 className="font-semibold text-base text-[var(--color-ink)]">{tr("Contact")}</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
-          <Field label="Email" hint="From your registration — cannot be changed here.">
+          <Field label={tr("Email")} hint={tr("From your registration — cannot be changed here.")}>
             <div className="relative">
               <TextInput value={account.email} disabled className="pr-9" />
               <Lock className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
             </div>
           </Field>
-          <Field label="Telephone" hint="From your registration — cannot be changed here.">
+          <Field label={tr("Telephone")} hint={tr("From your registration — cannot be changed here.")}>
             <div className="relative">
               <TextInput value={account.telephone} disabled className="pr-9" />
               <Lock className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
             </div>
           </Field>
-          <Field label="Alternative telephone">
+          <Field label={tr("Alternative telephone")}>
             <TextInput
               type="tel"
               value={form.alternativeTelephone ?? ""}
               onChange={(e) => update("alternativeTelephone", e.target.value)}
             />
-            <ErrorText message={errors.alternativeTelephone} />
+            <ErrorText message={tr(errors.alternativeTelephone)} />
           </Field>
-          <Field label="P.O. Box">
+          <Field label={tr("P.O. Box")}>
             <TextInput value={form.poBox ?? ""} onChange={(e) => update("poBox", e.target.value)} />
-            <ErrorText message={errors.poBox} />
+            <ErrorText message={tr(errors.poBox)} />
           </Field>
         </div>
       </section>
 
       {/* Disability */}
       <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
-        <h2 className="font-semibold text-base text-[var(--color-ink)]">Disability</h2>
+        <h2 className="font-semibold text-base text-[var(--color-ink)]">{tr("Disability")}</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
-          <Field label="Disability" required>
+          <Field label={tr("Disability")} required>
             <SelectInput value={form.disability ?? ""} onChange={(e) => update("disability", e.target.value)}>
-              <option value="">Select…</option>
+              <option value="">{tr("Select…")}</option>
               {YES_NO_OPTIONS.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tr(v)}
                 </option>
               ))}
             </SelectInput>
-            <ErrorText message={errors.disability} />
+            <ErrorText message={tr(errors.disability)} />
           </Field>
           {form.disability === "Yes" && (
-            <Field label="Disability details" required>
+            <Field label={tr("Disability details")} required>
               <TextInput
                 value={form.disabilityDetails ?? ""}
                 onChange={(e) => update("disabilityDetails", e.target.value)}
-                placeholder="Describe the disability"
+                placeholder={tr("Describe the disability")}
               />
-              <ErrorText message={errors.disabilityDetails} />
+              <ErrorText message={tr(errors.disabilityDetails)} />
             </Field>
           )}
+          {form.disability === "Yes" && <DisabilityMediaUploader savedAnswer={savedDisability} />}
         </div>
       </section>
 
       {/* Origin & residence */}
       <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
-        <h2 className="font-semibold text-base text-[var(--color-ink)]">Origin &amp; residence</h2>
+        <h2 className="font-semibold text-base text-[var(--color-ink)]">{tr("Origin & residence")}</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
           <CountrySelect
-            label="Country of residence"
+            label={tr("Country of residence")}
             purpose="residence"
             required
             value={form.countryOfResidence ?? ""}
@@ -289,116 +301,116 @@ export function DemographicForm() {
             error={errors.countryOfResidence}
           />
           <CountrySelect
-            label="Nationality"
+            label={tr("Nationality")}
             purpose="nationality"
             required
             value={form.nationality ?? ""}
             onChange={(v) => update("nationality", v)}
             error={errors.nationality}
           />
-          <Field label="Region of origin" required>
+          <Field label={tr("Region of origin")} required>
             <SelectInput value={form.regionOfOrigin ?? ""} onChange={(e) => update("regionOfOrigin", e.target.value)}>
-              <option value="">Select…</option>
+              <option value="">{tr("Select…")}</option>
               {CAMEROON_REGIONS.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tr(v)}
                 </option>
               ))}
             </SelectInput>
-            <ErrorText message={errors.regionOfOrigin} />
+            <ErrorText message={tr(errors.regionOfOrigin)} />
           </Field>
-          <Field label="Division of origin" required hint={!form.regionOfOrigin ? "Select a region first." : undefined}>
+          <Field label={tr("Division of origin")} required hint={!form.regionOfOrigin ? tr("Select a region first.") : undefined}>
             <SelectInput
               value={form.divisionOfOrigin ?? ""}
               onChange={(e) => update("divisionOfOrigin", e.target.value)}
               disabled={!form.regionOfOrigin}
             >
-              <option value="">Select…</option>
+              <option value="">{tr("Select…")}</option>
               {divisionOptions.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tr(v)}
                 </option>
               ))}
             </SelectInput>
-            <ErrorText message={errors.divisionOfOrigin} />
+            <ErrorText message={tr(errors.divisionOfOrigin)} />
           </Field>
-          <Field label="Town of residence" required>
+          <Field label={tr("Town of residence")} required>
             <TextInput value={form.townOfResidence ?? ""} onChange={(e) => update("townOfResidence", e.target.value)} />
-            <ErrorText message={errors.townOfResidence} />
+            <ErrorText message={tr(errors.townOfResidence)} />
           </Field>
         </div>
       </section>
 
       {/* Personal */}
       <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
-        <h2 className="font-semibold text-base text-[var(--color-ink)]">Personal</h2>
+        <h2 className="font-semibold text-base text-[var(--color-ink)]">{tr("Personal")}</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
-          <Field label="Religion" required>
+          <Field label={tr("Religion")} required>
             <SelectInput value={form.religion ?? ""} onChange={(e) => update("religion", e.target.value)}>
-              <option value="">Select…</option>
+              <option value="">{tr("Select…")}</option>
               {RELIGION_OPTIONS.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tr(v)}
                 </option>
               ))}
             </SelectInput>
-            <ErrorText message={errors.religion} />
+            <ErrorText message={tr(errors.religion)} />
           </Field>
-          <Field label="Preferred language / language of instruction" required>
+          <Field label={tr("Preferred language / language of instruction")} required>
             <SelectInput value={form.preferredLanguage ?? ""} onChange={(e) => update("preferredLanguage", e.target.value)}>
-              <option value="">Select…</option>
+              <option value="">{tr("Select…")}</option>
               {LANGUAGE_OPTIONS.map((v) => (
                 <option key={v} value={v}>
-                  {v}
+                  {tr(v)}
                 </option>
               ))}
             </SelectInput>
-            <ErrorText message={errors.preferredLanguage} />
+            <ErrorText message={tr(errors.preferredLanguage)} />
           </Field>
         </div>
       </section>
 
       {/* Parents / guardian */}
       <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
-        <h2 className="font-semibold text-base text-[var(--color-ink)]">Parent / guardian information</h2>
+        <h2 className="font-semibold text-base text-[var(--color-ink)]">{tr("Parent / guardian information")}</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
-          <Field label="Father's names" required>
+          <Field label={tr("Father's names")} required>
             <TextInput value={form.fathersNames ?? ""} onChange={(e) => update("fathersNames", e.target.value)} />
-            <ErrorText message={errors.fathersNames} />
+            <ErrorText message={tr(errors.fathersNames)} />
           </Field>
-          <Field label="Mother's names" required>
+          <Field label={tr("Mother's names")} required>
             <TextInput value={form.mothersNames ?? ""} onChange={(e) => update("mothersNames", e.target.value)} />
-            <ErrorText message={errors.mothersNames} />
+            <ErrorText message={tr(errors.mothersNames)} />
           </Field>
           <CountrySelect
-            label="Parent's country"
+            label={tr("Parent's country")}
             value={form.parentsCountry ?? ""}
             onChange={(v) => update("parentsCountry", v)}
             error={errors.parentsCountry}
           />
-          <Field label="Parent's town/city">
+          <Field label={tr("Parent's town/city")}>
             <TextInput value={form.parentsTownCity ?? ""} onChange={(e) => update("parentsTownCity", e.target.value)} />
-            <ErrorText message={errors.parentsTownCity} />
+            <ErrorText message={tr(errors.parentsTownCity)} />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Parent's address">
+            <Field label={tr("Parent's address")}>
               <TextInput value={form.parentsAddress ?? ""} onChange={(e) => update("parentsAddress", e.target.value)} />
-              <ErrorText message={errors.parentsAddress} />
+              <ErrorText message={tr(errors.parentsAddress)} />
             </Field>
           </div>
-          <Field label="Parent's occupation">
+          <Field label={tr("Parent's occupation")}>
             <TextInput value={form.parentsOccupation ?? ""} onChange={(e) => update("parentsOccupation", e.target.value)} />
-            <ErrorText message={errors.parentsOccupation} />
+            <ErrorText message={tr(errors.parentsOccupation)} />
           </Field>
-          <Field label="Parent's telephone">
+          <Field label={tr("Parent's telephone")}>
             <TextInput
               type="tel"
               value={form.parentsTelephone ?? ""}
               onChange={(e) => update("parentsTelephone", e.target.value)}
             />
-            <ErrorText message={errors.parentsTelephone} />
+            <ErrorText message={tr(errors.parentsTelephone)} />
           </Field>
-          <Field label="Parent's email">
+          <Field label={tr("Parent's email")}>
             <TextInput
               type="email"
               value={form.parentsEmail ?? ""}
@@ -411,14 +423,14 @@ export function DemographicForm() {
 
       <div className="flex flex-wrap items-center gap-3 border-t border-[var(--color-line)] pt-6">
         <SecondaryButton type="button" disabled={saving !== null} onClick={() => persist("save")}>
-          {saving === "save" ? "Saving…" : "Save"}
+          {saving === "save" ? tr("Saving…") : tr("Save")}
         </SecondaryButton>
         <PrimaryButton type="button" disabled={saving !== null} onClick={() => persist("submit")}>
-          {saving === "submit" ? "Saving…" : "Save & Continue"}
+          {saving === "submit" ? tr("Saving…") : tr("Save & Continue")}
         </PrimaryButton>
         {form.updatedAt && (
           <span className="text-xs text-[var(--color-ink-faint)]">
-            Last saved {new Date(form.updatedAt).toLocaleString()}
+            {tr("Last saved {value}", { value: new Date(form.updatedAt).toLocaleString() })}
           </span>
         )}
       </div>

@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui";
 import { DateRangeFilter, FilterBar, FilterSelect, Pager, ResultCount, SearchField, StatStrip, ToneBadge, usePaged, type Stat } from "@/components/admin/ui";
 import { EMPTY_RANGE, describeRange, inRange, matchesSearch, type DateRange } from "@/lib/admin/filters";
 import { formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * One report: a table with search, filters, a date range, sortable columns
@@ -84,6 +85,7 @@ const exportClass =
 // ---------------------------------------------------------------------------
 
 export function ReportScreen<R extends { id: string; masked: boolean; maskedName: string }>({ def, rows, scope }: { def: ReportDef<R>; rows: R[]; scope: Scope }) {
+  const tr = useT();
   const columns = def.columns.filter((c) => (scope === "admin" ? !c.institutionOnly : !c.adminOnly));
   const filters = def.filters.filter((f) => scope === "admin" || !f.adminOnly);
 
@@ -136,7 +138,7 @@ export function ReportScreen<R extends { id: string; masked: boolean; maskedName
   }, [printing]);
 
   const header = columns.map((c) => c.label);
-  const matrix = () => filtered.map((r) => (r.masked ? [r.maskedName, "Awaiting payment", ...columns.slice(2).map(() => "")] : columns.map((c) => c.text(r))));
+  const matrix = () => filtered.map((r) => (r.masked ? [r.maskedName, tr("Awaiting payment"), ...columns.slice(2).map(() => "")] : columns.map((c) => c.text(r))));
   const stamp = new Date().toISOString().slice(0, 10);
   const filename = `cheeta-${def.key}-report-${stamp}`;
 
@@ -150,12 +152,12 @@ export function ReportScreen<R extends { id: string; masked: boolean; maskedName
     const table = `<table><thead><tr>${header.map((h) => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${matrix()
       .map((row) => `<tr>${row.map((c) => `<td>${esc(c)}</td>`).join("")}</tr>`)
       .join("")}</tbody></table>`;
-    const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>${esc(def.title.slice(0, 30))}</x:Name><x:WorksheetOptions/></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>${table}</body></html>`;
+    const html = tr("<html xmlns:o=\"urn:schemas-microsoft-com:office:office\" xmlns:x=\"urn:schemas-microsoft-com:office:excel\"><head><meta charset=\"utf-8\"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>{value}</x:Name><x:WorksheetOptions/></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>{table}</body></html>", { value: esc(def.title.slice(0, 30)), table });
     download(html, "application/vnd.ms-excel", `${filename}.xls`);
   }
 
   const activeFilterText = [
-    search && `search “${search}”`,
+    search && tr("search “{search}”", { search }),
     ...filters.filter((f) => values[f.key]).map((f) => `${f.label.toLowerCase()}: ${f.options.find((o) => o.value === values[f.key])?.label ?? values[f.key]}`),
     `${def.dateLabel.toLowerCase()}: ${describeRange(range)}`,
   ]
@@ -170,42 +172,42 @@ export function ReportScreen<R extends { id: string; masked: boolean; maskedName
 
       <div className="no-print mt-6">
         <FilterBar active={!!search || anyFilter} onClear={() => { setSearch(""); setValues({}); setRange(EMPTY_RANGE); }}>
-          <SearchField value={search} onChange={setSearch} placeholder={`Search ${def.noun}`} />
+          <SearchField value={search} onChange={setSearch} placeholder={tr("Search {noun}", { noun: def.noun })} />
           {filters.map((f) => (
-            <FilterSelect key={f.key} label={f.label} value={values[f.key] ?? ""} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} options={f.options} />
+            <FilterSelect key={f.key} label={tr(f.label)} value={values[f.key] ?? ""} onChange={(v) => setValues((s) => ({ ...s, [f.key]: v }))} options={f.options} />
           ))}
-          <DateRangeFilter value={range} onChange={setRange} label={def.dateLabel} />
+          <DateRangeFilter value={range} onChange={setRange} label={tr(def.dateLabel)} />
         </FilterBar>
       </div>
 
       <div className="no-print mb-3 flex flex-wrap items-center justify-between gap-3">
-        <ResultCount shown={filtered.length} total={rows.length} noun={def.noun} />
-        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Export">
+        <ResultCount shown={filtered.length} total={rows.length} noun={tr(def.noun)} />
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={tr("Export")}>
           <button type="button" onClick={exportCsv} disabled={filtered.length === 0} className={exportClass}>
             <FileText className="h-4 w-4" strokeWidth={1.75} />
-            Export CSV
+            {tr("Export CSV")}
           </button>
           <button type="button" onClick={exportExcel} disabled={filtered.length === 0} className={exportClass}>
             <FileSpreadsheet className="h-4 w-4" strokeWidth={1.75} />
-            Export Excel
+            {tr("Export Excel")}
           </button>
           <button type="button" onClick={() => setPrinting(true)} disabled={filtered.length === 0} className={exportClass}>
             <Printer className="h-4 w-4" strokeWidth={1.75} />
-            Print or save as PDF
+            {tr("Print or save as PDF")}
           </button>
         </div>
       </div>
 
       <div className="print-area">
         <div className="print-only mb-4">
-          <p className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">Cheeta AOSA — {def.title} report</p>
+          <p className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("Cheeta AOSA — {title} report", { title: tr(def.title) })}</p>
           <p className="text-xs text-[var(--color-ink-soft)]">
-            {filtered.length} {def.noun}. {activeFilterText}. Generated {formatDateTime(new Date().toISOString())}.
+            {tr("{count} {noun}. {activeFilterText}. Generated {value}.", { count: filtered.length, noun: def.noun, activeFilterText, value: formatDateTime(new Date().toISOString()) })}
           </p>
         </div>
 
         {filtered.length === 0 ? (
-          <EmptyState message={rows.length === 0 ? `No ${def.noun} yet.` : `No ${def.noun} match these filters.`} />
+          <EmptyState message={rows.length === 0 ? tr("No {noun} yet.", { noun: def.noun }) : tr("No {noun} match these filters.", { noun: def.noun })} />
         ) : (
           <div className="overflow-x-auto rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
             <table className="w-full text-sm">
@@ -227,7 +229,7 @@ export function ReportScreen<R extends { id: string; masked: boolean; maskedName
                             onClick={() => setSort({ key: c.key, dir: active && sort.dir === "asc" ? "desc" : active ? "asc" : c.align === "right" ? "desc" : "asc" })}
                             className={`inline-flex items-center gap-1 hover:text-[var(--color-ink)] ${active ? "text-[var(--color-ink)]" : ""} ${c.align === "right" ? "flex-row-reverse" : ""}`}
                           >
-                            {c.label}
+                            {tr(c.label)}
                             <Icon className="no-print h-3 w-3" strokeWidth={2} aria-hidden />
                           </button>
                         ) : (
@@ -245,11 +247,11 @@ export function ReportScreen<R extends { id: string; masked: boolean; maskedName
                       <td className="border-b border-[var(--color-line)] px-4 py-2.5">
                         <span className="inline-flex items-center gap-2 text-[var(--color-ink)]">
                           <Lock className="h-3.5 w-3.5 text-[var(--color-ink-faint)]" strokeWidth={1.75} aria-hidden />
-                          {r.maskedName}
+                          {tr(r.maskedName)}
                         </span>
                       </td>
                       <td colSpan={columns.length - 1} className="border-b border-[var(--color-line)] px-4 py-2.5">
-                        <ToneBadge tone="info">Awaiting payment</ToneBadge>
+                        <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
                       </td>
                     </tr>
                   ) : (

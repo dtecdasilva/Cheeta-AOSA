@@ -6,6 +6,7 @@ import { Field, FormError, PrimaryButton, SecondaryButton, SelectInput, TextArea
 import type { Collection } from "@/lib/admin/store";
 import { formatDateTime } from "@/lib/utils";
 import type { Option } from "./RecordManager";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Edits one settings record (src/lib/admin/settings.ts) grouped into
@@ -64,6 +65,7 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
   notice,
   setNotice,
 }: EditorProps<T> & { saved: T; notice: string; setNotice: (s: string) => void }) {
+  const tr = useT();
   const [draft, setDraft] = useState<T>(saved);
   const [errors, setErrors] = useState<Record<string, string>>({});
   // For settings kept in the database: why the server refused the last save, if it did.
@@ -83,11 +85,11 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
       for (const f of s.fields) {
         if (f.showIf && !f.showIf(draft)) continue;
         const v = draft[f.key] as unknown;
-        if (f.required && (v === "" || v === undefined || (typeof v === "number" && Number.isNaN(v)))) found[f.key] = `Enter ${f.label.toLowerCase()}.`;
+        if (f.required && (v === "" || v === undefined || (typeof v === "number" && Number.isNaN(v)))) found[f.key] = tr("Enter {toLowerCase}.", { toLowerCase: f.label.toLowerCase() });
         else if (f.kind === "number" && typeof v === "number") {
-          if (f.min !== undefined && v < f.min) found[f.key] = `Can't be less than ${f.min}.`;
-          else if (f.max !== undefined && v > f.max) found[f.key] = `Can't be more than ${f.max}.`;
-        } else if (f.kind === "email" && typeof v === "string" && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) found[f.key] = "Enter a valid email address.";
+          if (f.min !== undefined && v < f.min) found[f.key] = tr("Can't be less than {min}.", { min: f.min });
+          else if (f.max !== undefined && v > f.max) found[f.key] = tr("Can't be more than {max}.", { max: f.max });
+        } else if (f.kind === "email" && typeof v === "string" && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) found[f.key] = tr("Enter a valid email address.");
       }
     for (const [k, m] of Object.entries(validate?.(draft) ?? {})) if (m && !found[k]) found[k] = m as string;
     if (Object.keys(found).length) {
@@ -98,7 +100,7 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
     store.clearError();
     if (store.getAll().length) store.update(next.id, next);
     else store.add(next);
-    setNotice("Settings saved.");
+    setNotice(tr("Settings saved."));
   }
 
   const errorCount = Object.values(errors).filter(Boolean).length;
@@ -108,8 +110,8 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
       <div className="min-w-0 space-y-6">
         {sections.map((s) => (
           <Card key={s.title}>
-            <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{s.title}</p>
-            {s.description && <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{s.description}</p>}
+            <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{tr(s.title)}</p>
+            {s.description && <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{tr(s.description)}</p>}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               {s.fields
                 .filter((f) => !f.showIf || f.showIf(draft))
@@ -122,22 +124,22 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
                           <input type="checkbox" checked={Boolean(v)} onChange={(e) => set(f.key, e.target.checked as T[typeof f.key])} className="mt-0.5 h-4 w-4 accent-[var(--color-brand)]" />
                           <span>
                             {f.checkboxLabel ?? f.label}
-                            {f.hint && <span className="mt-0.5 block text-xs text-[var(--color-ink-faint)]">{f.hint}</span>}
+                            {f.hint && <span className="mt-0.5 block text-xs text-[var(--color-ink-faint)]">{tr(f.hint)}</span>}
                           </span>
                         </label>
                       ) : f.kind === "custom" ? (
                         <div>
-                          <p className="mb-1.5 text-sm text-[var(--color-ink-soft)]">{f.label}</p>
+                          <p className="mb-1.5 text-sm text-[var(--color-ink-soft)]">{tr(f.label)}</p>
                           {f.render?.(draft[f.key], (nv) => set(f.key, nv))}
-                          {errors[f.key] ? <p className="mt-1 text-xs text-[var(--color-danger)]">{errors[f.key]}</p> : f.hint && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{f.hint}</p>}
+                          {errors[f.key] ? <p className="mt-1 text-xs text-[var(--color-danger)]">{errors[f.key]}</p> : f.hint && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{tr(f.hint)}</p>}
                         </div>
                       ) : (
-                        <Field label={f.suffix ? `${f.label} (${f.suffix})` : f.label} required={f.required} hint={f.hint} error={errors[f.key]}>
+                        <Field label={f.suffix ? `${f.label} (${f.suffix})` : f.label} required={f.required} hint={tr(f.hint)} error={errors[f.key]}>
                           {f.kind === "select" ? (
                             <SelectInput value={String(v ?? "")} onChange={(e) => set(f.key, e.target.value as T[typeof f.key])}>
                               {(f.options ?? []).map((o) => (
                                 <option key={o.value} value={o.value}>
-                                  {o.label}
+                                  {tr(o.label)}
                                 </option>
                               ))}
                             </SelectInput>
@@ -165,30 +167,30 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
 
       <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
         <Card>
-          <p className="font-semibold text-base text-[var(--color-ink)]">Save changes</p>
-          <p className="mt-1 text-xs text-[var(--color-ink-faint)]">Last saved {formatDateTime(saved.updatedAt)}</p>
-          {dirty && <p className="mt-3 text-sm text-[var(--color-warning-strong)]">You have unsaved changes.</p>}
+          <p className="font-semibold text-base text-[var(--color-ink)]">{tr("Save changes")}</p>
+          <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{tr("Last saved {value}", { value: formatDateTime(saved.updatedAt) })}</p>
+          {dirty && <p className="mt-3 text-sm text-[var(--color-warning-strong)]">{tr("You have unsaved changes.")}</p>}
           {storeError && (
             <div className="mt-3">
-              <FormError>Not saved. {storeError}</FormError>
+              <FormError>{tr("Not saved. {storeError}", { storeError })}</FormError>
             </div>
           )}
           {notice && !dirty && !storeError && (
             <p role="status" className="mt-3 text-sm text-[var(--color-success-strong)]">
-              {notice}
+              {tr(notice)}
             </p>
           )}
           {errorCount > 0 && (
             <div className="mt-3">
-              <FormError>{errorCount === 1 ? "Fix the highlighted field." : `Fix the ${errorCount} highlighted fields.`}</FormError>
+              <FormError>{errorCount === 1 ? tr("Fix the highlighted field.") : tr("Fix the {errorCount} highlighted fields.", { errorCount })}</FormError>
             </div>
           )}
           <div className="mt-4 flex flex-col gap-2">
             <PrimaryButton type="submit" disabled={!dirty}>
-              Save settings
+              {tr("Save settings")}
             </PrimaryButton>
             <SecondaryButton type="button" disabled={!dirty} onClick={() => setDraft(saved)}>
-              Discard changes
+              {tr("Discard changes")}
             </SecondaryButton>
             <button
               type="button"
@@ -198,11 +200,11 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
               }}
               className="mt-1 text-left text-sm text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]"
             >
-              Restore defaults
+              {tr("Restore defaults")}
             </button>
           </div>
         </Card>
-        {aside}
+        {tr(aside)}
       </aside>
     </form>
   );

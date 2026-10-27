@@ -19,8 +19,8 @@ import {
 } from "@/lib/admin/parameters";
 import { institutionStore } from "@/lib/admin/institutions";
 import { matchesSearch } from "@/lib/admin/filters";
-import { newId } from "@/lib/admin/store";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 type Panel = { mode: "add" } | { mode: "edit"; id: string } | { mode: "view"; id: string } | null;
 
@@ -48,6 +48,7 @@ const GROUP_META: Record<ParamGroup, { title: string; description: string; base:
 };
 
 export function ParameterManager({ group, category, children }: { group: ParamGroup; category: string; children?: React.ReactNode }) {
+  const tr = useT();
   const meta = GROUP_META[group];
   const defs = CATEGORY_DEFS.filter((d) => d.group === group);
   const def = defs.find((d) => d.key === category);
@@ -55,9 +56,9 @@ export function ParameterManager({ group, category, children }: { group: ParamGr
 
   return (
     <>
-      <PageHeading title={meta.title} description={meta.description} />
+      <PageHeading title={tr(meta.title)} description={tr(meta.description)} />
       <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)]">
-        <nav aria-label={meta.title} className="self-start overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
+        <nav aria-label={tr(meta.title)} className="self-start overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
           <ul className="divide-y divide-[var(--color-line)]">
             {defs.map((d) => {
               const items = all.filter((i) => i.category === d.key);
@@ -75,8 +76,8 @@ export function ParameterManager({ group, category, children }: { group: ParamGr
                     }`}
                   >
                     {current && <span aria-hidden className="absolute inset-y-0 left-0 w-[3px] bg-[var(--color-brand)]" />}
-                    <span>{d.title}</span>
-                    <span className="text-xs tabular-nums text-[var(--color-ink-faint)]" title={`${activeCount} active of ${items.length}`}>
+                    <span>{tr(d.title)}</span>
+                    <span className="text-xs tabular-nums text-[var(--color-ink-faint)]" title={tr("{activeCount} active of {count}", { activeCount, count: items.length })}>
                       {activeCount}
                     </span>
                   </Link>
@@ -90,7 +91,7 @@ export function ParameterManager({ group, category, children }: { group: ParamGr
           {def ? (
             <CategoryScreen key={def.key} def={def} all={all} />
           ) : (
-            <EmptyState message="This parameter list doesn't exist. Choose one from the list." />
+            <EmptyState message={tr("This parameter list doesn't exist. Choose one from the list.")} />
           )}
           {children}
         </div>
@@ -100,6 +101,7 @@ export function ParameterManager({ group, category, children }: { group: ParamGr
 }
 
 function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
+  const tr = useT();
   const items = useMemo(() => sortParams(all.filter((i) => i.category === def.key)), [all, def.key]);
   const parents = useMemo(() => (def.parent ? sortParams(all.filter((i) => i.category === def.parent!.category)) : []), [all, def.parent]);
   const parentIndex = useMemo(() => new Map(parents.map((p) => [p.id, p])), [parents]);
@@ -122,6 +124,7 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
   );
 
   const panelItem = panel && panel.mode !== "add" ? items.find((i) => i.id === panel.id) : undefined;
+  const storeError = parameterStore.useError();
 
   function toggle(item: ParamItem, active: boolean) {
     parameterStore.update(item.id, { status: active ? "ACTIVE" : "INACTIVE", updatedAt: new Date().toISOString() });
@@ -132,9 +135,9 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
     <>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 max-w-2xl">
-          <h2 className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{def.title}</h2>
-          <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{def.description}</p>
-          <p className="mt-1 text-xs text-[var(--color-ink-faint)]">Used in: {def.usedIn}</p>
+          <h2 className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr(def.title)}</h2>
+          <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{tr(def.description)}</p>
+          <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{tr("Used in: {usedIn}", { usedIn: def.usedIn })}</p>
         </div>
         {panel?.mode !== "add" && (
           <PrimaryButton
@@ -145,14 +148,19 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
             }}
           >
             <Plus className="h-4 w-4" strokeWidth={2} />
-            Add {def.singular}
+            {tr("Add {singular}", { singular: def.singular })}
           </PrimaryButton>
         )}
       </div>
 
+      {storeError && (
+        <div className="mb-4">
+          <FormError>{tr(storeError)}</FormError>
+        </div>
+      )}
       {notice && (
         <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-          {notice}
+          {tr(notice)}
         </p>
       )}
 
@@ -198,10 +206,10 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
       )}
 
       <div className="mb-4 grid gap-3 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4 sm:grid-cols-2 lg:grid-cols-4">
-        <SearchField value={search} onChange={setSearch} placeholder={`Search ${def.title.toLowerCase()}`} />
+        <SearchField value={search} onChange={setSearch} placeholder={tr("Search {toLowerCase}", { toLowerCase: def.title.toLowerCase() })} />
         {grandDef && (
           <FilterSelect
-            label={grandDef.label}
+            label={tr(grandDef.label)}
             value={grandFilter}
             onChange={(v) => {
               setGrandFilter(v);
@@ -212,19 +220,19 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
         )}
         {def.parent && (
           <FilterSelect
-            label={def.parent.label}
+            label={tr(def.parent.label)}
             value={parentId}
             onChange={setParentId}
             options={parents.filter((p) => !grandFilter || p.parentId === grandFilter).map((p) => ({ value: p.id, label: p.label }))}
           />
         )}
         <FilterSelect
-          label="Status"
+          label={tr("Status")}
           value={status}
           onChange={setStatus}
           options={[
-            { value: "ACTIVE", label: "Active" },
-            { value: "INACTIVE", label: "Inactive" },
+            { value: "ACTIVE", label: tr("Active") },
+            { value: "INACTIVE", label: tr("Inactive") },
           ]}
         />
       </div>
@@ -232,20 +240,20 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
       <ResultCount shown={filtered.length} total={items.length} noun={items.length === 1 ? def.singular : def.title.toLowerCase()} />
 
       {filtered.length === 0 ? (
-        <EmptyState message={items.length ? "Nothing matches these filters." : `No ${def.title.toLowerCase()} yet. Add the first one.`} />
+        <EmptyState message={items.length ? tr("Nothing matches these filters.") : tr("No {toLowerCase} yet. Add the first one.", { toLowerCase: def.title.toLowerCase() })} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
               <Th>{def.codeLabel}</Th>
               <Th>{def.labelLabel}</Th>
-              {def.parent && <Th>{def.parent.label}</Th>}
+              {def.parent && <Th>{tr(def.parent.label)}</Th>}
               {def.columns.map((c) => (
                 <Th key={c}>{def.fields.find((f) => f.key === c)?.label}</Th>
               ))}
-              <Th>Status</Th>
+              <Th>{tr("Status")}</Th>
               <Th>
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{tr("Actions")}</span>
               </Th>
             </tr>
           </thead>
@@ -255,7 +263,7 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
                 <Td className="whitespace-nowrap font-medium text-[var(--color-ink)]">{i.code}</Td>
                 <Td>
                   <button type="button" onClick={() => setPanel({ mode: "view", id: i.id })} className="text-left text-[var(--color-ink)] hover:underline">
-                    {i.label}
+                    {tr(i.label)}
                   </button>
                 </Td>
                 {def.parent && <Td className="text-[var(--color-ink-soft)]">{i.parentId ? parentIndex.get(i.parentId)?.label ?? "—" : "—"}</Td>}
@@ -270,10 +278,10 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
                 <Td>
                   <div className="flex items-center justify-end gap-4 whitespace-nowrap">
                     <button type="button" onClick={() => setPanel({ mode: "view", id: i.id })} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                      View
+                      {tr("View")}
                     </button>
                     <button type="button" onClick={() => setPanel({ mode: "edit", id: i.id })} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                      Edit
+                      {tr("Edit")}
                     </button>
                     <StatusToggle active={i.status === "ACTIVE"} name={i.code} onChange={(next) => toggle(i, next)} />
                   </div>
@@ -308,6 +316,7 @@ function ItemView({
   onEdit: () => void;
   onToggle: (active: boolean) => void;
 }) {
+  const tr = useT();
   const institutions = institutionStore.useItems();
   const usedBy = institutions.filter((i) => [i.typeId, i.accreditationBodyId, i.regionId, i.townId, i.quarterId].includes(item.id));
   const childCategory = CATEGORY_DEFS.find((d) => d.parent?.category === def.key);
@@ -316,15 +325,15 @@ function ItemView({
     <Card padded={false} className="mb-6">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--color-line)] px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <p className="font-semibold text-base text-[var(--color-ink)]">{item.label}</p>
+          <p className="font-semibold text-base text-[var(--color-ink)]">{tr(item.label)}</p>
           <ActiveBadge active={item.status === "ACTIVE"} />
         </div>
         <div className="flex items-center gap-4">
           <StatusToggle active={item.status === "ACTIVE"} name={item.code} onChange={onToggle} />
           <button type="button" onClick={onEdit} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-            Edit
+            {tr("Edit")}
           </button>
-          <button type="button" onClick={onClose} aria-label="Close" className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
+          <button type="button" onClick={onClose} aria-label={tr("Close")} className="text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
             <X className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>
@@ -335,18 +344,18 @@ function ItemView({
           { label: def.labelLabel, value: item.label },
           ...(def.parent ? [{ label: def.parent.label, value: parent?.label ?? "—" }] : []),
           ...def.fields.map((f) => ({ label: f.label, value: formatAttr(f, item.attrs[f.key], false) })),
-          { label: "Description", value: item.description || "—" },
-          { label: "Display order", value: item.order },
+          { label: tr("Description"), value: item.description || "—" },
+          { label: tr("Display order"), value: item.order },
           ...(def.group === "institution" || (def.group === "location" && def.key !== "sites")
-            ? [{ label: "Institutions using this", value: usedBy.length ? usedBy.map((i) => i.name).join(", ") : "None" }]
+            ? [{ label: tr("Institutions using this"), value: usedBy.length ? usedBy.map((i) => i.name).join(", ") : tr("None") }]
             : []),
-          ...(childCategory ? [{ label: childCategory.title, value: childItems.length ? childItems.map((c) => c.label).join(", ") : "None" }] : []),
-          { label: "Last changed", value: formatDateTime(item.updatedAt) },
+          ...(childCategory ? [{ label: childCategory.title, value: childItems.length ? childItems.map((c) => c.label).join(", ") : tr("None") }] : []),
+          { label: tr("Last changed"), value: formatDateTime(item.updatedAt) },
         ]}
       />
       {item.status === "ACTIVE" && usedBy.length > 0 && (
         <p className="border-t border-[var(--color-line)] px-5 py-3 text-xs text-[var(--color-ink-faint)]">
-          Deactivating keeps it on the institutions above but removes it from the choices on new records.
+          {tr("Deactivating keeps it on the institutions above but removes it from the choices on new records.")}
         </p>
       )}
     </Card>
@@ -417,6 +426,7 @@ function ItemForm({
   onCancel: () => void;
   onSaved: (item: ParamItem) => void;
 }) {
+  const tr = useT();
   const nextOrder = Math.max(0, ...items.map((i) => i.order)) + 1;
   const [draft, setDraft] = useState<Draft>(() => toDraft(def, initial, nextOrder));
   // Two-level parents (a site's town sits in a region): pick the region
@@ -428,49 +438,51 @@ function ItemForm({
   );
   const [grandId, setGrandId] = useState(() => parents.find((p) => p.id === initial?.parentId)?.parentId ?? "");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [serverError, setServerError] = useState<string | null>(null);
 
   const setAttr = (key: string, value: string | boolean) => setDraft((d) => ({ ...d, attrs: { ...d.attrs, [key]: value } }));
 
   function validate() {
     const e: Record<string, string> = {};
     const code = draft.code.trim();
-    if (!code) e.code = `Enter the ${def.codeLabel.toLowerCase()}.`;
-    else if (items.some((i) => i.id !== initial?.id && i.code.toLowerCase() === code.toLowerCase())) e.code = `Another ${def.singular} already uses ${code}.`;
-    if (!draft.label.trim()) e.label = `Enter the ${def.labelLabel.toLowerCase()}.`;
-    if (def.parent && !draft.parentId) e.parentId = `Choose a ${def.parent.label.toLowerCase()}.`;
-    if (!/^\d+$/.test(draft.order.trim())) e.order = "Enter a whole number.";
+    if (!code) e.code = tr("Enter the {toLowerCase}.", { toLowerCase: def.codeLabel.toLowerCase() });
+    else if (items.some((i) => i.id !== initial?.id && i.code.toLowerCase() === code.toLowerCase())) e.code = tr("Another {singular} already uses {code}.", { singular: def.singular, code });
+    if (!draft.label.trim()) e.label = tr("Enter the {toLowerCase}.", { toLowerCase: def.labelLabel.toLowerCase() });
+    if (def.parent && !draft.parentId) e.parentId = tr("Choose a {toLowerCase}.", { toLowerCase: def.parent.label.toLowerCase() });
+    if (!/^\d+$/.test(draft.order.trim())) e.order = tr("Enter a whole number.");
 
     for (const f of def.fields) {
       const v = draft.attrs[f.key];
       if (f.kind === "number") {
         const s = String(v).trim();
         if (!s) {
-          if (f.required) e[f.key] = `Enter the ${f.label.toLowerCase()}.`;
+          if (f.required) e[f.key] = tr("Enter the {toLowerCase}.", { toLowerCase: f.label.toLowerCase() });
           continue;
         }
         const n = Number(s);
-        if (!Number.isFinite(n)) e[f.key] = "Enter a number.";
-        else if (f.min !== undefined && n < f.min) e[f.key] = `Enter ${f.min} or more.`;
-        else if (f.max !== undefined && n > f.max) e[f.key] = `Enter ${f.max} or less.`;
+        if (!Number.isFinite(n)) e[f.key] = tr("Enter a number.");
+        else if (f.min !== undefined && n < f.min) e[f.key] = tr("Enter {min} or more.", { min: f.min });
+        else if (f.max !== undefined && n > f.max) e[f.key] = tr("Enter {max} or less.", { max: f.max });
       } else if (f.kind === "list") {
-        if (f.required && !parseList(String(v)).length) e[f.key] = `Add at least one ${f.label.toLowerCase().replace(/s$/, "")}.`;
+        if (f.required && !parseList(String(v)).length) e[f.key] = tr("Add at least one {value}.", { value: f.label.toLowerCase().replace(/s$/, "") });
       } else if (f.kind !== "boolean" && f.required && !String(v).trim()) {
-        e[f.key] = `Choose the ${f.label.toLowerCase()}.`;
+        e[f.key] = tr("Choose the {toLowerCase}.", { toLowerCase: f.label.toLowerCase() });
       }
     }
     // Series types: a pass mark above the maximum could never be met.
     const max = Number(draft.attrs.maxScore);
     const pass = Number(draft.attrs.passMark);
     if (!e.passMark && !e.maxScore && "passMark" in draft.attrs && Number.isFinite(max) && Number.isFinite(pass) && pass > max) {
-      e.passMark = "The pass mark can't be higher than the maximum score.";
+      e.passMark = tr("The pass mark can't be higher than the maximum score.");
     }
     return e;
   }
 
-  function save() {
+  async function save() {
     const e = validate();
     setErrors(e);
-    if (Object.keys(e).length) return;
+    if (Object.keys(e).length || saving) return;
 
     const attrs: Record<string, ParamValue> = {};
     for (const f of def.fields) {
@@ -491,14 +503,19 @@ function ItemForm({
       attrs,
       updatedAt: now,
     };
-    if (initial) {
-      parameterStore.update(initial.id, fields);
-      onSaved({ ...initial, ...fields });
-    } else {
-      const item: ParamItem = { ...fields, id: newId(def.key), category: def.key, createdAt: now };
-      parameterStore.add(item);
-      onSaved(item);
+    setSaving(true);
+    setServerError(null);
+    const { code: _code, ...changes } = fields;
+    void _code;
+    const result = await parameterStore.save!(initial ? changes : { ...fields, category: def.key, createdAt: now }, initial?.id);
+    setSaving(false);
+    if (!result.ok) {
+      // The server names attribute errors attrs.<field>; the form names them <field>.
+      setErrors(Object.fromEntries(Object.entries(result.fieldErrors).map(([k, v]) => [k.replace(/^attrs\./, "").replace(/^sortOrder$/, "order"), v])));
+      setServerError(Object.keys(result.fieldErrors).length ? null : result.error);
+      return;
     }
+    onSaved(result.item);
   }
 
   const errorCount = Object.keys(errors).length;
@@ -513,17 +530,17 @@ function ItemForm({
         }}
       >
         <p className="mb-4 font-semibold text-base text-[var(--color-ink)]">
-          {initial ? `Edit ${initial.label}` : `Add ${def.singular}`}
+          {initial ? tr("Edit {label}", { label: tr(initial.label) }) : tr("Add {singular}", { singular: def.singular })}
         </p>
         <div className="grid gap-5 sm:grid-cols-2">
-          <Field label={def.codeLabel} required error={errors.code} hint={def.codeHint}>
-            <TextInput value={draft.code} onChange={(e) => setDraft({ ...draft, code: e.target.value })} />
+          <Field label={tr(def.codeLabel)} required error={errors.code} hint={tr(def.codeHint)}>
+            <TextInput value={draft.code} disabled={!!initial} onChange={(e) => setDraft({ ...draft, code: e.target.value })} />
           </Field>
-          <Field label={def.labelLabel} required error={errors.label}>
+          <Field label={tr(def.labelLabel)} required error={errors.label}>
             <TextInput value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} />
           </Field>
           {grandDef && (
-            <Field label={grandDef.label} hint={`Narrows the ${def.parent!.label.toLowerCase()} list.`}>
+            <Field label={tr(grandDef.label)} hint={tr("Narrows the {toLowerCase} list.", { toLowerCase: def.parent!.label.toLowerCase() })}>
               <SelectInput
                 value={grandId}
                 onChange={(e) => {
@@ -533,22 +550,22 @@ function ItemForm({
                   if (current && next && current.parentId !== next) setDraft({ ...draft, parentId: "" });
                 }}
               >
-                <option value="">All</option>
+                <option value="">{tr("All")}</option>
                 {selectableParams(grandParents, grandId).map((g) => (
                   <option key={g.id} value={g.id}>
-                    {g.label}
+                    {tr(g.label)}
                   </option>
                 ))}
               </SelectInput>
             </Field>
           )}
           {def.parent && (
-            <Field label={def.parent.label} required error={errors.parentId}>
+            <Field label={tr(def.parent.label)} required error={errors.parentId}>
               <SelectInput value={draft.parentId} onChange={(e) => setDraft({ ...draft, parentId: e.target.value })}>
-                <option value="">Select…</option>
+                <option value="">{tr("Select…")}</option>
                 {selectableParams(parents, draft.parentId, grandId || undefined).map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.label}
+                    {tr(p.label)}
                     {p.status === "INACTIVE" ? " (inactive)" : ""}
                   </option>
                 ))}
@@ -558,17 +575,17 @@ function ItemForm({
           {def.fields.map((f) => (
             <AttrField key={f.key} field={f} value={draft.attrs[f.key]} error={errors[f.key]} onChange={(v) => setAttr(f.key, v)} />
           ))}
-          <Field label="Display order" error={errors.order} hint="Lower numbers appear first in dropdowns.">
+          <Field label={tr("Display order")} error={errors.order} hint={tr("Lower numbers appear first in dropdowns.")}>
             <TextInput inputMode="numeric" value={draft.order} onChange={(e) => setDraft({ ...draft, order: e.target.value })} />
           </Field>
-          <Field label="Status">
+          <Field label={tr("Status")}>
             <SelectInput value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Draft["status"] })}>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
+              <option value="ACTIVE">{tr("Active")}</option>
+              <option value="INACTIVE">{tr("Inactive")}</option>
             </SelectInput>
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Description" hint="Optional. Shown to administrators only.">
+            <Field label={tr("Description")} hint={tr("Optional. Shown to administrators only.")}>
               <TextArea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </Field>
           </div>
@@ -576,14 +593,19 @@ function ItemForm({
 
         {errorCount > 0 && (
           <div className="mt-5">
-            <FormError>Fix the {errorCount === 1 ? "field" : `${errorCount} fields`} marked above to save.</FormError>
+            <FormError>{tr("Fix the")}{" "}{errorCount === 1 ? "field" : `${errorCount} fields`}{" "}{tr("marked above to save.")}</FormError>
+          </div>
+        )}
+        {serverError && (
+          <div className="mt-5">
+            <FormError>{tr(serverError)}</FormError>
           </div>
         )}
 
         <div className="mt-6 flex items-center gap-3 border-t border-[var(--color-line)] pt-5">
-          <PrimaryButton type="submit">{initial ? "Save changes" : `Add ${def.singular}`}</PrimaryButton>
+          <PrimaryButton type="submit" disabled={saving}>{saving ? tr("Saving…") : initial ? tr("Save changes") : tr("Add {singular}", { singular: def.singular })}</PrimaryButton>
           <SecondaryButton type="button" onClick={onCancel}>
-            Cancel
+            {tr("Cancel")}
           </SecondaryButton>
         </div>
       </form>
@@ -592,25 +614,26 @@ function ItemForm({
 }
 
 function AttrField({ field, value, error, onChange }: { field: FieldDef; value: string | boolean; error?: string; onChange: (v: string | boolean) => void }) {
+  const tr = useT();
   const required = "required" in field ? field.required : false;
   switch (field.kind) {
     case "boolean":
       return (
-        <Field label={field.label} hint={field.hint}>
+        <Field label={tr(field.label)} hint={tr(field.hint)}>
           <SelectInput value={value ? "yes" : "no"} onChange={(e) => onChange(e.target.value === "yes")}>
-            <option value="yes">{field.trueLabel}</option>
-            <option value="no">{field.falseLabel}</option>
+            <option value="yes">{tr(field.trueLabel)}</option>
+            <option value="no">{tr(field.falseLabel)}</option>
           </SelectInput>
         </Field>
       );
     case "select":
       return (
-        <Field label={field.label} required={required} error={error} hint={field.hint}>
+        <Field label={tr(field.label)} required={required} error={error} hint={tr(field.hint)}>
           <SelectInput value={String(value)} onChange={(e) => onChange(e.target.value)}>
-            <option value="">Select…</option>
+            <option value="">{tr("Select…")}</option>
             {field.options.map((o) => (
               <option key={o.value} value={o.value}>
-                {o.label}
+                {tr(o.label)}
               </option>
             ))}
           </SelectInput>
@@ -619,20 +642,20 @@ function AttrField({ field, value, error, onChange }: { field: FieldDef; value: 
     case "list":
       return (
         <div className="sm:col-span-2">
-          <Field label={field.label} required={required} error={error} hint={field.hint}>
+          <Field label={tr(field.label)} required={required} error={error} hint={tr(field.hint)}>
             <TextArea rows={Math.min(10, Math.max(4, String(value).split("\n").length + 1))} value={String(value)} onChange={(e) => onChange(e.target.value)} />
           </Field>
         </div>
       );
     case "number":
       return (
-        <Field label={field.label} required={required} error={error} hint={field.hint}>
+        <Field label={tr(field.label)} required={required} error={error} hint={tr(field.hint)}>
           <TextInput inputMode="decimal" value={String(value)} onChange={(e) => onChange(e.target.value)} />
         </Field>
       );
     default:
       return (
-        <Field label={field.label} required={required} error={error} hint={field.hint}>
+        <Field label={tr(field.label)} required={required} error={error} hint={tr(field.hint)}>
           <TextInput value={String(value)} onChange={(e) => onChange(e.target.value)} />
         </Field>
       );

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { createCollection } from "./store";
+import { createApiCollection } from "./store";
 
 /**
  * Admin-managed parameters: the option lists every form on the platform
@@ -788,13 +788,40 @@ function seedParameters(): ParamItem[] {
   return out;
 }
 
-export const parameterStore = createCollection<ParamItem>("parameters", seedParameters, {
-  // Browsers holding parameters saved before a list existed get that
-  // list's seed items; lists an admin has already touched are left alone.
-  merge: (stored, seed) => {
-    const present = new Set(stored.map((i) => i.category));
-    const missing = seed.filter((i) => !present.has(i.category));
-    return missing.length ? [...stored, ...missing] : stored;
+/**
+ * Stored in the database: Cheeta administration reads and writes
+ * /api/admin/parameters (every item, active or not); everyone else reads
+ * the active items from /api/reference/parameters. The seed is only what
+ * shows until the first answer, and what a new database is filled with.
+ */
+export const parameterStore = createApiCollection<ParamItem>("parameters", seedParameters, {
+  url: "/api/admin/parameters",
+  readFallback: "/api/reference/parameters",
+  fromApi: (r) => ({
+    id: String(r.id),
+    category: String(r.category) as ParamCategory,
+    code: String(r.code ?? ""),
+    label: String(r.label ?? ""),
+    description: String(r.description ?? ""),
+    status: r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
+    order: typeof r.sortOrder === "number" ? r.sortOrder : 0,
+    parentId: typeof r.parentId === "string" && r.parentId ? r.parentId : undefined,
+    attrs: (r.attrs ?? {}) as Record<string, ParamValue>,
+    createdAt: String(r.createdAt ?? ""),
+    updatedAt: String(r.updatedAt ?? ""),
+  }),
+  // Category and code are only read when creating; the server keeps them fixed after that.
+  toApi: (p) => {
+    const out: Record<string, unknown> = {};
+    if (p.category !== undefined) out.category = p.category;
+    if (p.code !== undefined) out.code = p.code;
+    if (p.label !== undefined) out.label = p.label;
+    if (p.description !== undefined) out.description = p.description;
+    if (p.order !== undefined) out.sortOrder = p.order;
+    if ("parentId" in p) out.parentId = p.parentId ?? null;
+    if (p.attrs !== undefined) out.attrs = p.attrs;
+    if (p.status !== undefined) out.status = p.status;
+    return out;
   },
 });
 

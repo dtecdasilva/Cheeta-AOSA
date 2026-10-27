@@ -4,33 +4,36 @@ import { Mail, MessageSquare, Monitor } from "lucide-react";
 import { CategoryBadge } from "@/components/notifications/NotificationCentre";
 import { CHANNEL_LABELS, type Channel, type NotificationCategory } from "@/lib/notifications/center";
 import { renderParts, renderText, smsInfo, type RenderPart } from "@/lib/admin/templates";
+import { useT } from "@/lib/i18n/client";
 
 export const CHANNEL_ICON: Record<Channel, typeof Mail> = { EMAIL: Mail, SMS: MessageSquare, IN_APP: Monitor };
 
 export function ChannelBadge({ channel }: { channel: Channel }) {
+  const tr = useT();
   const Icon = CHANNEL_ICON[channel];
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1 text-xs font-medium text-[var(--color-ink)]">
       <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
-      {CHANNEL_LABELS[channel]}
+      {tr(CHANNEL_LABELS[channel])}
     </span>
   );
 }
 
 /** Text with filled-in placeholders underlined and unknown ones flagged. */
 function Rendered({ parts }: { parts: RenderPart[] }) {
+  const tr = useT();
   return (
     <>
       {parts.map((p, i) =>
         p.kind === "text" ? (
-          <span key={i}>{p.text}</span>
+          <span key={i}>{tr(p.text)}</span>
         ) : p.kind === "value" ? (
-          <span key={i} className="rounded-sm bg-[var(--color-brand-soft)] decoration-[var(--color-brand)]" title="Filled in from sample data">
-            {p.text}
+          <span key={i} className="rounded-sm bg-[var(--color-brand-soft)] decoration-[var(--color-brand)]" title={tr("Filled in from sample data")}>
+            {tr(p.text)}
           </span>
         ) : (
-          <span key={i} className="rounded-sm bg-[var(--color-danger-soft)] font-mono text-[0.9em] text-[var(--color-danger-strong)]" title="Unknown placeholder — it would be sent as typed">
-            {p.text}
+          <span key={i} className="rounded-sm bg-[var(--color-danger-soft)] font-mono text-[0.9em] text-[var(--color-danger-strong)]" title={tr("Unknown placeholder — it would be sent as typed")}>
+            {tr(p.text)}
           </span>
         )
       )}
@@ -64,8 +67,9 @@ export function TemplatePreview({
   values: Record<string, string>;
   category?: NotificationCategory;
 }) {
+  const tr = useT();
   if (!body.trim() && !subject.trim()) {
-    return <p className="rounded-xl border border-dashed border-[var(--color-line-strong)] px-4 py-10 text-center text-sm text-[var(--color-ink-faint)]">Start writing to see a preview.</p>;
+    return <p className="rounded-xl border border-dashed border-[var(--color-line-strong)] px-4 py-10 text-center text-sm text-[var(--color-ink-faint)]">{tr("Start writing to see a preview.")}</p>;
   }
 
   if (channel === "EMAIL") {
@@ -73,23 +77,23 @@ export function TemplatePreview({
       <div className="overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] text-sm">
         <dl className="space-y-1 border-b border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-3 text-xs">
           <div className="flex gap-2">
-            <dt className="w-14 shrink-0 text-[var(--color-ink-faint)]">From</dt>
-            <dd className="text-[var(--color-ink)]">Cheeta AOSA &lt;no-reply@aosa.cheeta.cm&gt;</dd>
+            <dt className="w-14 shrink-0 text-[var(--color-ink-faint)]">{tr("From")}</dt>
+            <dd className="text-[var(--color-ink)]">{tr("Cheeta AOSA <no-reply@aosa.cheeta.cm>")}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="w-14 shrink-0 text-[var(--color-ink-faint)]">To</dt>
+            <dt className="w-14 shrink-0 text-[var(--color-ink-faint)]">{tr("To")}</dt>
             <dd className="text-[var(--color-ink)]">{values["student.email"]}</dd>
           </div>
           <div className="flex gap-2">
-            <dt className="w-14 shrink-0 text-[var(--color-ink-faint)]">Subject</dt>
-            <dd className="font-medium text-[var(--color-ink)]">{subject ? <Rendered parts={renderParts(subject, values)} /> : <em className="text-[var(--color-danger)]">No subject</em>}</dd>
+            <dt className="w-14 shrink-0 text-[var(--color-ink-faint)]">{tr("Subject")}</dt>
+            <dd className="font-medium text-[var(--color-ink)]">{subject ? <Rendered parts={renderParts(subject, values)} /> : <em className="text-[var(--color-danger)]">{tr("No subject")}</em>}</dd>
           </div>
         </dl>
         <div className="px-5 py-5 leading-relaxed text-[var(--color-ink)]">
           <Paragraphs text={body} values={values} />
         </div>
         <p className="border-t border-[var(--color-line)] px-5 py-3 text-xs text-[var(--color-ink-faint)]">
-          You're receiving this because you have an account on Cheeta AOSA. This mailbox isn't monitored.
+          {tr("You're receiving this because you have an account on Cheeta AOSA. This mailbox isn't monitored.")}
         </p>
       </div>
     );
@@ -101,7 +105,7 @@ export function TemplatePreview({
     return (
       <div>
         <div className="mx-auto max-w-xs rounded-xl border border-[var(--color-line)] bg-[var(--color-paper)] p-4">
-          <p className="mb-2 text-center text-xs font-medium text-[var(--color-ink-soft)]">CHEETA · {values["student.phone"]}</p>
+          <p className="mb-2 text-center text-xs font-medium text-[var(--color-ink-soft)]">{tr("CHEETA ·")}{" "}{values["student.phone"]}</p>
           <div className="max-w-[85%] rounded-xl rounded-bl-sm bg-[var(--color-surface)] px-3 py-2 text-sm leading-snug text-[var(--color-ink)] shadow-[0_0_0_1px_var(--color-line)]">
             <span className="whitespace-pre-line">
               <Rendered parts={renderParts(body, values)} />
@@ -109,11 +113,11 @@ export function TemplatePreview({
           </div>
         </div>
         <p className={`mt-3 text-center text-xs ${info.segments > 1 ? "text-[var(--color-warning-strong)]" : "text-[var(--color-ink-faint)]"}`}>
-          {info.length} characters · {info.segments} {info.segments === 1 ? "message" : "messages"} ({info.encoding}, {info.perSegment} per message)
+          {tr("{count} characters · {segments}", { count: info.length, segments: info.segments })} {info.segments === 1 ? "message" : "messages"}{" "}{tr("({encoding}, {perSegment} per message)", { encoding: info.encoding, perSegment: info.perSegment })}
         </p>
         {info.encoding === "Unicode" && (
           <p className="mt-1 text-center text-xs text-[var(--color-ink-faint)]">
-            {info.offending.slice(0, 6).map((c) => `“${c}”`).join(" ")} {info.offending.length === 1 ? "switches" : "switch"} this SMS to Unicode, which fits fewer characters.
+            {info.offending.slice(0, 6).map((c) => `“${c}”`).join(" ")} {info.offending.length === 1 ? "switches" : "switch"}{" "}{tr("this SMS to Unicode, which fits fewer characters.")}
           </p>
         )}
       </div>
@@ -127,15 +131,15 @@ export function TemplatePreview({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             {category && <CategoryBadge category={category} />}
-            <span className="ml-auto text-xs text-[var(--color-ink-faint)]">Just now</span>
+            <span className="ml-auto text-xs text-[var(--color-ink-faint)]">{tr("Just now")}</span>
           </div>
-          <p className="mt-1.5 text-sm font-semibold text-[var(--color-ink)]">{subject ? <Rendered parts={renderParts(subject, values)} /> : <em className="font-normal text-[var(--color-danger)]">No title</em>}</p>
+          <p className="mt-1.5 text-sm font-semibold text-[var(--color-ink)]">{subject ? <Rendered parts={renderParts(subject, values)} /> : <em className="font-normal text-[var(--color-danger)]">{tr("No title")}</em>}</p>
           <div className="mt-0.5 text-sm text-[var(--color-ink-soft)]">
             <Paragraphs text={body} values={values} />
           </div>
         </div>
       </div>
-      <p className="border-t border-[var(--color-line)] px-4 py-2 text-xs text-[var(--color-ink-faint)]">As it appears in the notification centre</p>
+      <p className="border-t border-[var(--color-line)] px-4 py-2 text-xs text-[var(--color-ink-faint)]">{tr("As it appears in the notification centre")}</p>
     </div>
   );
 }

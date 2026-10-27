@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminDataNotice } from "@/components/admin/AdminDataNotice";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, CardHeader, DescriptionList, EmptyState, PageHeading, TableFrame, Td, Th } from "@/components/ui";
@@ -24,6 +25,7 @@ import { EMPTY_RANGE, inRange, matchesSearch, type DateRange } from "@/lib/admin
 import { ADMIN_STATUS_LABELS, ALL_STATUSES } from "@/lib/admin/status";
 import { useHydrated } from "@/lib/admin/store";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export interface ApplicationFilterDefaults {
   status?: string;
@@ -32,6 +34,7 @@ export interface ApplicationFilterDefaults {
 }
 
 export function ApplicationList({ defaults = {} }: { defaults?: ApplicationFilterDefaults }) {
+  const tr = useT();
   const data = useAdminData();
   const [search, setSearch] = useState("");
   const [institutionId, setInstitutionId] = useState(defaults.institution ?? "");
@@ -60,7 +63,8 @@ export function ApplicationList({ defaults = {} }: { defaults?: ApplicationFilte
   return (
     <>
       <SubNav items={STUDENT_NAV} current="/admin/applications" />
-      <PageHeading title="Student applications" description="Every application on the platform, most recently updated first." />
+      <AdminDataNotice />
+      <PageHeading title={tr("Student applications")} description={tr("Every application on the platform, most recently updated first.")} />
 
       <FilterBar
         active={!!(search || institutionId || status || payment || regionId || range.from || range.to)}
@@ -73,39 +77,39 @@ export function ApplicationList({ defaults = {} }: { defaults?: ApplicationFilte
           setRange(EMPTY_RANGE);
         }}
       >
-        <SearchField value={search} onChange={setSearch} placeholder="Reference, student, program, payment ref." />
-        <DateRangeFilter value={range} onChange={setRange} label="Started" />
-        <FilterSelect label="Institution" value={institutionId} onChange={setInstitutionId} options={data.institutionOptions} />
-        <FilterSelect label="Status" value={status} onChange={setStatus} options={ALL_STATUSES.map((s) => ({ value: s, label: ADMIN_STATUS_LABELS[s] }))} />
+        <SearchField value={search} onChange={setSearch} placeholder={tr("Reference, student, program, payment ref.")} />
+        <DateRangeFilter value={range} onChange={setRange} label={tr("Started")} />
+        <FilterSelect label={tr("Institution")} value={institutionId} onChange={setInstitutionId} options={data.institutionOptions} />
+        <FilterSelect label={tr("Status")} value={status} onChange={setStatus} options={ALL_STATUSES.map((s) => ({ value: s, label: tr(ADMIN_STATUS_LABELS[s]) }))} />
         <FilterSelect
-          label="Payment"
+          label={tr("Payment")}
           value={payment}
           onChange={setPayment}
           options={[
-            { value: "PAID", label: "Paid" },
-            { value: "PENDING", label: "Pending" },
-            { value: "FAILED", label: "Failed" },
-            { value: "NONE", label: "Not started" },
+            { value: "PAID", label: tr("Paid") },
+            { value: "PENDING", label: tr("Pending") },
+            { value: "FAILED", label: tr("Failed") },
+            { value: "NONE", label: tr("Not started") },
           ]}
         />
-        <FilterSelect label="Student's region" value={regionId} onChange={setRegionId} options={data.options("regions")} />
+        <FilterSelect label={tr("Student's region")} value={regionId} onChange={setRegionId} options={data.options("regions")} />
       </FilterBar>
 
-      <ResultCount shown={filtered.length} total={data.applications.length} noun="applications" />
+      <ResultCount shown={filtered.length} total={data.applications.length} noun={tr("applications")} />
       {filtered.length === 0 ? (
-        <EmptyState message="No applications match these filters." />
+        <EmptyState message={tr("No applications match these filters.")} />
       ) : (
         <>
           <TableFrame>
             <thead>
               <tr>
-                <Th>Reference</Th>
-                <Th>Student</Th>
-                <Th>Institution and program</Th>
-                <Th>Started</Th>
-                <Th>Payment</Th>
-                <Th>Progress</Th>
-                <Th>Status</Th>
+                <Th>{tr("Reference")}</Th>
+                <Th>{tr("Student")}</Th>
+                <Th>{tr("Institution and program")}</Th>
+                <Th>{tr("Started")}</Th>
+                <Th>{tr("Payment")}</Th>
+                <Th>{tr("Progress")}</Th>
+                <Th>{tr("Status")}</Th>
               </tr>
             </thead>
             <tbody>
@@ -122,11 +126,11 @@ export function ApplicationList({ defaults = {} }: { defaults?: ApplicationFilte
                       <Link href={`/admin/students/${a.studentId}`} className="text-[var(--color-ink)] hover:underline">
                         {data.studentLabel(a.studentId)}
                       </Link>
-                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{s?.registrationNo}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(s?.registrationNo)}</p>
                     </Td>
                     <Td>
                       <p className="text-[var(--color-ink)]">{data.institutionName(a.institutionId)}</p>
-                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{a.programName}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(a.programName)}</p>
                     </Td>
                     <Td className="whitespace-nowrap text-[var(--color-ink-soft)]">{formatDate(a.createdAt)}</Td>
                     <Td>
@@ -153,18 +157,19 @@ export function ApplicationList({ defaults = {} }: { defaults?: ApplicationFilte
 // ---------------------------------------------------------------------------
 
 export function ApplicationDetail({ id }: { id: string }) {
+  const tr = useT();
   const data = useAdminData();
   const hydrated = useHydrated();
   const app = data.applications.find((a) => a.id === id);
 
   if (!app) {
-    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     return (
       <EmptyState
-        message="This application doesn't exist."
+        message={tr("This application doesn't exist.")}
         action={
           <Link href="/admin/applications" className={ButtonLinkClass("secondary")}>
-            Back to applications
+            {tr("Back to applications")}
           </Link>
         }
       />
@@ -181,12 +186,12 @@ export function ApplicationDetail({ id }: { id: string }) {
     <>
       <p className="mb-2 text-sm">
         <Link href="/admin/applications" className="text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]">
-          Student applications
+          {tr("Student applications")}
         </Link>
       </p>
       <PageHeading
-        title={`Application ${app.reference}`}
-        description={`${data.studentLabel(app.studentId)} to ${inst?.name ?? "an unknown institution"}`}
+        title={tr("Application {reference}", { reference: app.reference })}
+        description={`${data.studentLabel(app.studentId)} to ${inst?.name ?? tr("an unknown institution")}`}
         actions={<AdminStatusBadge status={app.status} />}
       />
 
@@ -194,59 +199,59 @@ export function ApplicationDetail({ id }: { id: string }) {
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <Card padded={false} className="lg:col-span-2">
-          <CardHeader title="Progression" description={`Every step, oldest first. ${daysOpen} ${daysOpen === 1 ? "day" : "days"} from start to latest update.`} />
+          <CardHeader title={tr("Progression")} description={tr("Every step, oldest first. {daysOpen} {value} from start to latest update.", { daysOpen, value: daysOpen === 1 ? "day" : "days" })} />
           <div className="px-5 py-5">
-            <ProgressionTimeline app={app} institutionName={inst?.name ?? "Institution"} />
+            <ProgressionTimeline app={app} institutionName={inst?.name ?? tr("Institution")} />
           </div>
         </Card>
 
         <div className="space-y-6">
           <Card padded={false}>
-            <CardHeader title="Application" />
+            <CardHeader title={tr("Application")} />
             <DescriptionList
               items={[
                 {
-                  label: "Student",
+                  label: tr("Student"),
                   value: (
                     <Link href={`/admin/students/${app.studentId}`} className="underline underline-offset-4">
                       {data.studentLabel(app.studentId)}
                     </Link>
                   ),
                 },
-                { label: "Registration no.", value: s?.registrationNo },
+                { label: tr("Registration no."), value: s?.registrationNo },
                 {
-                  label: "Institution",
+                  label: tr("Institution"),
                   value: inst ? (
                     <Link href={`/admin/institutions/${inst.id}`} className="underline underline-offset-4">
-                      {inst.name}
+                      {tr(inst.name)}
                     </Link>
                   ) : (
                     "—"
                   ),
                 },
-                { label: "Program", value: app.programName },
-                { label: "Started", value: formatDateTime(app.createdAt) },
-                { label: "Submitted", value: submitted ? formatDateTime(submitted.at) : "Not yet" },
-                { label: "Last update", value: formatDateTime(app.updatedAt) },
+                { label: tr("Program"), value: app.programName },
+                { label: tr("Started"), value: formatDateTime(app.createdAt) },
+                { label: tr("Submitted"), value: submitted ? formatDateTime(submitted.at) : tr("Not yet") },
+                { label: tr("Last update"), value: formatDateTime(app.updatedAt) },
               ]}
             />
           </Card>
           <Card padded={false}>
-            <CardHeader title="Payment" />
+            <CardHeader title={tr("Payment")} />
             {p ? (
               <DescriptionList
                 items={[
-                  { label: "Status", value: <PaymentBadge status={p.status} /> },
-                  { label: "Reference", value: p.reference },
-                  { label: "Method", value: p.method },
-                  { label: "Application fee", value: formatCurrency(p.applicationFee) },
-                  { label: "Web fee", value: formatCurrency(p.webFee) },
-                  { label: "Total", value: formatCurrency(p.amount) },
-                  { label: p.paidAt ? "Received" : "Started", value: formatDateTime(p.paidAt ?? p.initiatedAt) },
+                  { label: tr("Status"), value: <PaymentBadge status={p.status} /> },
+                  { label: tr("Reference"), value: p.reference },
+                  { label: tr("Method"), value: p.method },
+                  { label: tr("Application fee"), value: formatCurrency(p.applicationFee) },
+                  { label: tr("Web fee"), value: formatCurrency(p.webFee) },
+                  { label: tr("Total"), value: formatCurrency(p.amount) },
+                  { label: p.paidAt ? tr("Received") : tr("Started"), value: formatDateTime(p.paidAt ?? p.initiatedAt) },
                 ]}
               />
             ) : (
-              <p className="px-5 py-4 text-sm text-[var(--color-ink-soft)]">The applicant hasn&apos;t started paying yet.</p>
+              <p className="px-5 py-4 text-sm text-[var(--color-ink-soft)]">{tr("The applicant hasn't started paying yet.")}</p>
             )}
           </Card>
         </div>

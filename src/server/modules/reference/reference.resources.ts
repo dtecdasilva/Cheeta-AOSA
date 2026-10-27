@@ -68,6 +68,7 @@ export const parameterResource: ResourceDef<z.ZodObject> = {
     sortOrder: z.number().int().min(0).max(100_000).default(0),
     parentId: text(200).nullable().optional(),
     attrs: z.record(z.string(), z.unknown()).default({}),
+    status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   }),
   // Category and code make up the id, so they're fixed once created.
   update: z.object({

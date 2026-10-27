@@ -2,6 +2,7 @@
 
 import { Field, SelectInput } from "@/components/Form";
 import { selectableParams, useParameters, type ParamItem } from "@/lib/admin/parameters";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Dependent location pickers: Region → Town → Site (or Quarter).
@@ -50,6 +51,7 @@ export function LocationSelect({
   labels?: Partial<Record<Level, string>>;
   hints?: Partial<Record<Level, string>>;
 }) {
+  const tr = useT();
   const regions = useParameters("regions");
   const towns = useParameters("towns");
   const leaves = useParameters(leaf ?? "sites");
@@ -70,22 +72,22 @@ export function LocationSelect({
     onChange({ ...value, townId, leafId: leafOk ? value.leafId : "" }, "town");
   }
 
-  const leafName = labels.leaf ?? (leaf === "quarters" ? "Quarter" : "Site");
+  const leafName = labels.leaf ?? (leaf === "quarters" ? tr("Quarter") : tr("Site"));
 
   return (
     <>
-      <Field label={labels.region ?? "Region"} required={required.region} error={errors.region} hint={hints.region}>
+      <Field label={labels.region ?? tr("Region")} required={required.region} error={errors.region} hint={tr(hints.region)}>
         <Options items={selectableParams(regions, value.regionId)} value={value.regionId} onChange={setRegion} />
       </Field>
       <Field
-        label={labels.town ?? "Town"}
+        label={labels.town ?? tr("Town")}
         required={required.town}
         error={errors.town}
         hint={
           !value.regionId
-            ? "Choose a region first."
+            ? tr("Choose a region first.")
             : townItems.length === 0
-              ? "No active towns in this region yet."
+              ? tr("No active towns in this region yet.")
               : hints.town
         }
       >
@@ -93,14 +95,14 @@ export function LocationSelect({
       </Field>
       {leaf && (
         <Field
-          label={leafName}
+          label={tr(leafName)}
           required={required.leaf}
           error={errors.leaf}
           hint={
             !value.townId
-              ? "Choose a town first."
+              ? tr("Choose a town first.")
               : leafItems.length === 0
-                ? `No active ${leafName.toLowerCase()}s in this town yet.`
+                ? tr("No active {toLowerCase}s in this town yet.", { toLowerCase: leafName.toLowerCase() })
                 : hints.leaf
           }
         >
@@ -109,7 +111,7 @@ export function LocationSelect({
             value={value.leafId}
             onChange={(leafId) => onChange({ ...value, leafId }, "leaf")}
             disabled={!value.townId || leafItems.length === 0}
-            placeholder={required.leaf ? "Select…" : "None"}
+            placeholder={required.leaf ? tr("Select…") : tr("None")}
           />
         </Field>
       )}
@@ -132,12 +134,14 @@ function Options({
   placeholder?: string;
   id?: string;
 }) {
+  const tr = useT();
+  placeholder = tr(placeholder);
   return (
     <SelectInput id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
-      <option value="">{placeholder}</option>
+      <option value="">{tr(placeholder)}</option>
       {items.map((p) => (
         <option key={p.id} value={p.id}>
-          {p.label}
+          {tr(p.label)}
           {p.status === "INACTIVE" ? " (inactive)" : ""}
         </option>
       ))}

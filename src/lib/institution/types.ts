@@ -15,6 +15,9 @@ export interface Faculty {
   email: string;
   phone: string;
   address: string;
+  location: string;
+  regionId: string | null;
+  townId: string | null;
   status: RecordStatus;
 }
 
@@ -27,6 +30,10 @@ export interface Department {
   head: string;
   email: string;
   phone: string;
+  address: string;
+  location: string;
+  regionId: string | null;
+  townId: string | null;
   status: RecordStatus;
 }
 

@@ -1,5 +1,7 @@
 "use client";
 
+import { StudentRecordSections } from "./StudentRecord";
+import { AdminDataNotice } from "@/components/admin/AdminDataNotice";
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Card, CardHeader, DescriptionList, EmptyState, PageHeading, TableFrame, Td, Th } from "@/components/ui";
@@ -24,8 +26,10 @@ import { EMPTY_RANGE, inRange, matchesSearch, type DateRange } from "@/lib/admin
 import { ADMIN_STATUS_LABELS, ALL_STATUSES, STAGES, furthestStage, stageIndex, stageLabel, type StageKey } from "@/lib/admin/status";
 import { useHydrated } from "@/lib/admin/store";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export function StudentSummary() {
+  const tr = useT();
   const data = useAdminData();
   const [search, setSearch] = useState("");
   const [regionId, setRegionId] = useState("");
@@ -72,7 +76,8 @@ export function StudentSummary() {
   return (
     <>
       <SubNav items={STUDENT_NAV} current="/admin/students/summary" />
-      <PageHeading title="Student summary" description="Each student with their applications, how far they've got and what they've paid." />
+      <AdminDataNotice />
+      <PageHeading title={tr("Student summary")} description={tr("Each student with their applications, how far they've got and what they've paid.")} />
 
       <FilterBar
         active={!!(search || regionId || institutionId || status || stage || range.from || range.to)}
@@ -85,51 +90,51 @@ export function StudentSummary() {
           setRange(EMPTY_RANGE);
         }}
       >
-        <SearchField value={search} onChange={setSearch} placeholder="Name, registration no., email, application ref." />
-        <DateRangeFilter value={range} onChange={setRange} label="Registered" />
-        <FilterSelect label="Home region" value={regionId} onChange={setRegionId} options={data.options("regions")} />
-        <FilterSelect label="Applied to" value={institutionId} onChange={setInstitutionId} options={data.institutionOptions} allLabel="Any institution" />
+        <SearchField value={search} onChange={setSearch} placeholder={tr("Name, registration no., email, application ref.")} />
+        <DateRangeFilter value={range} onChange={setRange} label={tr("Registered")} />
+        <FilterSelect label={tr("Home region")} value={regionId} onChange={setRegionId} options={data.options("regions")} />
+        <FilterSelect label={tr("Applied to")} value={institutionId} onChange={setInstitutionId} options={data.institutionOptions} allLabel={tr("Any institution")} />
         <FilterSelect
-          label="Has an application that is"
+          label={tr("Has an application that is")}
           value={status}
           onChange={setStatus}
-          options={ALL_STATUSES.map((s) => ({ value: s, label: ADMIN_STATUS_LABELS[s] }))}
-          allLabel="Any status"
+          options={ALL_STATUSES.map((s) => ({ value: s, label: tr(ADMIN_STATUS_LABELS[s]) }))}
+          allLabel={tr("Any status")}
         />
         <FilterSelect
-          label="Furthest stage reached"
+          label={tr("Furthest stage reached")}
           value={stage}
           onChange={setStage}
-          options={[{ value: "none", label: "No application" }, ...STAGES.map((s) => ({ value: s.key, label: s.label }))]}
-          allLabel="Any stage"
+          options={[{ value: "none", label: tr("No application") }, ...STAGES.map((s) => ({ value: s.key, label: s.label }))]}
+          allLabel={tr("Any stage")}
         />
       </FilterBar>
 
       <StatStrip
         stats={[
-          { label: "Students", value: filtered.length },
-          { label: "With an application", value: filtered.filter((r) => r.apps.length).length },
-          { label: "Submitted at least one", value: filtered.filter((r) => r.submitted).length },
-          { label: "Accepted at least once", value: filtered.filter((r) => r.accepted).length },
+          { label: tr("Students"), value: filtered.length },
+          { label: tr("With an application"), value: filtered.filter((r) => r.apps.length).length },
+          { label: tr("Submitted at least one"), value: filtered.filter((r) => r.submitted).length },
+          { label: tr("Accepted at least once"), value: filtered.filter((r) => r.accepted).length },
         ]}
       />
 
       <div className="mt-6">
-        <ResultCount shown={filtered.length} total={rows.length} noun="students" />
+        <ResultCount shown={filtered.length} total={rows.length} noun={tr("students")} />
         {filtered.length === 0 ? (
-          <EmptyState message="No students match these filters." />
+          <EmptyState message={tr("No students match these filters.")} />
         ) : (
           <>
             <TableFrame>
               <thead>
                 <tr>
-                  <Th>Student</Th>
-                  <Th className="text-right">Applications</Th>
-                  <Th>Institutions</Th>
-                  <Th>Furthest stage</Th>
-                  <Th>Latest status</Th>
-                  <Th className="text-right">Paid</Th>
-                  <Th>Last activity</Th>
+                  <Th>{tr("Student")}</Th>
+                  <Th className="text-right">{tr("Applications")}</Th>
+                  <Th>{tr("Institutions")}</Th>
+                  <Th>{tr("Furthest stage")}</Th>
+                  <Th>{tr("Latest status")}</Th>
+                  <Th className="text-right">{tr("Paid")}</Th>
+                  <Th>{tr("Last activity")}</Th>
                 </tr>
               </thead>
               <tbody>
@@ -137,15 +142,15 @@ export function StudentSummary() {
                   <tr key={r.student.id} className="align-top">
                     <Td>
                       <Link href={`/admin/students/${r.student.id}`} className="font-medium text-[var(--color-ink)] hover:underline">
-                        {r.student.firstName} {r.student.lastName}
+                        {tr(r.student.firstName)} {tr(r.student.lastName)}
                       </Link>
-                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{r.student.registrationNo}</p>
+                      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(r.student.registrationNo)}</p>
                     </Td>
                     <Td className="text-right tabular-nums">{r.apps.length}</Td>
                     <Td className="max-w-[16rem] text-[var(--color-ink-soft)]">
                       {r.apps.length ? r.apps.map((a) => data.institutionName(a.institutionId)).join(", ") : "—"}
                     </Td>
-                    <Td className="whitespace-nowrap">{r.furthest ? stageLabel(r.furthest) : <span className="text-[var(--color-ink-faint)]">Not started</span>}</Td>
+                    <Td className="whitespace-nowrap">{r.furthest ? stageLabel(r.furthest) : <span className="text-[var(--color-ink-faint)]">{tr("Not started")}</span>}</Td>
                     <Td>{r.latest ? <AdminStatusBadge status={r.latest.status} /> : <span className="text-[var(--color-ink-faint)]">—</span>}</Td>
                     <Td className="whitespace-nowrap text-right tabular-nums">{r.paid ? formatCurrency(r.paid) : "—"}</Td>
                     <Td className="whitespace-nowrap text-[var(--color-ink-soft)]">{formatDate(r.lastActivity)}</Td>
@@ -164,18 +169,19 @@ export function StudentSummary() {
 // ---------------------------------------------------------------------------
 
 export function StudentDetail({ id }: { id: string }) {
+  const tr = useT();
   const data = useAdminData();
   const hydrated = useHydrated();
   const s = data.studentById.get(id);
 
   if (!s) {
-    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     return (
       <EmptyState
-        message="This student doesn't exist. They may have been registered in another browser."
+        message={tr("This student doesn't exist. They may have been registered in another browser.")}
         action={
           <Link href="/admin/students/summary" className={ButtonLinkClass("secondary")}>
-            Back to students
+            {tr("Back to students")}
           </Link>
         }
       />
@@ -190,43 +196,43 @@ export function StudentDetail({ id }: { id: string }) {
     <>
       <p className="mb-2 text-sm">
         <Link href="/admin/students/summary" className="text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]">
-          Student summary
+          {tr("Student summary")}
         </Link>
       </p>
-      <PageHeading title={`${s.firstName} ${s.lastName}`} description={`${s.registrationNo}, registered ${formatDate(s.registeredAt)}`} />
+      <PageHeading title={`${s.firstName} ${s.lastName}`} description={tr("{registrationNo}, registered {value}", { registrationNo: s.registrationNo, value: formatDate(s.registeredAt) })} />
 
       <StatStrip
         stats={[
-          { label: "Applications", value: apps.length },
-          { label: "Submitted", value: apps.filter((a) => a.history.some((h) => h.status === "SUBMITTED")).length },
-          { label: "Accepted", value: apps.filter((a) => a.history.some((h) => h.status === "ACCEPTED")).length },
-          { label: "Paid", value: formatCurrency(paid) },
+          { label: tr("Applications"), value: apps.length },
+          { label: tr("Submitted"), value: apps.filter((a) => a.history.some((h) => h.status === "SUBMITTED")).length },
+          { label: tr("Accepted"), value: apps.filter((a) => a.history.some((h) => h.status === "ACCEPTED")).length },
+          { label: tr("Paid"), value: formatCurrency(paid) },
         ]}
       />
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <Card padded={false} className="self-start">
-          <CardHeader title="Profile" />
+          <CardHeader title={tr("Profile")} />
           <DescriptionList
             items={[
-              { label: "Sex", value: s.gender },
-              { label: "Date of birth", value: formatDate(s.dateOfBirth) },
-              { label: "Email", value: <a href={`mailto:${s.email}`} className="hover:underline">{s.email}</a> },
-              { label: "Phone", value: s.phone },
-              { label: "Town", value: data.label(s.townId) },
-              { label: "Region", value: data.label(s.regionId) },
-              { label: "Address", value: s.address || "—" },
-              { label: "Highest qualification", value: s.highestQualification || "—" },
-              { label: "Registered", value: `${formatDateTime(s.registeredAt)}, ${s.source.toLowerCase()}` },
+              { label: tr("Sex"), value: s.gender },
+              { label: tr("Date of birth"), value: formatDate(s.dateOfBirth) },
+              { label: tr("Email"), value: <a href={`mailto:${s.email}`} className="hover:underline">{s.email}</a> },
+              { label: tr("Phone"), value: s.phone },
+              { label: tr("Town"), value: data.label(s.townId) },
+              { label: tr("Region"), value: data.label(s.regionId) },
+              { label: tr("Address"), value: s.address || "—" },
+              { label: tr("Highest qualification"), value: s.highestQualification || "—" },
+              { label: tr("Registered"), value: `${formatDateTime(s.registeredAt)}, ${s.source.toLowerCase()}` },
             ]}
           />
         </Card>
 
         <div className="space-y-6 lg:col-span-2">
           <section>
-            <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">Applications</h2>
+            <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("Applications")}</h2>
             {apps.length === 0 ? (
-              <EmptyState message="This student hasn't started an application." />
+              <EmptyState message={tr("This student hasn't started an application.")} />
             ) : (
               <div className="space-y-3">
                 {apps.map((a) => (
@@ -236,9 +242,9 @@ export function StudentDetail({ id }: { id: string }) {
                         <Link href={`/admin/applications/${a.id}`} className="font-medium text-[var(--color-ink)] underline underline-offset-4">
                           {data.institutionName(a.institutionId)}
                         </Link>
-                        <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{a.programName}</p>
+                        <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{tr(a.programName)}</p>
                         <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                          {a.reference}, started {formatDate(a.createdAt)}
+                          {tr("{reference}, started {value}", { reference: a.reference, value: formatDate(a.createdAt) })}
                         </p>
                       </div>
                       <AdminStatusBadge status={a.status} />
@@ -252,19 +258,21 @@ export function StudentDetail({ id }: { id: string }) {
             )}
           </section>
 
+          <StudentRecordSections id={s.id} />
+
           <section>
-            <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">Payments</h2>
+            <h2 className="mb-3 font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr("Payments")}</h2>
             {payments.length === 0 ? (
-              <EmptyState message="No payments yet." />
+              <EmptyState message={tr("No payments yet.")} />
             ) : (
               <TableFrame>
                 <thead>
                   <tr>
-                    <Th>Reference</Th>
-                    <Th>Institution</Th>
-                    <Th>Method</Th>
-                    <Th className="text-right">Amount</Th>
-                    <Th>Status</Th>
+                    <Th>{tr("Reference")}</Th>
+                    <Th>{tr("Institution")}</Th>
+                    <Th>{tr("Method")}</Th>
+                    <Th className="text-right">{tr("Amount")}</Th>
+                    <Th>{tr("Status")}</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -290,6 +298,7 @@ export function StudentDetail({ id }: { id: string }) {
 }
 
 export function PaymentBadge({ status }: { status: "PAID" | "PENDING" | "FAILED" | null }) {
-  if (!status) return <span className="text-sm text-[var(--color-ink-faint)]">Not started</span>;
+  const tr = useT();
+  if (!status) return <span className="text-sm text-[var(--color-ink-faint)]">{tr("Not started")}</span>;
   return <ToneBadge tone={status === "PAID" ? "success" : status === "PENDING" ? "amber" : "danger"}>{{ PAID: "Paid", PENDING: "Pending", FAILED: "Failed" }[status]}</ToneBadge>;
 }

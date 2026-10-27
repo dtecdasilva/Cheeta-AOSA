@@ -9,6 +9,7 @@ import type { InstitutionDetails, InstitutionListing } from "@/lib/institutionDi
 import { InstitutionCard } from "./InstitutionCard";
 import { InstitutionDetail } from "./InstitutionDetail";
 import { StudyProgramSelector } from "./StudyProgramSelector";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Add Institution: browse the institutions accepting applications, add
@@ -24,6 +25,7 @@ import { StudyProgramSelector } from "./StudyProgramSelector";
  * or its program choices), as the Institution Summary links here.
  */
 export function InstitutionDiscovery({ institution: initialId, view: initialView }: { institution?: string; view?: string }) {
+  const tr = useT();
   const [listings, setListings] = useState<InstitutionListing[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const mine = useMyApplications();
@@ -46,9 +48,9 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
         const body = await res.json().catch(() => ({}));
         if (cancelled) return;
         if (res.ok) setListings(body.data);
-        else setListError(body.error ?? "The institutions could not be loaded.");
+        else setListError(body.error ?? tr("The institutions could not be loaded."));
       })
-      .catch(() => !cancelled && setListError("The institutions could not be loaded. Check your connection."));
+      .catch(() => !cancelled && setListError(tr("The institutions could not be loaded. Check your connection.")));
     return () => {
       cancelled = true;
     };
@@ -65,14 +67,14 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
         if (cancelled) return;
         if (res.ok) setDetails((d) => ({ ...d, [openId]: body.data }));
         else {
-          setProblem(body.error ?? "This institution could not be loaded.");
+          setProblem(body.error ?? tr("This institution could not be loaded."));
           setViewingId(null);
           setProgramSelectionId(null);
         }
       })
       .catch(() => {
         if (cancelled) return;
-        setProblem("This institution could not be loaded. Check your connection.");
+        setProblem(tr("This institution could not be loaded. Check your connection."));
         setViewingId(null);
         setProgramSelectionId(null);
       });
@@ -105,13 +107,13 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
     setBusyId(inst.id);
     const result = await mine.add(inst.id);
     setBusyId(null);
-    if (result.ok) setNotice({ text: `${inst.name} added to your application.`, institutionId: inst.id });
+    if (result.ok) setNotice({ text: tr("{name} added to your application.", { name: tr(inst.name) }), institutionId: inst.id });
     else setProblem(result.error);
   }
 
   async function remove(application: MyApplication) {
     if (busyId) return;
-    if (!window.confirm(`Remove ${application.institution.name} from your application? Its program choices and uploaded documents will be removed too.`)) return;
+    if (!window.confirm(tr("Remove {name} from your application? Its program choices and uploaded documents will be removed too.", { name: tr(application.institution.name) }))) return;
     setProblem(null);
     setNotice(null);
     setBusyId(application.institution.id);
@@ -122,20 +124,20 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
 
   const loadError = listError ?? mine.error;
   if (!listings || !mine.applications) {
-    return loadError ? <FormError>{loadError}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">Loading institutions…</p>;
+    return loadError ? <FormError>{tr(loadError)}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading institutions…")}</p>;
   }
 
   if (programSelectionId) {
     const institution = details[programSelectionId];
     const application = applicationFor(programSelectionId);
-    if (!institution) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    if (!institution) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     if (!application) {
       // Programs are chosen on an application, so the institution has to be added first.
       return (
         <div className="space-y-4">
-          <FormError>Add {institution.name} to your application before choosing study programs there.</FormError>
+          <FormError>{tr("Add {name} to your application before choosing study programs there.", { name: tr(institution.name) })}</FormError>
           <button onClick={() => (setProgramSelectionId(null), setViewingId(institution.id))} className="text-sm font-medium text-[var(--color-ink)] underline underline-offset-4">
-            View {institution.name}
+            {tr("View {name}", { name: tr(institution.name) })}
           </button>
         </div>
       );
@@ -156,10 +158,10 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
   if (viewingId) {
     const institution = details[viewingId];
     const application = applicationFor(viewingId);
-    if (!institution) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    if (!institution) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     return (
       <div className="space-y-4">
-        {problem && <FormError>{problem}</FormError>}
+        {problem && <FormError>{tr(problem)}</FormError>}
         <InstitutionDetail
           institution={institution}
           selected={!!application}
@@ -176,12 +178,12 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
 
   return (
     <div className="space-y-6">
-      {problem && <FormError>{problem}</FormError>}
+      {problem && <FormError>{tr(problem)}</FormError>}
       {notice && (
         <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-4 py-3 text-sm text-[var(--color-success-strong)]">
-          <span>{notice.text} Next, choose the study programs you want there.</span>
+          <span>{tr("{text} Next, choose the study programs you want there.", { text: notice.text })}</span>
           <button onClick={() => (setProgramSelectionId(notice.institutionId), setNotice(null))} className="font-semibold underline underline-offset-4">
-            Choose study programs
+            {tr("Choose study programs")}
           </button>
         </div>
       )}
@@ -191,10 +193,10 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
         <div className="rounded-lg border border-[var(--color-brand)] bg-[var(--color-brand-soft)]/40 px-4 py-3">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-medium text-[var(--color-brand-strong)]">
-              {applications.length} institution{applications.length === 1 ? "" : "s"} on your application
+              {tr("{count} institution", { count: applications.length })}{applications.length === 1 ? "" : "s"}{" "}{tr("on your application")}
             </p>
             <Link href="/student/institutions/summary" className="text-xs font-medium text-[var(--color-brand-strong)] underline underline-offset-2">
-              Institution summary
+              {tr("Institution summary")}
             </Link>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -203,16 +205,16 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
                 key={application.id}
                 className="inline-flex items-center gap-2 rounded-full border border-[var(--color-line-strong)] bg-[var(--color-surface)] px-2.5 py-1 text-xs text-[var(--color-ink)]"
               >
-                {application.institution.name}
+                {tr(application.institution.name)}
                 <button
                   onClick={() => setProgramSelectionId(application.institution.id)}
                   className="flex items-center gap-1 text-[var(--color-brand-strong)] underline underline-offset-2"
                 >
                   <GraduationCap className="h-3 w-3" strokeWidth={1.75} />
-                  {application.choices.length}/{application.maxProgramChoices} program{application.maxProgramChoices === 1 ? "" : "s"}
+                  {tr("{count}/{maxProgramChoices} program", { count: application.choices.length, maxProgramChoices: application.maxProgramChoices })}{application.maxProgramChoices === 1 ? "" : "s"}
                 </button>
                 {application.canEdit && (
-                  <button onClick={() => remove(application)} disabled={busyId !== null} aria-label={`Remove ${application.institution.name}`}>
+                  <button onClick={() => remove(application)} disabled={busyId !== null} aria-label={tr("Remove {name}", { name: tr(application.institution.name) })}>
                     <X className="h-3 w-3 text-[var(--color-ink-faint)] hover:text-[var(--color-danger)]" strokeWidth={2} />
                   </button>
                 )}
@@ -233,24 +235,24 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search institutions by name…"
-              aria-label="Search institutions by name"
+              placeholder={tr("Search institutions by name…")}
+              aria-label={tr("Search institutions by name")}
               className="w-full rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-surface)] py-2 pl-9 pr-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-faint)] focus:border-[var(--color-brand)] focus:outline-none focus:ring-2 focus:ring-[var(--color-brand)]/25"
             />
           </div>
-          <SelectInput value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label="Institution type">
-            <option value="">All institution types</option>
+          <SelectInput value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} aria-label={tr("Institution type")}>
+            <option value="">{tr("All institution types")}</option>
             {types.map((t) => (
               <option key={t} value={t}>
-                {t}
+                {tr(t)}
               </option>
             ))}
           </SelectInput>
-          <SelectInput value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} aria-label="Location">
-            <option value="">All locations</option>
+          <SelectInput value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)} aria-label={tr("Location")}>
+            <option value="">{tr("All locations")}</option>
             {locations.map((l) => (
               <option key={l} value={l}>
-                {l}
+                {tr(l)}
               </option>
             ))}
           </SelectInput>
@@ -261,7 +263,7 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
               onChange={(e) => setOnlyWithSpace(e.target.checked)}
               className="h-4 w-4 accent-[var(--color-brand)]"
             />
-            Has space
+            {tr("Has space")}
           </label>
         </div>
       </div>
@@ -269,7 +271,7 @@ export function InstitutionDiscovery({ institution: initialId, view: initialView
       {/* Browse grid */}
       {filtered.length === 0 ? (
         <p className="rounded-xl border border-dashed border-[var(--color-line-strong)] px-6 py-14 text-center text-sm text-[var(--color-ink-soft)]">
-          {all.length === 0 ? "No institutions are accepting applications at the moment." : "No institutions match your search and filters."}
+          {all.length === 0 ? tr("No institutions are accepting applications at the moment.") : tr("No institutions match your search and filters.")}
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

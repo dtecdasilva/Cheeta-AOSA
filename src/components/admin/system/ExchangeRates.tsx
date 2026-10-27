@@ -8,6 +8,7 @@ import { StatStrip, SubNav, ToneBadge } from "@/components/admin/ui";
 import { SYSTEM_NAV } from "./ReferenceManagers";
 import { BASE_CURRENCY, currencyStore, rateStore, type AdminCurrency, type AdminExchangeRate, type RateRecord } from "@/lib/admin/reference";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 const DAY = 86_400_000;
 const STALE_DAYS = 45;
@@ -29,6 +30,7 @@ const API = "/api/admin/exchange-rates";
  * it in the history and hands back to the previous one.
  */
 export function ExchangeRates() {
+  const tr = useT();
   const rates = rateStore.useItems();
   const currencies = currencyStore.useItems();
   const [history, setHistory] = useState<RateRecord[]>([]);
@@ -61,11 +63,11 @@ export function ExchangeRates() {
     try {
       const res = await fetch(`${API}/${encodeURIComponent(rate.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }) });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) return setError(body.fieldErrors?.status ?? body.error ?? "That could not be saved.");
-      setNotice(status === "INACTIVE" ? `${rate.fromCurrency} rate of ${rate.rate} withdrawn. It stays in the history.` : `${rate.fromCurrency} rate of ${rate.rate} restored.`);
+      if (!res.ok) return setError(body.fieldErrors?.status ?? body.error ?? tr("That could not be saved."));
+      setNotice(status === "INACTIVE" ? tr("{fromCurrency} rate of {rate} withdrawn. It stays in the history.", { fromCurrency: rate.fromCurrency, rate: rate.rate }) : tr("{fromCurrency} rate of {rate} restored.", { fromCurrency: rate.fromCurrency, rate: rate.rate }));
       refresh();
     } catch {
-      setError("That could not be saved. Check your connection and try again.");
+      setError(tr("That could not be saved. Check your connection and try again."));
     }
   }
 
@@ -80,48 +82,48 @@ export function ExchangeRates() {
   return (
     <>
       <PageHeading
-        title="Exchange rates"
-        description={`What one unit of each currency is worth in ${BASE_CURRENCY}. Applicants see fees converted at these rates; what they owe is always the ${BASE_CURRENCY} amount.`}
+        title={tr("Exchange rates")}
+        description={tr("What one unit of each currency is worth in {BASE_CURRENCY}. Applicants see fees converted at these rates; what they owe is always the {BASE_CURRENCY2} amount.", { BASE_CURRENCY, BASE_CURRENCY2: BASE_CURRENCY })}
       />
       <SubNav items={SYSTEM_NAV} current="/admin/config/exchange-rates" />
 
       <div className="mb-6">
         <StatStrip
           stats={[
-            { label: "Rates", value: rows.length, detail: `Against ${BASE_CURRENCY}` },
-            { label: "Last updated", value: latest ? formatDate(latest) : "—" },
-            { label: "Need attention", value: stale.length, detail: `Missing or older than ${STALE_DAYS} days` },
-            { label: "Currencies", value: currencies.length, href: "/admin/config/currencies" },
+            { label: tr("Rates"), value: rows.length, detail: tr("Against {BASE_CURRENCY}", { BASE_CURRENCY }) },
+            { label: tr("Last updated"), value: latest ? formatDate(latest) : "—" },
+            { label: tr("Need attention"), value: stale.length, detail: tr("Missing or older than {STALE_DAYS} days", { STALE_DAYS }) },
+            { label: tr("Currencies"), value: currencies.length, href: "/admin/config/currencies" },
           ]}
         />
       </div>
 
       {error && (
         <p role="alert" className="mb-4 rounded-lg border border-[var(--color-danger)]/25 bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-strong)]">
-          {error}
+          {tr(error)}
         </p>
       )}
       {notice && (
         <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-          {notice}
+          {tr(notice)}
         </p>
       )}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0">
           {rows.length === 0 ? (
-            <EmptyState message="No rates yet. Add a currency first; it gets a rate to fill in." />
+            <EmptyState message={tr("No rates yet. Add a currency first; it gets a rate to fill in.")} />
           ) : (
             <TableFrame>
               <thead>
                 <tr>
-                  <Th>Currency</Th>
-                  <Th className="text-right">{BASE_CURRENCY} per unit</Th>
-                  <Th className="text-right">Per 10,000 {BASE_CURRENCY}</Th>
-                  <Th>Source</Th>
-                  <Th>As of</Th>
+                  <Th>{tr("Currency")}</Th>
+                  <Th className="text-right">{tr("{BASE_CURRENCY} per unit", { BASE_CURRENCY })}</Th>
+                  <Th className="text-right">{tr("Per 10,000 {BASE_CURRENCY}", { BASE_CURRENCY })}</Th>
+                  <Th>{tr("Source")}</Th>
+                  <Th>{tr("As of")}</Th>
                   <Th>
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{tr("Actions")}</span>
                   </Th>
                 </tr>
               </thead>
@@ -144,10 +146,10 @@ export function ExchangeRates() {
                     <tr key={r.code} className="align-top">
                       <Td>
                         <p className="font-medium text-[var(--color-ink)]">{r.code}</p>
-                        <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{currency(r.code)?.name ?? "Not on the currency list"}</p>
+                        <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{currency(r.code)?.name ?? tr("Not on the currency list")}</p>
                       </Td>
                       <Td className="text-right tabular-nums">
-                        {r.xafPerUnit > 0 ? r.xafPerUnit.toLocaleString("en-GB", { maximumFractionDigits: 4 }) : <span className="text-[var(--color-danger)]">Not set</span>}
+                        {r.xafPerUnit > 0 ? r.xafPerUnit.toLocaleString("en-GB", { maximumFractionDigits: 4 }) : <span className="text-[var(--color-danger)]">{tr("Not set")}</span>}
                       </Td>
                       <Td className="text-right tabular-nums text-[var(--color-ink-soft)]">{r.xafPerUnit > 0 ? format(10000 / r.xafPerUnit, currency(r.code), r.code) : "—"}</Td>
                       <Td className="text-[var(--color-ink-soft)]">{r.source}</Td>
@@ -155,7 +157,7 @@ export function ExchangeRates() {
                         <p className="whitespace-nowrap text-[var(--color-ink)]">{r.asOf ? formatDate(r.asOf) : "—"}</p>
                         {stale.includes(r) && (
                           <span className="mt-1 inline-block">
-                            <ToneBadge tone="amber">{r.xafPerUnit > 0 ? "Out of date" : "Missing"}</ToneBadge>
+                            <ToneBadge tone="amber">{r.xafPerUnit > 0 ? tr("Out of date") : tr("Missing")}</ToneBadge>
                           </span>
                         )}
                       </Td>
@@ -168,7 +170,7 @@ export function ExchangeRates() {
                           }}
                           className="text-sm text-[var(--color-ink)] underline underline-offset-4"
                         >
-                          Update
+                          {tr("Update")}
                         </button>
                       </Td>
                     </tr>
@@ -183,22 +185,22 @@ export function ExchangeRates() {
       </div>
 
       <section className="mt-10">
-        <SectionHeading title="Rate history" description="Every rate ever recorded, newest first. Rates are never edited or deleted; one entered by mistake can be withdrawn." />
+        <SectionHeading title={tr("Rate history")} description={tr("Every rate ever recorded, newest first. Rates are never edited or deleted; one entered by mistake can be withdrawn.")} />
         {history.length === 0 ? (
-          <EmptyState message="No rate has been recorded yet." />
+          <EmptyState message={tr("No rate has been recorded yet.")} />
         ) : (
           <TableFrame>
             <thead>
               <tr>
-                <Th>Pair</Th>
-                <Th className="text-right">Rate</Th>
-                <Th>Effective from</Th>
-                <Th>Until</Th>
-                <Th>Source</Th>
-                <Th>Status</Th>
-                <Th>By</Th>
+                <Th>{tr("Pair")}</Th>
+                <Th className="text-right">{tr("Rate")}</Th>
+                <Th>{tr("Effective from")}</Th>
+                <Th>{tr("Until")}</Th>
+                <Th>{tr("Source")}</Th>
+                <Th>{tr("Status")}</Th>
+                <Th>{tr("By")}</Th>
                 <Th>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{tr("Actions")}</span>
                 </Th>
               </tr>
             </thead>
@@ -210,23 +212,23 @@ export function ExchangeRates() {
                   </Td>
                   <Td className="text-right tabular-nums">{h.rate.toLocaleString("en-GB", { maximumFractionDigits: 6 })}</Td>
                   <Td className="whitespace-nowrap">{formatDateTime(h.effectiveFrom)}</Td>
-                  <Td className="whitespace-nowrap text-[var(--color-ink-soft)]">{h.status === "INACTIVE" ? "—" : h.appliesUntil ? formatDateTime(h.appliesUntil) : "Open-ended"}</Td>
+                  <Td className="whitespace-nowrap text-[var(--color-ink-soft)]">{h.status === "INACTIVE" ? "—" : h.appliesUntil ? formatDateTime(h.appliesUntil) : tr("Open-ended")}</Td>
                   <Td className="text-[var(--color-ink-soft)]">{h.source}</Td>
                   <Td>
                     {h.status === "INACTIVE" ? (
-                      <ToneBadge tone="neutral">Withdrawn</ToneBadge>
+                      <ToneBadge tone="neutral">{tr("Withdrawn")}</ToneBadge>
                     ) : h.current ? (
-                      <ToneBadge tone="success">In force</ToneBadge>
+                      <ToneBadge tone="success">{tr("In force")}</ToneBadge>
                     ) : new Date(h.effectiveFrom).getTime() > now ? (
-                      <ToneBadge tone="info">Scheduled</ToneBadge>
+                      <ToneBadge tone="info">{tr("Scheduled")}</ToneBadge>
                     ) : (
-                      <ToneBadge tone="neutral">Past</ToneBadge>
+                      <ToneBadge tone="neutral">{tr("Past")}</ToneBadge>
                     )}
                   </Td>
                   <Td className="text-[var(--color-ink-soft)]">{h.createdBy ?? "—"}</Td>
                   <Td className="text-right">
                     <button type="button" onClick={() => setStatus(h, h.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                      {h.status === "ACTIVE" ? "Withdraw" : "Restore"}
+                      {h.status === "ACTIVE" ? tr("Withdraw") : tr("Restore")}
                     </button>
                   </Td>
                 </tr>
@@ -240,8 +242,9 @@ export function ExchangeRates() {
 }
 
 function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchangeRate; currency?: AdminCurrency; onCancel: () => void; onSaved: (msg: string) => void }) {
+  const tr = useT();
   const [value, setValue] = useState(rate.xafPerUnit > 0 ? String(rate.xafPerUnit) : "");
-  const [source, setSource] = useState(rate.source === "Not set" ? "BEAC reference rate" : rate.source);
+  const [source, setSource] = useState(rate.source === "Not set" ? tr("BEAC reference rate") : rate.source);
   // Empty means "from now". A later date schedules the rate; an earlier one back-dates it.
   const [from, setFrom] = useState("");
   const [error, setError] = useState("");
@@ -250,14 +253,14 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
   async function save() {
     const n = Number(value);
     if (!value || Number.isNaN(n) || n <= 0) {
-      setError("Enter a rate above 0.");
+      setError(tr("Enter a rate above 0."));
       return;
     }
     if (!source.trim()) {
-      setError("Say where the rate comes from.");
+      setError(tr("Say where the rate comes from."));
       return;
     }
-    if (rate.xafPerUnit > 0 && Math.abs(n - rate.xafPerUnit) / rate.xafPerUnit > 0.25 && !window.confirm(`That's more than a 25% change from ${rate.xafPerUnit}. Save it anyway?`)) return;
+    if (rate.xafPerUnit > 0 && Math.abs(n - rate.xafPerUnit) / rate.xafPerUnit > 0.25 && !window.confirm(tr("That's more than a 25% change from {xafPerUnit}. Save it anyway?", { xafPerUnit: rate.xafPerUnit }))) return;
     // A new rate is a new record; the one it takes over from is left exactly as it was.
     setSaving(true);
     try {
@@ -268,13 +271,13 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(Object.values((body.fieldErrors ?? {}) as Record<string, string>)[0] ?? body.error ?? "The rate could not be saved.");
+        setError(Object.values((body.fieldErrors ?? {}) as Record<string, string>)[0] ?? body.error ?? tr("The rate could not be saved."));
         return;
       }
       const when = from && new Date(from).getTime() > Date.now() ? ` from ${formatDateTime(new Date(from).toISOString())}` : "";
-      onSaved(`${rate.code} rate set to ${n.toLocaleString("en-GB", { maximumFractionDigits: 4 })} ${BASE_CURRENCY}${when}.`);
+      onSaved(tr("{code} rate set to {value} {BASE_CURRENCY}{when}.", { code: rate.code, value: n.toLocaleString("en-GB", { maximumFractionDigits: 4 }), BASE_CURRENCY, when }));
     } catch {
-      setError("The rate could not be saved. Check your connection and try again.");
+      setError(tr("The rate could not be saved. Check your connection and try again."));
     } finally {
       setSaving(false);
     }
@@ -284,11 +287,11 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
     <tr className="bg-[var(--color-paper)] align-top">
       <Td>
         <p className="font-medium text-[var(--color-ink)]">{rate.code}</p>
-        <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{currency?.name}</p>
+        <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(currency?.name)}</p>
       </Td>
       <Td colSpan={4}>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label={`${BASE_CURRENCY} for 1 ${rate.code}`} error={error}>
+          <Field label={tr("{BASE_CURRENCY} for 1 {code}", { BASE_CURRENCY, code: rate.code })} error={error}>
             <TextInput
               type="number"
               inputMode="decimal"
@@ -306,10 +309,10 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
               }}
             />
           </Field>
-          <Field label="Source">
+          <Field label={tr("Source")}>
             <TextInput value={source} onChange={(e) => setSource(e.target.value)} />
           </Field>
-          <Field label="Effective from" hint="Leave empty to start now.">
+          <Field label={tr("Effective from")} hint={tr("Leave empty to start now.")}>
             <TextInput type="datetime-local" value={from} onChange={(e) => setFrom(e.target.value)} />
           </Field>
         </div>
@@ -317,10 +320,10 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
       <Td>
         <div className="flex flex-col gap-2">
           <PrimaryButton type="button" onClick={save} disabled={saving}>
-            {saving ? "Saving…" : "Save"}
+            {saving ? tr("Saving…") : tr("Save")}
           </PrimaryButton>
           <SecondaryButton type="button" onClick={onCancel}>
-            Cancel
+            {tr("Cancel")}
           </SecondaryButton>
         </div>
       </Td>
@@ -329,6 +332,7 @@ function RateEditRow({ rate, currency, onCancel, onSaved }: { rate: AdminExchang
 }
 
 function Converter({ currencies, rateFor, format }: { currencies: AdminCurrency[]; rateFor: (code: string) => number; format: (n: number, code: string) => string }) {
+  const tr = useT();
   const [amount, setAmount] = useState("25000");
   const [from, setFrom] = useState(BASE_CURRENCY);
   const [to, setTo] = useState("EUR");
@@ -339,14 +343,14 @@ function Converter({ currencies, rateFor, format }: { currencies: AdminCurrency[
 
   return (
     <Card className="self-start">
-      <p className="font-semibold text-base text-[var(--color-ink)]">Converter</p>
-      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">Check a rate the way applicants will see it.</p>
+      <p className="font-semibold text-base text-[var(--color-ink)]">{tr("Converter")}</p>
+      <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr("Check a rate the way applicants will see it.")}</p>
       <div className="mt-4 space-y-3">
-        <Field label="Amount">
+        <Field label={tr("Amount")}>
           <TextInput type="number" inputMode="decimal" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} />
         </Field>
         <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-2">
-          <Field label="From">
+          <Field label={tr("From")}>
             <SelectInput value={from} onChange={(e) => setFrom(e.target.value)}>
               {currencies.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -357,7 +361,7 @@ function Converter({ currencies, rateFor, format }: { currencies: AdminCurrency[
           </Field>
           <button
             type="button"
-            aria-label="Swap currencies"
+            aria-label={tr("Swap currencies")}
             onClick={() => {
               setFrom(to);
               setTo(from);
@@ -366,7 +370,7 @@ function Converter({ currencies, rateFor, format }: { currencies: AdminCurrency[
           >
             <ArrowRightLeft className="h-4 w-4" strokeWidth={1.75} />
           </button>
-          <Field label="To">
+          <Field label={tr("To")}>
             <SelectInput value={to} onChange={(e) => setTo(e.target.value)}>
               {currencies.map((c) => (
                 <option key={c.code} value={c.code}>
@@ -380,7 +384,7 @@ function Converter({ currencies, rateFor, format }: { currencies: AdminCurrency[
       <div className="mt-4 border-t border-[var(--color-line)] pt-4" aria-live="polite">
         <p className="font-bold tracking-tight text-2xl tabular-nums text-[var(--color-ink)]">{format(result, to)}</p>
         <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
-          {fromRate > 0 && toRate > 0 ? `1 ${from} = ${(fromRate / toRate).toLocaleString("en-GB", { maximumFractionDigits: 6 })} ${to}` : "No rate set for one of these currencies."}
+          {fromRate > 0 && toRate > 0 ? `1 ${from} = ${(fromRate / toRate).toLocaleString("en-GB", { maximumFractionDigits: 6 })} ${to}` : tr("No rate set for one of these currencies.")}
         </p>
       </div>
     </Card>

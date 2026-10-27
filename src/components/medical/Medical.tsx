@@ -14,19 +14,22 @@ import {
   MEDICAL_STATUS_META,
   canEditMedical,
   clearanceFor,
-  medicalStore,
   recordsByAccount,
   requirementLabel,
-  updateMedical,
-  type MedicalRecord,
+  type MedicalUpdate,
   type MedicalResult,
   type MedicalStatus,
 } from "@/lib/medical/data";
+import { updateMedicalRecord, useMedicalRecords, type ApiMedicalRecord } from "@/lib/medical/api";
+
+type MedicalRecord = ApiMedicalRecord;
+const labelOf = (r: Pick<ApiMedicalRecord, "requirementLabel" | "requirementCode">) => r.requirementLabel || requirementLabel(r.requirementCode);
 import { institutionStore } from "@/lib/admin/institutions";
 import { EMPTY_RANGE, inRange, matchesSearch, type DateRange } from "@/lib/admin/filters";
 import { useHydrated } from "@/lib/admin/store";
 import type { Role } from "@/lib/auth/roles";
 import { formatDate, formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 export interface Editor {
   name: string;
@@ -34,24 +37,27 @@ export interface Editor {
 }
 
 export function StatusBadge({ status }: { status: MedicalStatus }) {
+  const tr = useT();
   const m = MEDICAL_STATUS_META[status];
-  return <ToneBadge tone={m.tone}>{m.label}</ToneBadge>;
+  return <ToneBadge tone={m.tone}>{tr(m.label)}</ToneBadge>;
 }
 
 export function ResultBadge({ result }: { result: MedicalResult | null }) {
+  const tr = useT();
   if (!result) return <span className="text-[var(--color-ink-faint)]">—</span>;
   const m = MEDICAL_RESULT_META[result];
-  return <ToneBadge tone={m.tone}>{m.label}</ToneBadge>;
+  return <ToneBadge tone={m.tone}>{tr(m.label)}</ToneBadge>;
 }
 
 function AccessNote({ editor }: { editor: Editor }) {
+  const tr = useT();
   const can = canEditMedical(editor.role);
   return (
     <p className="mb-6 flex items-start gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-info-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-info)]" strokeWidth={1.75} />
       {can
-        ? "Only the outcome of each requirement is recorded here: Fit, Fit with conditions or Unfit. Keep clinical detail in the medical centre's own records."
-        : "You can view medical verification. Updating it is limited to institution administrators and AOSA administrators."}
+        ? tr("Only the outcome of each requirement is recorded here: Fit, Fit with conditions or Unfit. Keep clinical detail in the medical centre's own records.")
+        : tr("You can view medical verification. Updating it is limited to institution administrators and AOSA administrators.")}
     </p>
   );
 }
@@ -61,7 +67,8 @@ function AccessNote({ editor }: { editor: Editor }) {
 // ---------------------------------------------------------------------------
 
 export function MedicalList({ basePath, institutionId, editor }: { basePath: string; institutionId?: string; editor: Editor }) {
-  const records = medicalStore.useItems();
+  const tr = useT();
+  const { records, error: loadError } = useMedicalRecords();
   const institutions = institutionStore.useItems();
   const instName = useMemo(() => new Map(institutions.map((i) => [i.id, i.name])), [institutions]);
 
@@ -101,56 +108,61 @@ export function MedicalList({ basePath, institutionId, editor }: { basePath: str
 
   return (
     <>
+      {loadError && (
+        <div className="mb-4">
+          <FormError>{tr(loadError)}</FormError>
+        </div>
+      )}
       <AccessNote editor={editor} />
       <StatStrip
         columns={4}
         stats={[
-          { label: "Admitted students", value: byAccount.size, detail: `${scoped.length} requirements` },
-          { label: "Medically cleared", value: clearances.filter((c) => c === "CLEARED").length },
+          { label: tr("Admitted students"), value: byAccount.size, detail: `${scoped.length} requirements` },
+          { label: tr("Medically cleared"), value: clearances.filter((c) => c === "CLEARED").length },
           {
-            label: "Awaiting verification",
+            label: tr("Awaiting verification"),
             value: scoped.filter((r) => r.status === "AWAITING").length,
             detail: (
               <button type="button" onClick={() => setStatus("AWAITING")} className="underline underline-offset-4">
-                Show them
+                {tr("Show them")}
               </button>
             ),
           },
-          { label: "Unfit or retest", value: scoped.filter((r) => r.result === "UNFIT" || r.status === "RETEST").length },
+          { label: tr("Unfit or retest"), value: scoped.filter((r) => r.result === "UNFIT" || r.status === "RETEST").length },
         ]}
       />
 
       <div className="mt-6">
         <FilterBar active={!!(search || inst || req || status || result || range.from || range.to)} onClear={clear}>
-          <SearchField value={search} onChange={setSearch} placeholder="Student, registration no. or certificate ref." />
+          <SearchField value={search} onChange={setSearch} placeholder={tr("Student, registration no. or certificate ref.")} />
           {!institutionId && (
             <FilterSelect
-              label="Institution"
+              label={tr("Institution")}
               value={inst}
               onChange={setInst}
               options={[...new Set(scoped.map((r) => r.institutionId))].map((id) => ({ value: id, label: instName.get(id) ?? id })).sort((a, b) => a.label.localeCompare(b.label))}
             />
           )}
-          <FilterSelect label="Requirement" value={req} onChange={setReq} options={MEDICAL_REQUIREMENTS.map((r) => ({ value: r.code, label: r.label }))} />
-          <FilterSelect label="Verification status" value={status} onChange={setStatus} options={Object.entries(MEDICAL_STATUS_META).map(([k, m]) => ({ value: k, label: m.label }))} />
-          <FilterSelect label="Result" value={result} onChange={setResult} options={[...Object.entries(MEDICAL_RESULT_META).map(([k, m]) => ({ value: k, label: m.label })), { value: "none", label: "No result yet" }]} />
-          <DateRangeFilter value={range} onChange={setRange} label="Verified" />
+          <FilterSelect label={tr("Requirement")} value={req} onChange={setReq} options={[...new Map(scoped.map((r) => [r.requirementCode, labelOf(r)])).entries()].map(([value, label]) => ({ value, label }))} />
+          <FilterSelect label={tr("Verification status")} value={status} onChange={setStatus} options={Object.entries(MEDICAL_STATUS_META).map(([k, m]) => ({ value: k, label: m.label }))} />
+          <FilterSelect label={tr("Result")} value={result} onChange={setResult} options={[...Object.entries(MEDICAL_RESULT_META).map(([k, m]) => ({ value: k, label: m.label })), { value: "none", label: tr("No result yet") }]} />
+          <DateRangeFilter value={range} onChange={setRange} label={tr("Verified")} />
         </FilterBar>
       </div>
 
-      <ResultCount shown={filtered.length} total={scoped.length} noun="medical requirements" />
+      <ResultCount shown={filtered.length} total={scoped.length} noun={tr("medical requirements")} />
       {filtered.length === 0 ? (
-        <EmptyState message={scoped.length === 0 ? "No admitted students yet." : "No requirements match these filters."} />
+        <EmptyState message={scoped.length === 0 ? tr("No admitted students yet.") : tr("No requirements match these filters.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Student</Th>
-              {!institutionId && <Th>Institution</Th>}
-              <Th>Medical requirement</Th>
-              <Th>Verification status</Th>
-              <Th>Verification date</Th>
-              <Th>Result</Th>
+              <Th>{tr("Student")}</Th>
+              {!institutionId && <Th>{tr("Institution")}</Th>}
+              <Th>{tr("Medical requirement")}</Th>
+              <Th>{tr("Verification status")}</Th>
+              <Th>{tr("Verification date")}</Th>
+              <Th>{tr("Result")}</Th>
               <Th className="w-20" />
             </tr>
           </thead>
@@ -159,17 +171,20 @@ export function MedicalList({ basePath, institutionId, editor }: { basePath: str
               <tr key={r.id}>
                 <Td>
                   <Link href={`${basePath}/${r.accountId}`} className="text-[var(--color-ink)] underline-offset-4 hover:underline">
-                    {r.studentName}
+                    {tr(r.studentName)}
                   </Link>
-                  <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{r.registrationNo}</p>
+                  <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(r.registrationNo)}</p>
                 </Td>
                 {!institutionId && (
                   <Td>
                     <p className="text-[var(--color-ink)]">{instName.get(r.institutionId) ?? r.institutionId}</p>
-                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{r.programName}</p>
+                    <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(r.programName)}</p>
                   </Td>
                 )}
-                <Td>{requirementLabel(r.requirementCode)}</Td>
+                <Td>
+                  {tr(labelOf(r))}
+                  {!r.required && <span className="ml-1 text-xs text-[var(--color-ink-faint)]">(optional)</span>}
+                </Td>
                 <Td>
                   <StatusBadge status={r.status} />
                 </Td>
@@ -179,7 +194,7 @@ export function MedicalList({ basePath, institutionId, editor }: { basePath: str
                 </Td>
                 <Td className="text-right">
                   <Link href={`${basePath}/${r.accountId}#${r.requirementCode}`} className="text-sm text-[var(--color-ink)] underline underline-offset-4">
-                    {canEditMedical(editor.role) ? "Update" : "View"}
+                    {canEditMedical(editor.role) ? tr("Update") : tr("View")}
                   </Link>
                 </Td>
               </tr>
@@ -197,8 +212,9 @@ export function MedicalList({ basePath, institutionId, editor }: { basePath: str
 // ---------------------------------------------------------------------------
 
 export function MedicalStudent({ accountId, basePath, institutionId, editor }: { accountId: string; basePath: string; institutionId?: string; editor: Editor }) {
+  const tr = useT();
   const hydrated = useHydrated();
-  const all = medicalStore.useItems();
+  const { records: all, loaded } = useMedicalRecords();
   const institutions = institutionStore.useItems();
   const records = all.filter((r) => r.accountId === accountId && (!institutionId || r.institutionId === institutionId));
   const [editing, setEditing] = useState<string | null>(null);
@@ -208,16 +224,16 @@ export function MedicalStudent({ accountId, basePath, institutionId, editor }: {
   const back = (
     <Link href={basePath} className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
       <ArrowLeft className="h-4 w-4" strokeWidth={1.75} />
-      All medical verification
+      {tr("All medical verification")}
     </Link>
   );
 
   if (records.length === 0) {
-    if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">Loading…</p>;
+    if (!hydrated || !loaded) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
     return (
       <>
-        {back}
-        <EmptyState message="No medical requirements for this student, or the student belongs to another institution." />
+        {tr(back)}
+        <EmptyState message={tr("No medical requirements for this student, or the student belongs to another institution.")} />
       </>
     );
   }
@@ -228,22 +244,22 @@ export function MedicalStudent({ accountId, basePath, institutionId, editor }: {
 
   return (
     <>
-      {back}
+      {tr(back)}
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{first.studentName}</h1>
+          <h1 className="font-bold tracking-tight text-2xl text-[var(--color-ink)]">{tr(first.studentName)}</h1>
           <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-            {first.programName}, {institution?.name ?? first.institutionId}, {first.registrationNo}
+            {tr(first.programName)}, {first.institutionName ?? institution?.name ?? first.institutionId}, {tr(first.registrationNo)}
           </p>
         </div>
-        <ToneBadge tone={clearance.tone}>{clearance.label}</ToneBadge>
+        <ToneBadge tone={clearance.tone}>{tr(clearance.label)}</ToneBadge>
       </div>
 
       <AccessNote editor={editor} />
 
       {notice && (
         <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-          {notice}
+          {tr(notice)}
         </p>
       )}
 
@@ -252,8 +268,11 @@ export function MedicalStudent({ accountId, basePath, institutionId, editor }: {
           <Card key={r.id} padded={false}>
             <div id={r.requirementCode} className="scroll-mt-6 flex flex-wrap items-start justify-between gap-3 border-b border-[var(--color-line)] px-5 py-4">
               <div className="min-w-0">
-                <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{requirementLabel(r.requirementCode)}</p>
-                <p className="mt-0.5 max-w-prose text-sm text-[var(--color-ink-soft)]">{MEDICAL_REQUIREMENTS.find((m) => m.code === r.requirementCode)?.description}</p>
+                <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">
+                  {tr(labelOf(r))}
+                  {!r.required && <span className="ml-2 text-sm font-normal text-[var(--color-ink-faint)]">{tr("Optional")}</span>}
+                </p>
+                <p className="mt-0.5 max-w-prose text-sm text-[var(--color-ink-soft)]">{tr(MEDICAL_REQUIREMENTS.find((m) => m.code === r.requirementCode)?.description)}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={r.status} />
@@ -265,33 +284,37 @@ export function MedicalStudent({ accountId, basePath, institutionId, editor }: {
               <MedicalUpdateForm
                 record={r}
                 onCancel={() => setEditing(null)}
-                onSave={(patch) => {
-                  if (updateMedical(r.id, patch, editor)) {
-                    setNotice(`${requirementLabel(r.requirementCode)} updated: ${MEDICAL_STATUS_META[patch.status].label}${patch.result ? `, ${MEDICAL_RESULT_META[patch.result].label}` : ""}.`);
-                    setEditing(null);
-                  }
+                onSave={async (patch) => {
+                  const failed = await updateMedicalRecord(r.id, patch);
+                  if (failed) return failed;
+                  setNotice(`${tr(labelOf(r))} updated: ${MEDICAL_STATUS_META[patch.status].label}${patch.result ? `, ${MEDICAL_RESULT_META[patch.result].label}` : ""}.`);
+                  setEditing(null);
+                  return null;
                 }}
               />
             ) : (
               <>
-                <dl className="grid gap-px bg-[var(--color-line)] sm:grid-cols-4">
+                <dl className="grid gap-px bg-[var(--color-line)] sm:grid-cols-5">
                   {[
-                    ["Verification date", formatDate(r.verificationDate)],
-                    ["Centre", r.centre ?? "—"],
-                    ["Certificate ref.", r.certificateRef ?? "—"],
-                    ["Note", r.note || "—"],
+                    [tr("Verification date"), formatDate(r.verificationDate)],
+                    [tr("Verified by"), r.verifiedBy ?? "—"],
+                    [tr("Centre"), r.centre ?? "—"],
+                    [tr("Certificate ref."), r.certificateRef ?? "—"],
+                    [tr("Note"), r.note || "—"],
                   ].map(([k, v]) => (
                     <div key={k} className="bg-[var(--color-surface)] px-5 py-3">
-                      <dt className="text-xs text-[var(--color-ink-soft)]">{k}</dt>
-                      <dd className="mt-1 text-sm text-[var(--color-ink)]">{v}</dd>
+                      <dt className="text-xs text-[var(--color-ink-soft)]">{tr(k)}</dt>
+                      <dd className="mt-1 text-sm text-[var(--color-ink)]">{tr(v)}</dd>
                     </div>
                   ))}
                 </dl>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--color-line)] px-5 py-3">
                   <History record={r} />
-                  {can && (
+                  {r.locked ? (
+                    <span className="text-xs text-[var(--color-ink-faint)]">{tr("Matriculated: no longer changes")}</span>
+                  ) : can && (
                     <SecondaryButton type="button" onClick={() => { setEditing(r.id); setNotice(""); }}>
-                      Update verification
+                      {tr("Update verification")}
                     </SecondaryButton>
                   )}
                 </div>
@@ -305,12 +328,13 @@ export function MedicalStudent({ accountId, basePath, institutionId, editor }: {
 }
 
 function History({ record }: { record: MedicalRecord }) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
-  if (record.history.length === 0) return <p className="text-xs text-[var(--color-ink-faint)]">No activity yet.</p>;
+  if (record.history.length === 0) return <p className="text-xs text-[var(--color-ink-faint)]">{tr("No activity yet.")}</p>;
   return (
     <div className="min-w-0 flex-1">
       <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]">
-        {open ? "Hide history" : `History (${record.history.length})`}
+        {open ? tr("Hide history") : tr("History ({count})", { count: record.history.length })}
       </button>
       {open && (
         <ol className="mt-3">
@@ -318,11 +342,11 @@ function History({ record }: { record: MedicalRecord }) {
             <li key={i} className="relative border-l border-[var(--color-line)] pb-3 pl-4 last:pb-0">
               <span className="absolute -left-[4px] top-1.5 h-2 w-2 rounded-full bg-[var(--color-ink-faint)]" />
               <p className="text-sm text-[var(--color-ink)]">
-                {MEDICAL_STATUS_META[h.status].label}
-                {h.result ? `, ${MEDICAL_RESULT_META[h.result].label}` : ""} <span className="text-[var(--color-ink-soft)]">by {h.by}</span>
+                {tr(MEDICAL_STATUS_META[h.status].label)}
+                {h.result ? `, ${MEDICAL_RESULT_META[h.result].label}` : ""} <span className="text-[var(--color-ink-soft)]">{tr("by {by}", { by: h.by })}</span>
               </p>
               <p className="text-xs text-[var(--color-ink-faint)]">{formatDateTime(h.at)}</p>
-              {h.note && <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">&ldquo;{h.note}&rdquo;</p>}
+              {h.note && <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">&ldquo;{tr(h.note)}&rdquo;</p>}
             </li>
           ))}
         </ol>
@@ -331,7 +355,8 @@ function History({ record }: { record: MedicalRecord }) {
   );
 }
 
-function MedicalUpdateForm({ record, onCancel, onSave }: { record: MedicalRecord; onCancel: () => void; onSave: (patch: Parameters<typeof updateMedical>[1]) => void }) {
+function MedicalUpdateForm({ record, onCancel, onSave }: { record: MedicalRecord; onCancel: () => void; onSave: (patch: MedicalUpdate) => Promise<{ error: string; fieldErrors: Record<string, string> } | null> }) {
+  const tr = useT();
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
     status: record.status,
@@ -348,74 +373,89 @@ function MedicalUpdateForm({ record, onCancel, onSave }: { record: MedicalRecord
   };
   const decided = form.status === "VERIFIED" || form.status === "RETEST";
 
-  function save() {
+  const [saving, setSaving] = useState(false);
+  const [serverError, setServerError] = useState("");
+
+  async function save() {
     const e: Record<string, string> = {};
-    if (form.status === "VERIFIED" && !form.result) e.result = "Choose the result of the verification.";
-    if (decided && !form.date) e.date = "Enter the date it was verified.";
-    else if (form.date > today) e.date = "The verification date can't be in the future.";
-    if ((form.status === "VERIFIED" || form.status === "AWAITING") && !form.certificateRef.trim()) e.certificateRef = "Enter the certificate reference.";
-    if ((form.status === "RETEST" || form.result === "UNFIT" || form.result === "CONDITIONAL") && !form.note.trim()) e.note = "Say what the student needs to know or do.";
+    if (form.status === "VERIFIED" && !form.result) e.result = tr("Choose the result of the verification.");
+    if (decided && !form.date) e.date = tr("Enter the date it was verified.");
+    else if (form.date > today) e.date = tr("The verification date can't be in the future.");
+    if ((form.status === "VERIFIED" || form.status === "AWAITING") && !form.certificateRef.trim()) e.certificateRef = tr("Enter the certificate reference.");
+    if ((form.status === "RETEST" || form.result === "UNFIT" || form.result === "CONDITIONAL") && !form.note.trim()) e.note = tr("Say what the student needs to know or do.");
     setErrors(e);
-    if (Object.values(e).some(Boolean)) return;
-    onSave({
+    if (Object.values(e).some(Boolean) || saving) return;
+    setSaving(true);
+    const failed = await onSave({
       status: form.status,
       result: form.status === "VERIFIED" ? (form.result as MedicalResult) : null,
-      verificationDate: decided ? new Date(`${form.date}T12:00:00Z`).toISOString() : null,
+      verificationDate: decided ? form.date : null,
       centre: form.centre || null,
       certificateRef: form.certificateRef.trim() || null,
       note: form.note,
     });
+    setSaving(false);
+    if (failed) {
+      const { verificationDate, ...rest } = failed.fieldErrors;
+      setErrors({ ...rest, ...(verificationDate ? { date: verificationDate } : {}) });
+      setServerError(Object.keys(failed.fieldErrors).length ? "" : failed.error);
+    }
   }
 
   return (
     <div className="bg-[var(--color-paper)] px-5 py-5">
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <Field label="Verification status" required>
+        <Field label={tr("Verification status")} required>
           <SelectInput value={form.status} onChange={(e) => set("status", e.target.value as MedicalStatus)}>
             {Object.entries(MEDICAL_STATUS_META).map(([k, m]) => (
               <option key={k} value={k}>
-                {m.label}
+                {tr(m.label)}
               </option>
             ))}
           </SelectInput>
         </Field>
-        <Field label="Result" required={form.status === "VERIFIED"} error={errors.result} hint={form.status === "VERIFIED" ? undefined : "Recorded when the status is Verified."}>
+        <Field label={tr("Result")} required={form.status === "VERIFIED"} error={errors.result} hint={form.status === "VERIFIED" ? undefined : tr("Recorded when the status is Verified.")}>
           <SelectInput value={form.status === "VERIFIED" ? form.result : ""} disabled={form.status !== "VERIFIED"} onChange={(e) => set("result", e.target.value as MedicalResult | "")}>
-            <option value="">Select…</option>
+            <option value="">{tr("Select…")}</option>
             {Object.entries(MEDICAL_RESULT_META).map(([k, m]) => (
               <option key={k} value={k}>
-                {m.label}
+                {tr(m.label)}
               </option>
             ))}
           </SelectInput>
         </Field>
-        <Field label="Verification date" required={decided} error={errors.date}>
+        <Field label={tr("Verification date")} required={decided} error={errors.date}>
           <TextInput type="date" max={today} value={decided ? form.date : ""} disabled={!decided} onChange={(e) => set("date", e.target.value)} />
         </Field>
-        <Field label="Examining centre">
+        <Field label={tr("Examining centre")}>
           <SelectInput value={form.centre} onChange={(e) => set("centre", e.target.value)}>
-            <option value="">Not recorded</option>
+            <option value="">{tr("Not recorded")}</option>
             {MEDICAL_CENTRES.map((c) => (
               <option key={c} value={c}>
-                {c}
+                {tr(c)}
               </option>
             ))}
           </SelectInput>
         </Field>
-        <Field label="Certificate reference" required={form.status === "VERIFIED" || form.status === "AWAITING"} error={errors.certificateRef}>
-          <TextInput value={form.certificateRef} onChange={(e) => set("certificateRef", e.target.value)} className="font-mono" placeholder="MC-26-00000" />
+        <Field label={tr("Certificate reference")} required={form.status === "VERIFIED" || form.status === "AWAITING"} error={errors.certificateRef}>
+          <TextInput value={form.certificateRef} onChange={(e) => set("certificateRef", e.target.value)} className="font-mono" placeholder={tr("MC-26-00000")} />
         </Field>
-        <Field label="Note to the student" required={form.status === "RETEST" || form.result === "UNFIT" || form.result === "CONDITIONAL"} error={errors.note} hint="No clinical detail.">
+        <Field label={tr("Note to the student")} required={form.status === "RETEST" || form.result === "UNFIT" || form.result === "CONDITIONAL"} error={errors.note} hint={tr("No clinical detail.")}>
           <TextArea rows={2} value={form.note} onChange={(e) => set("note", e.target.value)} />
         </Field>
       </div>
-      {Object.values(errors).some(Boolean) && <div className="mt-4"><FormError>Check the highlighted fields.</FormError></div>}
+      {Object.values(errors).some(Boolean) && <div className="mt-4"><FormError>{tr("Check the highlighted fields.")}</FormError></div>}
+      {serverError && (
+        <div className="mt-4">
+          <FormError>{tr(serverError)}</FormError>
+        </div>
+      )}
       <div className="mt-5 flex items-center gap-3">
-        <PrimaryButton type="button" onClick={save}>
-          Save verification
+        <PrimaryButton type="button" onClick={save} disabled={saving}>
+          {tr("Save verification")}
         </PrimaryButton>
         <SecondaryButton type="button" onClick={onCancel}>
-          Cancel
+          {tr("Cancel")}
         </SecondaryButton>
       </div>
     </div>

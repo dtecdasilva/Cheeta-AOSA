@@ -77,6 +77,13 @@ export interface MyApplication {
   history: HistoryEntry[];
   /** The institution's own check that the fee reached its account, once it has made it. */
   institutionPaymentCheck: { result: "VERIFIED" | "NOT_RECEIVED"; note: string; at: string } | null;
+  /** The place offered by deliberation, if there is one, and its letter. */
+  admission: {
+    admissionNumber: string;
+    status: "OFFERED" | "ACCEPTED" | "REJECTED" | "PENDING" | "WITHDRAWN";
+    type: "FULL" | "PROVISIONAL";
+    provisional: { conditions: string; deadline: string | null; status: "PENDING" | "MET" | "NOT_MET"; decidedAt: string | null; note: string | null } | null;
+    admissionDate: string; program: { name: string; code: string }; choice: number; letterUrl: string } | null;
   /** Comments the institution shared with the applicant. */
   comments: { id: string; body: string; at: string }[];
   readiness: { ready: boolean; checks: ReadinessCheck[] };

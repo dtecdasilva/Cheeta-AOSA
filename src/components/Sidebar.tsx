@@ -6,14 +6,17 @@ import { usePathname } from "next/navigation";
 import { ChevronDown, X } from "lucide-react";
 import { useUnreadCount } from "@/components/notifications/NotificationCentre";
 import { LogoutButton } from "@/components/auth/LogoutButton";
+import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { Logo } from "@/components/brand/Logo";
 import { STUDENT_NAV, STUDENT_NAV_UTILITY, type NavEntry } from "@/lib/studentNav";
+import { useT } from "@/lib/i18n/client";
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
 export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
+  const tr = useT();
   const pathname = usePathname();
   const unread = useUnreadCount("student");
 
@@ -47,8 +50,8 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
       }`}
     >
       <div className="flex items-center justify-between gap-2.5 px-5 py-5">
-        <Logo sublabel="Applicant portal" priority />
-        <button onClick={onClose} className="text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] lg:hidden" aria-label="Close menu">
+        <Logo sublabel={tr("Applicant portal")} priority />
+        <button onClick={onClose} className="text-[var(--color-ink-faint)] hover:text-[var(--color-ink)] lg:hidden" aria-label={tr("Close menu")}>
           <X className="h-5 w-5" strokeWidth={1.75} />
         </button>
       </div>
@@ -69,7 +72,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
               >
                 {active && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-[var(--color-brand)]" />}
                 <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--color-brand)]" : "text-[var(--color-ink-faint)]"}`} strokeWidth={1.75} />
-                {entry.label}
+                {tr(entry.label)}
               </Link>
             );
           }
@@ -90,7 +93,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
                   className={`h-4 w-4 shrink-0 ${groupHasActive ? "text-[var(--color-brand)]" : "text-[var(--color-ink-faint)]"}`}
                   strokeWidth={1.75}
                 />
-                <span className="flex-1">{entry.label}</span>
+                <span className="flex-1">{tr(entry.label)}</span>
                 <ChevronDown
                   className={`h-3.5 w-3.5 shrink-0 text-[var(--color-ink-faint)] transition-transform ${isOpen ? "rotate-180" : ""}`}
                   strokeWidth={2}
@@ -112,7 +115,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
                             : "text-[var(--color-ink-soft)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]"
                         }`}
                       >
-                        {child.label}
+                        {tr(child.label)}
                       </Link>
                     );
                   })}
@@ -137,10 +140,10 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
               >
                 {active && <span aria-hidden className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-[var(--color-brand)]" />}
                 <Icon className={`h-4 w-4 shrink-0 ${active ? "text-[var(--color-brand)]" : "text-[var(--color-ink-faint)]"}`} strokeWidth={1.75} />
-                {item.label}
+                {tr(item.label)}
                 {item.href === "/student/notifications" && unread > 0 && (
                   <span className="ml-auto min-w-5 rounded-full bg-[var(--color-brand)] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
-                    {unread}
+                    {tr(unread)}
                   </span>
                 )}
               </Link>
@@ -150,6 +153,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
       </nav>
 
       <div className="border-t border-[var(--color-line)] px-3 py-3">
+        <LanguageSwitch className="mb-2" />
         <LogoutButton />
       </div>
     </aside>

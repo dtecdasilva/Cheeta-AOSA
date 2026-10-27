@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { getCountries, type CountryPurpose } from "@/lib/countries/getCountries";
+import { useT } from "@/lib/i18n/client";
 
 interface CountrySelectProps {
   label: string;
@@ -42,6 +43,8 @@ export function CountrySelect({
   error,
   purpose,
 }: CountrySelectProps) {
+  const tr = useT();
+  placeholder = tr(placeholder);
   const autoId = useId();
   const inputId = id ?? autoId;
   const listId = `${inputId}-listbox`;
@@ -118,7 +121,7 @@ export function CountrySelect({
   return (
     <div ref={wrapperRef} className="relative">
       <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
-        {label}
+        {tr(label)}
         {required && <span className="text-[var(--color-danger)]"> *</span>}
       </label>
 
@@ -135,7 +138,7 @@ export function CountrySelect({
           aria-autocomplete="list"
           autoComplete="off"
           disabled={disabled}
-          placeholder={placeholder}
+          placeholder={tr(placeholder)}
           value={open ? query : value}
           onFocus={() => {
             setQuery(value);
@@ -163,7 +166,7 @@ export function CountrySelect({
           className="scrollbar-thin absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] py-1 shadow-[var(--shadow-popover)]"
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-[var(--color-ink-faint)]">No matching country</li>
+            <li className="px-3 py-2 text-sm text-[var(--color-ink-faint)]">{tr("No matching country")}</li>
           ) : (
             filtered.map((country, i) => (
               <li
@@ -182,15 +185,15 @@ export function CountrySelect({
                   i === highlighted ? "bg-[var(--color-brand-soft)] text-[var(--color-ink)]" : "text-[var(--color-ink-soft)]"
                 } ${country === value ? "font-medium" : ""}`}
               >
-                {country}
+                {tr(country)}
               </li>
             ))
           )}
         </ul>
       )}
 
-      {hint && !error && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{hint}</p>}
-      {error && <p className="mt-1 text-xs text-[var(--color-danger)]">{error}</p>}
+      {hint && !error && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{tr(hint)}</p>}
+      {error && <p className="mt-1 text-xs text-[var(--color-danger)]">{tr(error)}</p>}
     </div>
   );
 }

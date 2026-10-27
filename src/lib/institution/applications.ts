@@ -23,8 +23,9 @@ export type ApplicationRow =
       updatedAt: string;
       applicant: string;
       email: string;
-      bankCode: string;
-      applicationFee: number;
+      /** Null without the "Student Payments & Uploads" permission. */
+      bankCode: string | null;
+      applicationFee: number | null;
       programName: string | null;
       paymentVerification: PaymentCheck;
       documents: { pending: number; approved: number; rejected: number } | null;
@@ -117,6 +118,10 @@ export interface ReviewApplication {
   submitted?: boolean;
   declaration?: { acceptedAt: string; version: string } | null;
   demographic?: Record<string, string | null> | null;
+  /** Photos and a video the applicant added about their disability, to help assess accommodation. */
+  /** The applicant's photo, if they added one. */
+  photo?: { url: string; name: string; size: number } | null;
+  disabilityMedia?: { id: string; kind: "PHOTO" | "VIDEO"; caption: string; name: string; mimeType: string; size: number; url: string }[];
   education?: { id: string; schoolName: string; schoolType: string; qualification: string; startYear: string; endYear: string; country: string }[];
   examinations?: { id: string; qualification: string; sittings: { sittingNo: number; year: string; candidateNumber: string; centreNumber: string; results: { subject: string; value: string }[] }[] }[];
   documents?: ReviewDocument[];
@@ -129,7 +134,12 @@ export interface ReviewApplication {
     acknowledge: { allowed: boolean; reason: string | null };
     reject: { allowed: boolean; reason: string | null };
     comment: boolean;
+    /** Undo an acknowledgement or a rejection taken by mistake (with a reason), back to review. */
+    cancelAcknowledgement?: boolean;
+    cancelRejection?: boolean;
   };
+  /** Who acknowledged or rejected it, and when, while that decision stands. */
+  decision?: { status: "I_ACKNOWLEDGED" | "I_REJECTED"; at: string; by: string | null; note: string } | null;
 }
 
 export type ActionOutcome = { ok: true } | { ok: false; error: string; fieldErrors: Record<string, string> };
@@ -180,6 +190,7 @@ export function useApplicationReview(id: string) {
     missing,
     reload,
     acknowledge: (note?: string) => send("/decision", "POST", { action: "acknowledge", note: note || undefined }),
+    cancelDecision: (kind: "acknowledgement" | "rejection", note: string) => send("/decision", "POST", { action: `cancel_${kind}`, note }),
     reject: (reasonId: string, note?: string) => send("/decision", "POST", { action: "reject", reasonId, note: note || undefined }),
     verifyPayment: (decision: "verify" | "not_received", note?: string) => send("/payment-verification", "POST", { decision, note: note || undefined }),
     reviewDocument: (documentId: string, body: { decision: "approve" } | { decision: "reject"; reasonId?: string; reason?: string }) => send(`/documents/${encodeURIComponent(documentId)}`, "PATCH", body),

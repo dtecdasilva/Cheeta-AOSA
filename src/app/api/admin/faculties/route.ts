@@ -1,4 +1,5 @@
 import { collectionRoutes, ADMIN_ONLY } from "@/server/modules/resource";
-import { facultyResource } from "@/server/modules/institutions/institutions.resources";
+import { adminFacultyResource } from "@/server/modules/institutions/institutions.resources";
 
-export const { GET, POST } = collectionRoutes(facultyResource, ADMIN_ONLY);
+/** Every institution's faculties. Administration can't add one here: each institution manages its own structure. */
+export const { GET } = collectionRoutes(adminFacultyResource, ADMIN_ONLY);

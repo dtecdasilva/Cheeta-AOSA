@@ -1,4 +1,6 @@
 import "server-only";
+import { clearMedia } from "./disability.service";
+import { discardBytes } from "@/server/storage/files.service";
 import { and, asc, eq } from "drizzle-orm";
 import type { PublicUser } from "@/lib/auth/users";
 import { demographicCompletion, type DemographicCompletion } from "@/lib/demographic/completion";
@@ -131,7 +133,8 @@ export async function validateDemographic(user: PublicUser, body: unknown) {
 
 async function writeDemographic(user: PublicUser, body: unknown, kind: "create" | "update"): Promise<DemographicRecord> {
   const { patch, mode } = readInput(body);
-  return getDb().transaction(async (tx) => {
+  let discarded: Awaited<ReturnType<typeof clearMedia>> = [];
+  const out = await getDb().transaction(async (tx) => {
     const row = await loadRow(tx, user.id);
     if (kind === "create" && row) throw new ConflictError("Your demographic information already exists. Update it instead.");
     if (kind === "update" && !row) throw new NotFoundError("Demographic information");
@@ -167,8 +170,12 @@ async function writeDemographic(user: PublicUser, body: unknown, kind: "create" 
       before: row ? (current as unknown as Record<string, unknown>) : null,
       after: merged as unknown as Record<string, unknown>,
     });
+    // No longer answering Yes: the disability photos and video go too.
+    if (values.disability !== "Yes") discarded = await clearMedia(tx, user.id);
     return toDemographicRecord(saved);
   });
+  await discardBytes(discarded);
+  return out;
 }
 
 /** Create: the first save. Refused with 409 if the applicant already has a record. */

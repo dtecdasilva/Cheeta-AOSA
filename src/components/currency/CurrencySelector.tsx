@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { getCurrencies } from "@/lib/currency/getCurrencies";
 import { CurrencyInfo } from "@/lib/currency/data";
+import { useT } from "@/lib/i18n/client";
 
 interface CurrencySelectorProps {
   label: string;
@@ -35,6 +36,7 @@ export function CurrencySelector({
   hint,
   error,
 }: CurrencySelectorProps) {
+  const tr = useT();
   const autoId = useId();
   const inputId = id ?? autoId;
   const listId = `${inputId}-listbox`;
@@ -107,7 +109,7 @@ export function CurrencySelector({
   return (
     <div ref={wrapperRef} className="relative">
       <label htmlFor={inputId} className="mb-1.5 block text-sm font-medium text-[var(--color-ink)]">
-        {label}
+        {tr(label)}
         {required && <span className="text-[var(--color-danger)]"> *</span>}
       </label>
 
@@ -124,7 +126,7 @@ export function CurrencySelector({
           aria-autocomplete="list"
           autoComplete="off"
           disabled={disabled}
-          placeholder="Search by code or name…"
+          placeholder={tr("Search by code or name…")}
           value={open ? query : displayLabel}
           onFocus={() => {
             setQuery("");
@@ -152,7 +154,7 @@ export function CurrencySelector({
           className="scrollbar-thin absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] py-1 shadow-[var(--shadow-popover)]"
         >
           {filtered.length === 0 ? (
-            <li className="px-3 py-2 text-sm text-[var(--color-ink-faint)]">No matching currency</li>
+            <li className="px-3 py-2 text-sm text-[var(--color-ink-faint)]">{tr("No matching currency")}</li>
           ) : (
             filtered.map((c, i) => (
               <li
@@ -169,17 +171,17 @@ export function CurrencySelector({
                 } ${c.code === value ? "font-medium" : ""}`}
               >
                 <span>
-                  {c.code} — {c.name}
+                  {c.code} — {tr(c.name)}
                 </span>
-                <span className="text-[var(--color-ink-faint)]">{c.symbol}</span>
+                <span className="text-[var(--color-ink-faint)]">{tr(c.symbol)}</span>
               </li>
             ))
           )}
         </ul>
       )}
 
-      {hint && !error && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{hint}</p>}
-      {error && <p className="mt-1 text-xs text-[var(--color-danger)]">{error}</p>}
+      {hint && !error && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{tr(hint)}</p>}
+      {error && <p className="mt-1 text-xs text-[var(--color-danger)]">{tr(error)}</p>}
     </div>
   );
 }

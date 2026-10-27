@@ -13,7 +13,7 @@ import { countryStore, currencyStore, rateStore } from "@/lib/admin/reference";
 import { institutionStore, SEED_INSTITUTIONS } from "@/lib/admin/institutions";
 import { departmentStore, facultyStore, programStore } from "@/lib/admin/academics";
 import { paymentMethodStore } from "@/lib/admin/paymentMethods";
-import { accountStore } from "@/lib/admin/access";
+import { SAMPLE_ACCOUNTS } from "@/lib/admin/access";
 import { templateStore } from "@/lib/admin/templates";
 import { seedAdminRecords } from "@/lib/admin/students";
 import { feePaymentStore } from "@/lib/payments/applicationFees";
@@ -59,7 +59,7 @@ const status = (s: string) => (s === "active" || s === "ACTIVE" ? "ACTIVE" : "IN
 
 async function seedReference(db: Executor) {
   // Parents before children (region → town → quarter), so parent_id references resolve.
-  const items = parameterStore.getAll();
+  const items = parameterStore.getSeed!();
   const byId = new Map(items.map((p) => [p.id, p]));
   const depth = (p: ParamItem): number => (p.parentId && byId.has(p.parentId) ? 1 + depth(byId.get(p.parentId)!) : 0);
   const ordered = [...items].sort((a, b) => depth(a) - depth(b));
@@ -84,18 +84,18 @@ async function seedReference(db: Executor) {
   await insertChunks(
     db,
     t.countries,
-    countryStore.getAll().map((c) => ({ id: c.id, name: c.name, iso2: c.iso2, iso3: c.iso3, sortOrder: c.sortOrder, dialCode: c.dialCode, region: c.region, currencyCode: c.currencyCode, nationality: c.nationality, residence: c.residence, status: c.status }))
+    countryStore.getSeed!().map((c) => ({ id: c.id, name: c.name, iso2: c.iso2, iso3: c.iso3, sortOrder: c.sortOrder, dialCode: c.dialCode, region: c.region, currencyCode: c.currencyCode, nationality: c.nationality, residence: c.residence, status: c.status }))
   );
   await insertChunks(
     db,
     t.currencies,
-    currencyStore.getAll().map((c) => ({ code: c.code, name: c.name, symbol: c.symbol, decimalDigits: c.decimalDigits, symbolPosition: c.symbolPosition, displayToApplicants: c.displayToApplicants, status: c.status }))
+    currencyStore.getSeed!().map((c) => ({ code: c.code, name: c.name, symbol: c.symbol, decimalDigits: c.decimalDigits, symbolPosition: c.symbolPosition, displayToApplicants: c.displayToApplicants, status: c.status }))
   );
   await insertChunks(
     db,
     t.exchangeRates,
     rateStore
-      .getAll()
+      .getSeed!()
       .filter((r) => r.code !== "XAF")
       .map((r) => ({ id: `rate-seed-${r.code}`, fromCurrency: r.code, toCurrency: "XAF", rate: r.xafPerUnit, source: r.source, effectiveFrom: new Date(r.asOf) }))
   );
@@ -113,12 +113,13 @@ async function seedReference(db: Executor) {
   await insertChunks(
     db,
     t.notificationTemplates,
-    templateStore.getAll().map((tpl) => ({
+    templateStore.getSeed!().map((tpl) => ({
       id: tpl.id,
       code: tpl.code,
       name: tpl.name,
       channel: tpl.channel,
       event: tpl.event,
+      language: tpl.language,
       subject: tpl.subject,
       body: tpl.body,
       status: tpl.status,
@@ -140,17 +141,20 @@ async function seedInstitutions(db: Executor) {
   await insertChunks(
     db,
     t.institutions,
-    institutionStore.getAll().map((i) => ({ ...i, quarterId: i.quarterId || null, createdAt: new Date(i.createdAt), updatedAt: new Date(i.updatedAt) }))
+    institutionStore.getSeed!().map((i) => ({ ...i, quarterId: i.quarterId || null, createdAt: new Date(i.createdAt), updatedAt: new Date(i.updatedAt) }))
   );
-  await insertChunks(db, t.faculties, facultyStore.getAll().map((f) => ({ ...f, updatedAt: new Date(f.updatedAt) })));
-  await insertChunks(db, t.departments, departmentStore.getAll().map((d) => ({ ...d, updatedAt: new Date(d.updatedAt) })));
-  await insertChunks(db, t.programs, programStore.getAll().map((p) => ({ ...p, updatedAt: new Date(p.updatedAt) })));
-  await insertChunks(db, t.institutionPaymentMethods, paymentMethodStore.getAll().map((m) => ({ ...m, verifiedAt: m.verifiedAt ? new Date(m.verifiedAt) : null, updatedAt: new Date(m.updatedAt) })));
+  await insertChunks(db, t.faculties, facultyStore.getSeed!().map((f) => ({ ...f, updatedAt: new Date(f.updatedAt) })));
+  await insertChunks(db, t.departments, departmentStore.getSeed!().map((d) => ({ ...d, updatedAt: new Date(d.updatedAt) })));
+  await insertChunks(db, t.programs, programStore.getSeed!().map((p) => ({ ...p, updatedAt: new Date(p.updatedAt) })));
+  // Each sample institution offers the qualifications its programs lead to.
+  const offered = new Map(programStore.getSeed!().map((p) => [`${p.institutionId}|${p.qualificationId}`, { institutionId: p.institutionId, qualificationId: p.qualificationId }]));
+  await insertChunks(db, t.institutionQualifications, [...offered.values()]);
+  await insertChunks(db, t.institutionPaymentMethods, paymentMethodStore.getSeed!().map((m) => ({ ...m, verifiedAt: m.verifiedAt ? new Date(m.verifiedAt) : null, updatedAt: new Date(m.updatedAt) })));
 
   // Upload requirements: the institution portal's, plus the documents each sample institution lists
   // (src/lib/data.ts) where it has none of its own. Each is for a document type from the "Upload types"
   // list and carries that type's name; an institution asks for a type once.
-  const uploadTypes = parameterStore.getAll().filter((p) => p.category === "upload-types");
+  const uploadTypes = parameterStore.getSeed!().filter((p) => p.category === "upload-types");
   const requirements: (typeof t.uploadRequirements.$inferInsert)[] = [];
   const addRequirement = (r: { id: string; institutionId: string; name: string; description: string; required: boolean; fileTypes: string[]; maxSizeKb: number; status: "ACTIVE" | "INACTIVE" }) => {
     const type = documentTypeForName(r.name, uploadTypes);
@@ -187,8 +191,7 @@ async function seedAccounts(db: Executor) {
   const accounts = [
     ...DEMO_ACCOUNTS.map((a) => ({ ...a, phone: a.mobileNumber ?? null, mfa: false, lastSignInAt: null as string | null })),
     // The Access management screen's other sample accounts, same demo passwords by role.
-    ...accountStore
-      .getAll()
+    ...SAMPLE_ACCOUNTS
       .filter((a) => !DEMO_ACCOUNTS.some((d) => d.id === a.id))
       .map((a) => ({ id: a.id, email: a.email, password: demoPassword[a.role], fullName: a.fullName, role: a.role, status: a.status, institutionId: a.institutionId || undefined, institutionType: undefined, mobileNumber: undefined, phone: a.phone, createdAt: a.createdAt, mfa: a.mfa, lastSignInAt: a.lastSignInAt })),
   ];
@@ -252,8 +255,8 @@ async function seedAccounts(db: Executor) {
 /** The admin portal's generated applicants and applications, as real rows. */
 async function seedApplications(db: Executor) {
   const { students, applications } = seedAdminRecords();
-  const academicYearId = parameterStore.getAll().find((p) => p.category === "academic-years" && p.attrs.current === true)?.id ?? null;
-  const programs = programStore.getAll();
+  const academicYearId = parameterStore.getSeed!().find((p) => p.category === "academic-years" && p.attrs.current === true)?.id ?? null;
+  const programs = programStore.getSeed!();
   const instType = new Map(SEED_INSTITUTIONS.map((i) => [i.id, TYPE_NAMES[i.typeCode] ?? "University"]));
   // Generated applicants can't sign in: their password is random and never shown.
   const unusable = hashPassword(randomBytes(24).toString("hex"));
@@ -402,7 +405,7 @@ async function seedApplications(db: Executor) {
  */
 async function seedDemoApplicant(db: Executor) {
   const student = DEMO_ACCOUNTS.find((a) => a.role === "STUDENT");
-  const academicYearId = parameterStore.getAll().find((p) => p.category === "academic-years" && p.attrs.current === true)?.id ?? null;
+  const academicYearId = parameterStore.getSeed!().find((p) => p.category === "academic-years" && p.attrs.current === true)?.id ?? null;
   if (!student || !academicYearId) return;
   const bundleId = `bundle-${student.id}`;
   await db.insert(t.applications).values({ id: bundleId, applicantId: student.id, academicYearId, reference: "AOSA-DEMO-00001" }).onConflictDoNothing();

@@ -15,6 +15,10 @@ export interface PaymentAccountCopy {
   accountName: string;
   accountNumber: string;
   swift: string;
+  /** Bank accounts recorded after these fields were added. */
+  bankCode?: string;
+  branchCode?: string;
+  rib?: string;
 }
 
 /**

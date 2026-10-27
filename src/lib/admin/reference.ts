@@ -10,7 +10,7 @@ import { CURRENCIES, MOCK_EXCHANGE_RATES } from "@/lib/currency/data";
  * Countries and currencies are stored in the database: these collections
  * read and write /api/admin/countries and /api/admin/currencies. The
  * lists in src/lib/countries and src/lib/currency are what an empty
- * database is first filled from, and what is shown until the API answers.
+ * database is first filled from (never shown on screen).
  * Exchange rates are stored too (/api/admin/exchange-rates); they are
  * added to, never edited, so the history of each rate is kept.
  */

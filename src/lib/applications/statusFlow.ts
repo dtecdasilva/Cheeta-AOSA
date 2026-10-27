@@ -11,6 +11,8 @@ import type { ApplicationStatus } from "@/lib/types";
  *     (system)    (applicant)     │               │             └──────▶ A_REJECTED
  *                                 └──▶ I_REJECTED ◀┘                    (applicant)
  *   I_REJECTED / I_ACKNOWLEDGED ─▶ RESUBMITTED (applicant corrects) ─▶ I_ACKNOWLEDGED | I_REJECTED
+ *   ACCEPTED / A_ACKNOWLEDGED ─▶ I_REJECTED (system: a provisional offer withdrawn, conditions not met)
+ *   I_ACKNOWLEDGED / I_REJECTED ─▶ SUBMITTED | RESUBMITTED (institution: cancel the acknowledgement or rejection)
  *
  * INCOMPLETE and COMPLETED are set by the platform, never chosen: an
  * application is COMPLETED when everything it needs is in place, and goes
@@ -25,10 +27,13 @@ export const TRANSITIONS: Record<ApplicationStatus, Partial<Record<ApplicationSt
   COMPLETED: { INCOMPLETE: ["system"], SUBMITTED: ["applicant"] },
   SUBMITTED: { I_ACKNOWLEDGED: ["institution", "admin"], I_REJECTED: ["institution", "admin"] },
   RESUBMITTED: { I_ACKNOWLEDGED: ["institution", "admin"], I_REJECTED: ["institution", "admin"] },
-  I_ACKNOWLEDGED: { ACCEPTED: ["institution", "admin"], I_REJECTED: ["institution", "admin"], RESUBMITTED: ["applicant"] },
-  I_REJECTED: { RESUBMITTED: ["applicant"] },
-  ACCEPTED: { A_ACKNOWLEDGED: ["applicant"], A_REJECTED: ["applicant"] },
-  A_ACKNOWLEDGED: {},
+  // Back to SUBMITTED / RESUBMITTED by the institution (or administration) is "Cancel acknowledgement" / "Cancel rejection":
+  // a decision taken by mistake, undone with a reason, back to where it was before the decision.
+  I_ACKNOWLEDGED: { ACCEPTED: ["institution", "admin"], I_REJECTED: ["institution", "admin"], RESUBMITTED: ["applicant", "institution", "admin"], SUBMITTED: ["institution", "admin"] },
+  I_REJECTED: { RESUBMITTED: ["applicant", "institution", "admin"], SUBMITTED: ["institution", "admin"] },
+  // "system" here is only the withdrawal of a provisional admission whose conditions weren't met (deliberation/provisional.service.ts).
+  ACCEPTED: { A_ACKNOWLEDGED: ["applicant"], A_REJECTED: ["applicant"], I_REJECTED: ["system"] },
+  A_ACKNOWLEDGED: { I_REJECTED: ["system"] },
   A_REJECTED: {},
 };
 

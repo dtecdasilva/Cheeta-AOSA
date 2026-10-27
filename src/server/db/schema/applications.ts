@@ -78,6 +78,29 @@ export const demographicProfiles = pgTable("demographic_profiles", {
   ...timestamps,
 });
 
+/**
+ * Photos and a short video an applicant who answers Yes to the disability
+ * question can add, so an institution can judge whether it can accommodate
+ * them. Seen by the applicant, the institutions they submit to, and Cheeta
+ * administration. Removed if the answer changes to No.
+ */
+export const disabilityMedia = pgTable(
+  "disability_media",
+  {
+    id: id(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    fileId: text("file_id")
+      .notNull()
+      .references(() => files.id),
+    kind: text("kind", { enum: ["PHOTO", "VIDEO"] }).notNull(),
+    caption: text("caption").notNull().default(""),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("disability_media_user_idx").on(t.userId)]
+);
+
 /** Fields and rules: src/lib/education/types.ts and validation.ts. */
 export const educationRecords = pgTable(
   "education_records",

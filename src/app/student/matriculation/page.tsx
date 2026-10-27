@@ -1,16 +1,16 @@
 import { PAGE_MAIN_CLASS } from "@/components/ui";
 import { Topbar } from "@/components/Topbar";
 import { StudentMatriculation } from "@/components/matriculation/Matriculation";
-/** Same id as DEMO_TUITION_ID in src/lib/tuition/data.ts. */
-const DEMO_TUITION_ID = "tui-demo";
+import { getT } from "@/lib/i18n/server";
 
 /** Mock data: every signed-in student sees the demo admitted student. */
-export default function StudentMatriculationPage() {
+export default async function StudentMatriculationPage() {
+  const tr = await getT();
   return (
     <>
-      <Topbar title="Matriculation" description="What you need to enrol, and your matriculation code once you have it." />
+      <Topbar title={tr("Matriculation")} description={tr("What you need to enrol, and your matriculation code once you have it.")} />
       <main className={PAGE_MAIN_CLASS}>
-        <StudentMatriculation accountId={DEMO_TUITION_ID} />
+        <StudentMatriculation />
       </main>
     </>
   );

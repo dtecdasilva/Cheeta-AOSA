@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, integer, pgTable, real, text, uniqueIndex, date, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { boolean, index, integer, pgTable, primaryKey, real, text, uniqueIndex, date, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { PAYMENT_METHOD_TYPES } from "../../../lib/institution/paymentMethods";
 import { id, recordStatus, timestamps, ts } from "./_shared";
 import { users } from "./identity";
@@ -46,6 +46,11 @@ export const institutions = pgTable(
      * (settings "payment".defaultWebFee).
      */
     webFee: integer("web_fee"),
+    /** When it accepts applications (src/lib/institution/applicationWindow.ts). Existing institutions start OPEN. */
+    applicationsMode: text("applications_mode", { enum: ["OPEN", "CLOSED", "SCHEDULED"] }).notNull().default("OPEN"),
+    applicationsOpenAt: ts("applications_open_at"),
+    applicationsCloseAt: ts("applications_close_at"),
+    applicationsMessage: text("applications_message").notNull().default(""),
     status: recordStatus(),
     ...timestamps,
   },
@@ -65,6 +70,10 @@ export const faculties = pgTable(
     email: text("email").notNull().default(""),
     phone: text("phone").notNull().default(""),
     address: text("address").notNull().default(""),
+    location: text("location").notNull().default(""),
+    /** Parameter ids (regions, towns); null when not given. */
+    regionId: text("region_id").references(() => parameters.id),
+    townId: text("town_id").references(() => parameters.id),
     status: recordStatus(),
     ...timestamps,
   },
@@ -86,6 +95,10 @@ export const departments = pgTable(
     head: text("head").notNull(),
     email: text("email").notNull().default(""),
     phone: text("phone").notNull().default(""),
+    address: text("address").notNull().default(""),
+    location: text("location").notNull().default(""),
+    regionId: text("region_id").references(() => parameters.id),
+    townId: text("town_id").references(() => parameters.id),
     status: recordStatus(),
     ...timestamps,
   },
@@ -122,6 +135,25 @@ export const programs = pgTable(
 );
 
 /**
+ * The qualifications an institution offers ("Anticipated Qualifications"),
+ * chosen from the platform's "Qualification types". Its study programs can
+ * only lead to one of these.
+ */
+export const institutionQualifications = pgTable(
+  "institution_qualifications",
+  {
+    institutionId: text("institution_id")
+      .notNull()
+      .references(() => institutions.id),
+    qualificationId: text("qualification_id")
+      .notNull()
+      .references(() => parameters.id),
+    createdAt: ts("created_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.institutionId, t.qualificationId] })]
+);
+
+/**
  * The ways an institution takes payment, one row per account. There are
  * four kinds, and the same columns mean something slightly different for
  * each (src/lib/institution/paymentMethods.ts has the labels and which
@@ -153,6 +185,10 @@ export const institutionPaymentMethods = pgTable(
     /** Account number or IBAN, mobile number, wallet id, or the recipient's phone or ID number. */
     accountNumber: text("account_number").notNull(),
     swift: text("swift").notNull().default(""),
+    /** Bank accounts only: the bank's and branch's codes and the RIB key, as Cameroonian banks print them. */
+    bankCode: text("bank_code").notNull().default(""),
+    branchCode: text("branch_code").notNull().default(""),
+    rib: text("rib").notNull().default(""),
     instructions: text("instructions").notNull().default(""),
     acceptsTuition: boolean("accepts_tuition").notNull().default(false),
     /** AOSA checks every account before applicants see it. */
@@ -185,8 +221,13 @@ export const uploadRequirements = pgTable(
     institutionId: text("institution_id")
       .notNull()
       .references(() => institutions.id),
-    /** Parameter id in "upload-types". Null only on requirements entered before document types were chosen from that list. */
+    /**
+     * Parameter id in "upload-types". Null for a document of the institution's own (`custom`), and on requirements
+     * entered before document types were chosen from that list.
+     */
     documentTypeId: text("document_type_id").references(() => parameters.id),
+    /** A document the institution named itself because the platform's list has nothing that fits ("Additional uploads"). */
+    custom: boolean("custom").notNull().default(false),
     /** What applicants see the document called: the document type's name when it was saved. */
     name: text("name").notNull(),
     description: text("description").notNull().default(""),

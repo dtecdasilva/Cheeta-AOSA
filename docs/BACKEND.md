@@ -203,8 +203,10 @@ same ids and field names, and the seed loads the same data the screens show.
 
 ## Before production
 
-- Set `DATABASE_URL`, `SESSION_SECRET` (32+ random characters) and `APP_URL`; run `npm run db:migrate` on deploy (`AUTO_MIGRATE` is off in production).
-- File storage: mount a persistent volume for `STORAGE_LOCAL_DIR`, or add an object-storage driver in `src/server/storage/driver.ts` (required on serverless hosting).
-- Email and SMS are logged, not sent, until a provider is added in `src/lib/notifications`. Registration and password reset depend on it in production.
-- The rate limiter is per server instance; with several instances move it to Redis or the database.
-- Not built yet: endpoints for examinations/results, deliberation runs, tuition, medical checks, matriculation, notification templates and staff management. Their tables exist; the services follow the same patterns as applications.
+Every setting is listed, with what it does, in `.env.example`.
+
+- Set `DATABASE_URL`, `SESSION_SECRET` (32+ random characters) and `APP_URL`. Migrations run when the server starts (`AUTO_MIGRATE`, on by default; instances starting together take turns on a database lock). `npm run db:migrate` does the same as a separate deploy step if you prefer, with `AUTO_MIGRATE=false`.
+- Set `BOOTSTRAP_ADMIN_EMAIL` for the first deployment: while there is no active Cheeta administrator, start-up invites that address and sends it a sign-in code. Leave `SEED_DEMO_DATA` off (demo accounts have published passwords).
+- Email and SMS: set `EMAIL_PROVIDER` (resend or webhook) and `SMS_PROVIDER` (twilio or webhook). With "console" nothing is sent, so applicants never receive their sign-in codes. Schedule `GET /api/cron/notifications` with `CRON_SECRET` to retry failed deliveries.
+- File storage: `STORAGE_DRIVER=database` keeps uploads in PostgreSQL (works with several instances and on serverless hosting); `local` needs a single instance with a persistent disk for `STORAGE_LOCAL_DIR`.
+- The rate limiter is per server instance; per-account sign-in lockout works across instances.

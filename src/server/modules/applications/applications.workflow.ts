@@ -5,11 +5,12 @@ import { EDITABLE_STATUSES, canTransition, nextStatuses, type StatusActor } from
 import { demographicCompletion } from "@/lib/demographic/completion";
 import type { ApplicationStatus } from "@/lib/types";
 import type { Executor } from "@/server/db/client";
-import { applicationFees, applicationInstitutions, applicationStatusEvents, applications, demographicProfiles, educationRecords, files, programs } from "@/server/db/schema";
+import { applicationFees, applicationInstitutions, applicationStatusEvents, applications, demographicProfiles, educationRecords, files, parameters, programs } from "@/server/db/schema";
 import { newId } from "@/server/db/ids";
 import { audit } from "@/server/audit/audit";
 import { ConflictError } from "@/server/http/errors";
 import { notify } from "@/server/notifications/notifications.service";
+import { notifyEvent } from "@/server/notifications/engine";
 import { getSettings } from "@/server/modules/settings/settings.service";
 import { getExamConfigurationData, loadExaminations } from "@/server/modules/student/examinations.service";
 import { currentAcademicYear, loadApplicationInstitution, maxProgramChoicesFor, type LoadedApplication } from "./applications.queries";
@@ -36,7 +37,8 @@ export async function transition(tx: Executor, app: TransitionTarget, to: Applic
   const decided = to === "I_REJECTED" || to === "ACCEPTED";
   const [moved] = await tx
     .update(applicationInstitutions)
-    .set({ status: to, ...(to === "SUBMITTED" || to === "RESUBMITTED" ? { submittedAt: now } : {}), ...(decided ? { decidedAt: now } : {}) })
+    // Submission time is the applicant's: an institution cancelling its decision puts the application back under review without changing it.
+    .set({ status: to, ...((to === "SUBMITTED" || to === "RESUBMITTED") && actor === "applicant" ? { submittedAt: now } : {}), ...(decided ? { decidedAt: now } : to === "SUBMITTED" || to === "RESUBMITTED" ? { decidedAt: null } : {}) })
     // Only from the status it was read in: if someone else has moved it meanwhile, nothing is changed.
     .where(and(eq(applicationInstitutions.id, app.id), eq(applicationInstitutions.status, from)))
     .returning({ id: applicationInstitutions.id });
@@ -64,16 +66,39 @@ export async function transition(tx: Executor, app: TransitionTarget, to: Applic
   app.status = to;
 
   const label = ADMIN_STATUS_LABELS[to];
+  const applicant = { userId: app.application.applicantId };
+  const view = { label: "View application", href: "/student/application/status" };
   if (actor === "applicant") {
-    await notify(tx, {
-      audience: "institution",
-      institutionId: app.institutionId,
-      category: to === "SUBMITTED" || to === "RESUBMITTED" ? "APPLICATION" : "ADMISSION",
-      title: `${app.reference}: ${label}`,
-      summary: `Application ${app.reference} is now "${label}".`,
-      reference: app.reference,
-      action: { label: "Open application", href: `/institution/applications/${app.id}` },
-    });
+    if (to === "RESUBMITTED") {
+      await notifyEvent(tx, {
+        event: "resubmission.received",
+        to: { institutionId: app.institutionId },
+        applicationId: app.id,
+        inApp: { title: `${app.reference}: ${label}`, summary: `Application ${app.reference} was corrected and sent again.`, category: "RESUBMISSION" },
+        action: { label: "Open application", href: `/institution/applications/${app.id}` },
+      });
+    } else {
+      await notify(tx, {
+        audience: "institution",
+        institutionId: app.institutionId,
+        category: to === "SUBMITTED" ? "APPLICATION" : "ADMISSION",
+        title: `${app.reference}: ${label}`,
+        summary: `Application ${app.reference} is now "${label}".`,
+        reference: app.reference,
+        action: { label: "Open application", href: `/institution/applications/${app.id}` },
+      });
+    }
+    if (to === "SUBMITTED" || to === "RESUBMITTED") {
+      await notifyEvent(tx, {
+        event: "application.submitted",
+        to: applicant,
+        applicationId: app.id,
+        inApp: { title: `Application sent to ${app.institution.name}`, summary: `Your application to ${app.institution.name} has been ${to === "RESUBMITTED" ? "sent again" : "submitted"}. We'll tell you when the institution acknowledges it.` },
+        action: view,
+      });
+    }
+  } else if (actor === "system" && to === "I_REJECTED") {
+    // A provisional offer withdrawn: the withdrawal sends its own notice, with the conditions.
   } else if (actor === "system") {
     await notify(tx, {
       audience: "student",
@@ -84,17 +109,28 @@ export async function transition(tx: Executor, app: TransitionTarget, to: Applic
       reference: app.reference,
       action: { label: to === "COMPLETED" ? "Submit your application" : "See what is missing", href: "/student/submit/print-submit" },
     });
+  } else if (to === "ACCEPTED") {
+    // The offer is announced when its admission record is made (deliberation publishing), with the admission number.
   } else {
-    await notify(tx, {
-      audience: "student",
-      recipientUserId: app.application.applicantId,
-      category: to === "I_REJECTED" ? "REJECTION" : to === "ACCEPTED" ? "ADMISSION" : "VERIFICATION",
-      title: `${app.institution.name}: ${label}`,
-      summary: opts.note ? `${label}. ${opts.note}` : `Your application ${app.reference} is now "${label}".`,
-      important: to === "ACCEPTED" || to === "I_REJECTED",
-      reference: app.reference,
-      action: { label: "View application", href: "/student/application/status" },
-    });
+    const inApp = { title: `${app.institution.name}: ${label}`, summary: opts.note ? `${label}. ${opts.note}` : `Your application ${app.reference} is now "${label}".` };
+    if (to === "I_ACKNOWLEDGED") {
+      await notifyEvent(tx, { event: "verification.application_acknowledged", to: applicant, applicationId: app.id, inApp, action: view });
+    } else if (to === "I_REJECTED") {
+      // A reason marked "correct and resubmit" asks for a correction; any other is final.
+      const [reason] = opts.reasonId ? await tx.select({ attrs: parameters.attrs }).from(parameters).where(eq(parameters.id, opts.reasonId)).limit(1) : [];
+      const resubmit = reason?.attrs?.resubmit === true;
+      await notifyEvent(tx, {
+        event: resubmit ? "resubmission.requested" : "rejection.application_rejected",
+        to: applicant,
+        applicationId: app.id,
+        values: { reason: opts.note ?? "" },
+        inApp: { ...inApp, category: resubmit ? "RESUBMISSION" : "REJECTION" },
+        important: true,
+        action: resubmit ? { label: "Correct and resubmit", href: "/student/submit/print-submit" } : view,
+      });
+    } else {
+      await notify(tx, { audience: "student", recipientUserId: app.application.applicantId, category: "VERIFICATION", ...inApp, reference: app.reference, action: view });
+    }
   }
 }
 

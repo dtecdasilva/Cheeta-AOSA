@@ -14,6 +14,7 @@ import {
   type AdminFaculty,
   type AdminProgram,
 } from "@/lib/admin/academics";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Faculty / School, Departments and Qualifications / Programs across
@@ -57,6 +58,8 @@ function useLookups() {
     departmentName: (id: string) => departments.find((d) => d.id === id)?.name ?? "—",
     qualificationOptions: qualifications.map((q) => ({ value: q.id, label: q.status === "ACTIVE" ? q.label : `${q.label} (inactive)` })),
     qualificationName: (id: string) => qualifications.find((q) => q.id === id)?.label ?? "—",
+    placeOptions: (category: "regions" | "towns") => sortParams(params.filter((p) => p.category === category)).map((p) => ({ value: p.id, label: p.label })),
+    placeName: (id: string | null | undefined) => (id ? params.find((p) => p.id === id)?.label ?? "" : ""),
   };
 }
 
@@ -70,52 +73,57 @@ const muted = (text: string) => <p className="mt-0.5 text-xs text-[var(--color-i
 // ---------------------------------------------------------------------------
 
 export function FacultyManager() {
+  const tr = useT();
   const l = useLookups();
   return (
     <RecordManager<AdminFaculty>
-      title="Faculty / School"
-      description="The faculties and schools every institution is organised into. Departments and programs sit under them."
-      singular="faculty"
-      plural="faculties"
+      title={tr("Faculty / School")}
+      description={tr("The faculties and schools every institution is organised into. Each institution manages its own; here you can view them and switch them on or off.")}
+      singular={tr("faculty")}
+      plural={tr("faculties")}
       store={facultyStore}
       idPrefix="fac"
       nameOf={(f) => f.name}
       sort={(a, b) => l.institutionName(a.institutionId).localeCompare(l.institutionName(b.institutionId)) || a.name.localeCompare(b.name)}
-      searchPlaceholder="Name, code, dean, email"
+      searchPlaceholder={tr("Name, code, dean, email")}
       searchText={(f) => [f.name, f.code, f.dean, f.email, l.institutionName(f.institutionId)]}
-      filters={[{ key: "inst", label: "Institution", options: l.institutionOptions, get: (f) => f.institutionId }]}
+      filters={[{ key: "inst", label: tr("Institution"), options: l.institutionOptions, get: (f) => f.institutionId }]}
       stats={(items) => [
-        { label: "Faculties", value: items.length },
-        { label: "Active", value: items.filter((f) => f.status === "ACTIVE").length },
-        { label: "Institutions covered", value: new Set(items.map((f) => f.institutionId)).size, detail: `of ${l.institutions.length}` },
-        { label: "Departments", value: l.departments.length, href: "/admin/departments" },
+        { label: tr("Faculties"), value: items.length },
+        { label: tr("Active"), value: items.filter((f) => f.status === "ACTIVE").length },
+        { label: tr("Institutions covered"), value: new Set(items.map((f) => f.institutionId)).size, detail: `of ${l.institutions.length}` },
+        { label: tr("Departments"), value: l.departments.length, href: "/admin/departments" },
       ]}
       blank={() => ({ id: "", institutionId: "", name: "", code: "", dean: "", email: "", phone: "", address: "", status: "ACTIVE", updatedAt: "" })}
       fields={[
-        { key: "institutionId", label: "Institution", kind: "select", required: true, options: l.institutionOptions, lockedOnEdit: true, wide: true },
-        { key: "name", label: "Name", kind: "text", required: true, placeholder: "Faculty of Science" },
-        { key: "code", label: "Code", kind: "text", required: true, uppercase: true, placeholder: "SCI", hint: "Short code, unique within the institution." },
-        { key: "dean", label: "Dean or director", kind: "text", required: true },
-        { key: "email", label: "Email", kind: "email" },
-        { key: "phone", label: "Phone", kind: "text" },
-        { key: "address", label: "Address", kind: "text" },
+        { key: "institutionId", label: tr("Institution"), kind: "select", required: true, options: l.institutionOptions, lockedOnEdit: true, wide: true },
+        { key: "name", label: tr("Name"), kind: "text", required: true, placeholder: tr("Faculty of Science") },
+        { key: "code", label: tr("Code"), kind: "text", required: true, uppercase: true, placeholder: "SCI", hint: tr("Short code, unique within the institution.") },
+        { key: "dean", label: tr("Dean or director"), kind: "text", required: true },
+        { key: "email", label: tr("Email"), kind: "email" },
+        { key: "phone", label: tr("Phone"), kind: "text" },
+        { key: "address", label: tr("Address"), kind: "text" },
+        { key: "location", label: tr("Location"), kind: "text" },
+        { key: "regionId", label: tr("Region"), kind: "select", options: l.placeOptions("regions") },
+        { key: "townId", label: tr("Town"), kind: "select", options: l.placeOptions("towns") },
       ]}
-      validate={(d, all, editingId) => ({ code: sameCode(d, all, editingId) ? "Another faculty at this institution already uses this code." : undefined })}
+      statusOnly
+      validate={(d, all, editingId) => ({ code: sameCode(d, all, editingId) ? tr("Another faculty at this institution already uses this code.") : undefined })}
       deactivateBlocker={(f) =>
-        l.departments.some((d) => d.facultyId === f.id && d.status === "ACTIVE") ? "Deactivate this faculty's departments first." : null
+        l.departments.some((d) => d.facultyId === f.id && d.status === "ACTIVE") ? tr("Deactivate this faculty's departments first.") : null
       }
       columns={[
         {
-          label: "Faculty",
+          label: tr("Faculty"),
           render: (f) => (
             <>
-              <p className="font-medium text-[var(--color-ink)]">{f.name}</p>
+              <p className="font-medium text-[var(--color-ink)]">{tr(f.name)}</p>
               {muted(f.code)}
             </>
           ),
         },
         {
-          label: "Institution",
+          label: tr("Institution"),
           render: (f) => (
             <Link href={`/admin/institutions/${f.institutionId}`} className="text-[var(--color-ink)] hover:underline">
               {l.institutionName(f.institutionId)}
@@ -123,16 +131,17 @@ export function FacultyManager() {
           ),
         },
         {
-          label: "Dean",
+          label: tr("Dean"),
           render: (f) => (
             <>
-              <p className="text-[var(--color-ink)]">{f.dean}</p>
+              <p className="text-[var(--color-ink)]">{tr(f.dean)}</p>
               {f.email && muted(f.email)}
             </>
           ),
         },
-        { label: "Departments", align: "right", render: (f) => l.departments.filter((d) => d.facultyId === f.id).length },
-        { label: "Programs", align: "right", render: (f) => l.programs.filter((p) => p.facultyId === f.id).length },
+        { label: tr("Town"), render: (f) => l.placeName(f.townId) || "—" },
+        { label: tr("Departments"), align: "right", render: (f) => l.departments.filter((d) => d.facultyId === f.id).length },
+        { label: tr("Programs"), align: "right", render: (f) => l.programs.filter((p) => p.facultyId === f.id).length },
       ]}
     />
   );
@@ -143,61 +152,67 @@ export function FacultyManager() {
 // ---------------------------------------------------------------------------
 
 export function DepartmentManager() {
+  const tr = useT();
   const l = useLookups();
   const allFacultyOptions = l.faculties.map((f) => ({ value: f.id, label: `${f.name} — ${l.institutionName(f.institutionId)}` }));
   return (
     <RecordManager<AdminDepartment>
-      title="Departments"
-      description="Departments within each faculty. Study programs are attached to a department."
-      singular="department"
-      plural="departments"
+      title={tr("Departments")}
+      description={tr("Departments within each faculty. Each institution manages its own; here you can view them and switch them on or off.")}
+      singular={tr("department")}
+      plural={tr("departments")}
       store={departmentStore}
       idPrefix="dep"
       nameOf={(d) => d.name}
       sort={(a, b) => l.institutionName(a.institutionId).localeCompare(l.institutionName(b.institutionId)) || a.name.localeCompare(b.name)}
-      searchPlaceholder="Name, code, head of department"
+      searchPlaceholder={tr("Name, code, head of department")}
       searchText={(d) => [d.name, d.code, d.head, d.email, l.facultyName(d.facultyId), l.institutionName(d.institutionId)]}
       filters={[
-        { key: "inst", label: "Institution", options: l.institutionOptions, get: (d) => d.institutionId },
-        { key: "fac", label: "Faculty", options: allFacultyOptions, get: (d) => d.facultyId },
+        { key: "inst", label: tr("Institution"), options: l.institutionOptions, get: (d) => d.institutionId },
+        { key: "fac", label: tr("Faculty"), options: allFacultyOptions, get: (d) => d.facultyId },
       ]}
       stats={(items) => [
-        { label: "Departments", value: items.length },
-        { label: "Active", value: items.filter((d) => d.status === "ACTIVE").length },
-        { label: "Faculties", value: l.faculties.length, href: "/admin/faculty" },
-        { label: "Programs", value: l.programs.length, href: "/admin/programs" },
+        { label: tr("Departments"), value: items.length },
+        { label: tr("Active"), value: items.filter((d) => d.status === "ACTIVE").length },
+        { label: tr("Faculties"), value: l.faculties.length, href: "/admin/faculty" },
+        { label: tr("Programs"), value: l.programs.length, href: "/admin/programs" },
       ]}
       blank={() => ({ id: "", institutionId: "", facultyId: "", name: "", code: "", head: "", email: "", phone: "", status: "ACTIVE", updatedAt: "" })}
       fields={[
-        { key: "institutionId", label: "Institution", kind: "select", required: true, options: l.institutionOptions, resets: ["facultyId"], lockedOnEdit: true },
+        { key: "institutionId", label: tr("Institution"), kind: "select", required: true, options: l.institutionOptions, resets: ["facultyId"], lockedOnEdit: true },
         {
           key: "facultyId",
-          label: "Faculty",
+          label: tr("Faculty"),
           kind: "select",
           required: true,
           options: (d) => l.facultyOptions(d.institutionId),
-          hint: "Choose the institution first.",
+          hint: tr("Choose the institution first."),
         },
-        { key: "name", label: "Name", kind: "text", required: true, placeholder: "Department of Computer Science" },
-        { key: "code", label: "Code", kind: "text", required: true, uppercase: true, placeholder: "CS" },
-        { key: "head", label: "Head of department", kind: "text", required: true },
-        { key: "email", label: "Email", kind: "email" },
-        { key: "phone", label: "Phone", kind: "text" },
+        { key: "name", label: tr("Name"), kind: "text", required: true, placeholder: tr("Department of Computer Science") },
+        { key: "code", label: tr("Code"), kind: "text", required: true, uppercase: true, placeholder: "CS" },
+        { key: "head", label: tr("Head of department"), kind: "text", required: true },
+        { key: "email", label: tr("Email"), kind: "email" },
+        { key: "phone", label: tr("Phone"), kind: "text" },
+        { key: "address", label: tr("Address"), kind: "text" },
+        { key: "location", label: tr("Location"), kind: "text" },
+        { key: "regionId", label: tr("Region"), kind: "select", options: l.placeOptions("regions") },
+        { key: "townId", label: tr("Town"), kind: "select", options: l.placeOptions("towns") },
       ]}
-      validate={(d, all, editingId) => ({ code: sameCode(d, all, editingId) ? "Another department at this institution already uses this code." : undefined })}
-      deactivateBlocker={(d) => (l.programs.some((p) => p.departmentId === d.id && p.status === "ACTIVE") ? "Deactivate this department's programs first." : null)}
+      statusOnly
+      validate={(d, all, editingId) => ({ code: sameCode(d, all, editingId) ? tr("Another department at this institution already uses this code.") : undefined })}
+      deactivateBlocker={(d) => (l.programs.some((p) => p.departmentId === d.id && p.status === "ACTIVE") ? tr("Deactivate this department's programs first.") : null)}
       columns={[
         {
-          label: "Department",
+          label: tr("Department"),
           render: (d) => (
             <>
-              <p className="font-medium text-[var(--color-ink)]">{d.name}</p>
+              <p className="font-medium text-[var(--color-ink)]">{tr(d.name)}</p>
               {muted(d.code)}
             </>
           ),
         },
         {
-          label: "Faculty",
+          label: tr("Faculty"),
           render: (d) => (
             <>
               <p className="text-[var(--color-ink)]">{l.facultyName(d.facultyId)}</p>
@@ -206,15 +221,16 @@ export function DepartmentManager() {
           ),
         },
         {
-          label: "Head",
+          label: tr("Head"),
           render: (d) => (
             <>
-              <p className="text-[var(--color-ink)]">{d.head}</p>
+              <p className="text-[var(--color-ink)]">{tr(d.head)}</p>
               {d.email && muted(d.email)}
             </>
           ),
         },
-        { label: "Programs", align: "right", render: (d) => l.programs.filter((p) => p.departmentId === d.id).length },
+        { label: tr("Town"), render: (d) => l.placeName(d.townId) || "—" },
+        { label: tr("Programs"), align: "right", render: (d) => l.programs.filter((p) => p.departmentId === d.id).length },
       ]}
     />
   );
@@ -228,30 +244,31 @@ const modeOptions = Object.entries(STUDY_MODE_LABELS).map(([value, label]) => ({
 const languageOptions = Object.entries(LANGUAGE_LABELS).map(([value, label]) => ({ value, label }));
 
 export function ProgramManager() {
+  const tr = useT();
   const l = useLookups();
   return (
     <RecordManager<AdminProgram>
-      title="Qualifications / Study Programs"
-      description="Every study program applicants can choose, with the qualification it leads to and the places on offer."
-      singular="program"
-      plural="programs"
+      title={tr("Qualifications / Study Programs")}
+      description={tr("Every study program applicants can choose, with the qualification it leads to and the places on offer.")}
+      singular={tr("program")}
+      plural={tr("programs")}
       store={programStore}
       idPrefix="prog"
       nameOf={(p) => p.name}
       sort={(a, b) => l.institutionName(a.institutionId).localeCompare(l.institutionName(b.institutionId)) || a.name.localeCompare(b.name)}
-      searchPlaceholder="Program name or code"
+      searchPlaceholder={tr("Program name or code")}
       searchText={(p) => [p.name, p.code, l.departmentName(p.departmentId), l.facultyName(p.facultyId), l.institutionName(p.institutionId)]}
       filters={[
-        { key: "inst", label: "Institution", options: l.institutionOptions, get: (p) => p.institutionId },
-        { key: "qual", label: "Qualification", options: l.qualificationOptions, get: (p) => p.qualificationId },
+        { key: "inst", label: tr("Institution"), options: l.institutionOptions, get: (p) => p.institutionId },
+        { key: "qual", label: tr("Qualification"), options: l.qualificationOptions, get: (p) => p.qualificationId },
       ]}
       stats={(items) => {
         const active = items.filter((p) => p.status === "ACTIVE");
         return [
-          { label: "Programs", value: items.length },
-          { label: "Active", value: active.length },
-          { label: "Places on offer", value: active.reduce((s, p) => s + (p.availableSpaces || 0), 0).toLocaleString("en-GB"), detail: "Across active programs" },
-          { label: "Qualification types", value: l.qualificationOptions.length, href: "/admin/parameters/application/qualification-types" },
+          { label: tr("Programs"), value: items.length },
+          { label: tr("Active"), value: active.length },
+          { label: tr("Places on offer"), value: active.reduce((s, p) => s + (p.availableSpaces || 0), 0).toLocaleString("en-GB"), detail: tr("Across active programs") },
+          { label: tr("Qualification types"), value: l.qualificationOptions.length, href: "/admin/parameters/application/qualification-types" },
         ];
       }}
       blank={() => ({
@@ -270,37 +287,37 @@ export function ProgramManager() {
         updatedAt: "",
       })}
       fields={[
-        { key: "institutionId", label: "Institution", kind: "select", required: true, options: l.institutionOptions, resets: ["facultyId", "departmentId"], lockedOnEdit: true, wide: true },
-        { key: "facultyId", label: "Faculty", kind: "select", required: true, options: (p) => l.facultyOptions(p.institutionId), resets: ["departmentId"] },
-        { key: "departmentId", label: "Department", kind: "select", required: true, options: (p) => l.departmentOptions(p.facultyId) },
-        { key: "name", label: "Program name", kind: "text", required: true, placeholder: "BSc Computer Science" },
-        { key: "code", label: "Program code", kind: "text", required: true, uppercase: true, placeholder: "SCI-CS-001" },
+        { key: "institutionId", label: tr("Institution"), kind: "select", required: true, options: l.institutionOptions, resets: ["facultyId", "departmentId"], lockedOnEdit: true, wide: true },
+        { key: "facultyId", label: tr("Faculty"), kind: "select", required: true, options: (p) => l.facultyOptions(p.institutionId), resets: ["departmentId"] },
+        { key: "departmentId", label: tr("Department"), kind: "select", required: true, options: (p) => l.departmentOptions(p.facultyId) },
+        { key: "name", label: tr("Program name"), kind: "text", required: true, placeholder: tr("BSc Computer Science") },
+        { key: "code", label: tr("Program code"), kind: "text", required: true, uppercase: true, placeholder: "SCI-CS-001" },
         {
           key: "qualificationId",
-          label: "Qualification",
+          label: tr("Qualification"),
           kind: "select",
           required: true,
           options: l.qualificationOptions,
-          hint: "Managed under Application parameters → Qualification types.",
+          hint: tr("One of the institution's Anticipated Qualifications, which it chooses in its portal."),
         },
-        { key: "durationYears", label: "Duration (years)", kind: "number", required: true, min: 0.5, max: 8, step: 0.5 },
-        { key: "studyMode", label: "Study mode", kind: "select", required: true, options: modeOptions },
-        { key: "language", label: "Teaching language", kind: "select", required: true, options: languageOptions },
-        { key: "availableSpaces", label: "Places available", kind: "number", required: true, min: 0, max: 100000, hint: "For the current intake." },
+        { key: "durationYears", label: tr("Duration (years)"), kind: "number", required: true, min: 0.5, max: 8, step: 0.5 },
+        { key: "studyMode", label: tr("Study mode"), kind: "select", required: true, options: modeOptions },
+        { key: "language", label: tr("Teaching language"), kind: "select", required: true, options: languageOptions },
+        { key: "availableSpaces", label: tr("Places available"), kind: "number", required: true, min: 0, max: 100000, hint: tr("For the current intake.") },
       ]}
-      validate={(p, all, editingId) => ({ code: sameCode(p, all, editingId) ? "Another program at this institution already uses this code." : undefined })}
+      validate={(p, all, editingId) => ({ code: sameCode(p, all, editingId) ? tr("Another program at this institution already uses this code.") : undefined })}
       columns={[
         {
-          label: "Program",
+          label: tr("Program"),
           render: (p) => (
             <>
-              <p className="font-medium text-[var(--color-ink)]">{p.name}</p>
-              {muted(`${p.code} · ${STUDY_MODE_LABELS[p.studyMode]} · ${LANGUAGE_LABELS[p.language]}`)}
+              <p className="font-medium text-[var(--color-ink)]">{tr(p.name)}</p>
+              {muted(`${p.code} · ${tr(STUDY_MODE_LABELS[p.studyMode])} · ${tr(LANGUAGE_LABELS[p.language])}`)}
             </>
           ),
         },
         {
-          label: "Institution",
+          label: tr("Institution"),
           render: (p) => (
             <>
               <p className="text-[var(--color-ink)]">{l.institutionName(p.institutionId)}</p>
@@ -309,7 +326,7 @@ export function ProgramManager() {
           ),
         },
         {
-          label: "Qualification",
+          label: tr("Qualification"),
           render: (p) => (
             <>
               <p className="text-[var(--color-ink)]">{l.qualificationName(p.qualificationId)}</p>
@@ -317,7 +334,7 @@ export function ProgramManager() {
             </>
           ),
         },
-        { label: "Places", align: "right", render: (p) => p.availableSpaces.toLocaleString("en-GB") },
+        { label: tr("Places"), align: "right", render: (p) => p.availableSpaces.toLocaleString("en-GB") },
       ]}
     />
   );

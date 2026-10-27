@@ -16,8 +16,8 @@ import { mockPaymentMethods } from "@/lib/mockData/paymentMethods";
  * /api/admin/payment-methods. A method is one flat record whatever its
  * kind; what each detail field means for a kind, and which are required,
  * is defined once in src/lib/institution/paymentMethods.ts. The seed list
- * below is what an empty database is first filled from, and what is shown
- * until the API answers.
+ * below is what an empty database is first filled from (never shown on
+ * screen).
  */
 
 export type { MethodVerification, PaymentMethodType };
@@ -49,6 +49,9 @@ function seed(): AdminPaymentMethod[] {
     accountName: m.bank?.accountName ?? m.mobile?.accountName ?? m.money?.recipientName ?? m.wallet?.walletName ?? "",
     accountNumber: m.bank?.accountNumber ?? m.mobile?.number ?? m.money?.recipientPhone ?? m.wallet?.walletId ?? "",
     swift: m.bank?.swift ?? "",
+    bankCode: "",
+    branchCode: "",
+    rib: "",
     instructions: m.bank?.notes ?? m.mobile?.notes ?? m.money?.instructions ?? m.wallet?.instructions ?? "",
     acceptsTuition: m.type === "bank",
     verification: m.active ? "VERIFIED" : "PENDING",
@@ -69,6 +72,9 @@ function seed(): AdminPaymentMethod[] {
       accountName: "BPSH Admissions",
       accountNumber: "CM21 10033 05201 04411223301 47",
       swift: "UNAFCMCX",
+      bankCode: "",
+      branchCode: "",
+      rib: "",
       instructions: "Quote the bank code issued after AOSA approves your payment.",
       acceptsTuition: true,
       verification: "PENDING",
@@ -87,6 +93,9 @@ function seed(): AdminPaymentMethod[] {
       accountName: "LG Bafoussam Intendance",
       accountNumber: "+237 699 410 072",
       swift: "",
+      bankCode: "",
+      branchCode: "",
+      rib: "",
       instructions: "Send the exact amount; keep the SMS confirmation.",
       acceptsTuition: false,
       verification: "VERIFIED",

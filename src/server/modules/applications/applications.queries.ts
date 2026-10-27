@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Executor } from "@/server/db/client";
-import { assessFee, type FeeAssessment } from "@/server/modules/fees/calculation";
+import { applicantFeeCategory, assessFee, type FeeAssessment } from "@/server/modules/fees/calculation";
 import {
   applicationComments,
   applicationDocuments,
@@ -49,7 +49,9 @@ export async function currentAcademicYear(db: Executor) {
  * is stored and the assessment says why.
  */
 export async function assessApplicationFee(db: Executor, app: { id: string; institutionId: string; webFee: number | null }): Promise<FeeAssessment> {
-  const assessment = await assessFee(db, { id: app.institutionId, webFee: app.webFee });
+  const [owner] = await db.select({ userId: applications.applicantId }).from(applicationInstitutions).innerJoin(applications, eq(applications.id, applicationInstitutions.applicationId)).where(eq(applicationInstitutions.id, app.id)).limit(1);
+  const category = owner ? await applicantFeeCategory(db, owner.userId) : "national";
+  const assessment = await assessFee(db, { id: app.institutionId, webFee: app.webFee }, new Date(), category);
   if (!assessment.priced) {
     await db.delete(applicationFees).where(eq(applicationFees.applicationInstitutionId, app.id));
     return assessment;

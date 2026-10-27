@@ -7,18 +7,62 @@ import { isDatabaseEmpty, seedDatabase } from "@/server/db/seed";
 import { syncAccessCatalogue } from "@/server/auth/access";
 import { adoptLegacyExaminationResults } from "@/server/modules/student/legacyResults";
 import { adoptLegacyRecords } from "@/server/modules/applications/legacyRecords";
+import { upgradeSeededTemplates } from "@/server/notifications/templateUpgrade";
+import { openMissingTuitionAccounts } from "@/server/modules/tuition/tuition.service";
+import { syncAllMedicalRecords } from "@/server/modules/medical/medical.service";
+import { adoptLegacyMatriculations } from "@/server/modules/matriculation/matriculation.service";
+import { inviteAccount } from "@/server/modules/accounts/accounts.service";
+import { and, eq } from "drizzle-orm";
+import { users } from "@/server/db/schema";
+import { ConflictError } from "@/server/http/errors";
+
+/**
+ * A database without an active Cheeta administrator can't be run: nobody can add institutions, approve payments
+ * or invite anyone. If BOOTSTRAP_ADMIN_EMAIL is set, that address is invited as the first administrator.
+ */
+async function activeAdministrator() {
+  const [admin] = await getDb().select({ id: users.id }).from(users).where(and(eq(users.role, "AOSA_ADMIN"), eq(users.status, "ACTIVE"))).limit(1);
+  return !!admin;
+}
+
+async function ensureAdministrator(log: ReturnType<typeof logger.child>) {
+  if (await activeAdministrator()) return;
+  if (!env.BOOTSTRAP_ADMIN_EMAIL) {
+    log.error("There is no active Cheeta administrator. Set BOOTSTRAP_ADMIN_EMAIL and restart to invite one.");
+    return;
+  }
+  try {
+    await inviteAccount({ fullName: env.BOOTSTRAP_ADMIN_NAME, email: env.BOOTSTRAP_ADMIN_EMAIL, role: "AOSA_ADMIN" });
+    log.info("First Cheeta administrator invited; their sign-in code has been sent", { email: env.BOOTSTRAP_ADMIN_EMAIL });
+  } catch (err) {
+    // Another instance starting at the same moment invited them first: nothing to do.
+    if (err instanceof ConflictError && (await activeAdministrator())) return;
+    // The address belongs to another account (deactivated, or a different role): don't touch it.
+    log.error("Could not invite the first administrator: the address belongs to another account", { email: env.BOOTSTRAP_ADMIN_EMAIL, err });
+  }
+}
 
 /**
  * Server start-up: validate configuration (importing `env` throws on a bad
- * value), bring the schema up to date when AUTO_MIGRATE is on, and seed an
- * empty database. In production AUTO_MIGRATE defaults to off — run
- * `npm run db:migrate` as a deploy step instead, so several instances
- * starting at once don't race to migrate.
+ * value), bring the schema up to date (AUTO_MIGRATE, on by default;
+ * instances starting together take turns on a database lock), seed an
+ * empty database, and make sure there is someone to administer it
+ * (BOOTSTRAP_ADMIN_EMAIL).
  */
 export async function bootstrap() {
   const log = logger.child({ module: "bootstrap" });
   log.info("Starting backend", { env: env.NODE_ENV, database: env.DATABASE_URL ? "postgres" : "pglite", storage: env.STORAGE_DRIVER });
   if (!process.env.SESSION_SECRET) log.warn("SESSION_SECRET is not set; using the development secret. Never run like this in production.");
+  if (env.NODE_ENV === "production" && env.EMAIL_PROVIDER === "console") {
+    // Applicants sign in with a code sent by email, so without a provider nobody new can get in.
+    log.error("EMAIL_PROVIDER is \"console\": emails are only written to the log, so applicants and invited staff will never receive their sign-in codes. Set EMAIL_PROVIDER.");
+  }
+  if (env.NODE_ENV === "production" && env.SEED_DEMO_DATA) {
+    log.error("SEED_DEMO_DATA is on in production: an empty database gets demo accounts with published passwords. Turn it off for a real deployment.");
+  }
+  if (env.NODE_ENV === "production" && env.STORAGE_DRIVER === "local") {
+    log.warn("STORAGE_DRIVER is \"local\": uploads are kept on this server's disk. Run a single instance with a lasting disk, or set STORAGE_DRIVER=database.", { dir: env.STORAGE_LOCAL_DIR });
+  }
 
   let migrations: MigrationReport | undefined;
   try {
@@ -34,6 +78,15 @@ export async function bootstrap() {
     await db.transaction((tx) => adoptLegacyExaminationResults(tx));
     // Documents, upload requirements and rejected payments stored by earlier versions get the fields added since. Also a no-op once done.
     await db.transaction((tx) => adoptLegacyRecords(tx));
+    // Seeded notification templates added or reworded since this database was seeded. A no-op once done.
+    await db.transaction((tx) => upgradeSeededTemplates(tx));
+    // Tuition accounts for offers taken up before accounts were opened automatically. A no-op once done.
+    await db.transaction((tx) => openMissingTuitionAccounts(tx));
+    // Medical records for admitted students who don't have them yet. A no-op once done.
+    await db.transaction((tx) => syncAllMedicalRecords(tx));
+    // Matriculations recorded before they carried the student, institution and program. A no-op once done.
+    await db.transaction((tx) => adoptLegacyMatriculations(tx));
+    await ensureAdministrator(log);
     log.info("Backend ready", { database: dbDriver() });
   } catch (err) {
     // The commonest cause by far: the code was updated but no migration was generated

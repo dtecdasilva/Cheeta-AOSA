@@ -1,4 +1,5 @@
 import { ApplicationStatus } from "@/lib/types";
+import { T } from "@/lib/i18n/client";
 
 const STATUS_META: Record<ApplicationStatus, { label: string; fg: string; bg: string; dot: string }> = {
   INCOMPLETE: { label: "Incomplete", fg: "text-[var(--color-ink-soft)]", bg: "bg-[var(--color-line)]/60", dot: "bg-[var(--color-ink-faint)]" },
@@ -33,7 +34,7 @@ export function StatusBadge({ status }: { status: ApplicationStatus | undefined 
       className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium ${meta.fg} ${meta.bg}`}
     >
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${meta.dot}`} />
-      {meta.label}
+      <T>{meta.label}</T>
     </span>
   );
 }

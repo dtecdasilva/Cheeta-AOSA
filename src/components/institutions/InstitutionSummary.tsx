@@ -9,6 +9,7 @@ import { useMyFees } from "@/lib/fees/api";
 import type { InstitutionListing } from "@/lib/institutionDiscovery/data";
 import { buttonClass } from "@/lib/ui/button";
 import InstitutionSummaryCard from "./InstitutionSummaryCard";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Every institution on the applicant's application, at a glance, from
@@ -17,6 +18,7 @@ import InstitutionSummaryCard from "./InstitutionSummaryCard";
  * institution list.
  */
 export function InstitutionSummary() {
+  const tr = useT();
   const mine = useMyApplications();
   const { fees, reload: reloadFees } = useMyFees();
   const [listings, setListings] = useState<InstitutionListing[]>([]);
@@ -36,7 +38,7 @@ export function InstitutionSummary() {
 
   async function remove(application: MyApplication) {
     if (busyId) return;
-    if (!window.confirm(`Remove ${application.institution.name} from your application? Its program choices and uploaded documents will be removed too.`)) return;
+    if (!window.confirm(tr("Remove {name} from your application? Its program choices and uploaded documents will be removed too.", { name: tr(application.institution.name) }))) return;
     setProblem(null);
     setBusyId(application.id);
     const result = await mine.remove(application.id);
@@ -45,29 +47,29 @@ export function InstitutionSummary() {
     else void reloadFees();
   }
 
-  if (!mine.applications) return mine.error ? <FormError>{mine.error}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">Loading your institutions…</p>;
+  if (!mine.applications) return mine.error ? <FormError>{tr(mine.error)}</FormError> : <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading your institutions…")}</p>;
 
   return (
     <div className="max-w-4xl">
       <SectionHeading
-        title="My institutions"
+        title={tr("My institutions")}
         actions={
           <Link href="/student/institutions/add" className={buttonClass("primary")}>
-            Add institution
+            {tr("Add institution")}
           </Link>
         }
       />
       {problem && (
         <div className="mb-4">
-          <FormError>{problem}</FormError>
+          <FormError>{tr(problem)}</FormError>
         </div>
       )}
       {mine.applications.length === 0 ? (
         <EmptyState
-          message="You haven't added an institution to your application yet. Browse the institutions accepting applications and add the ones you want to apply to."
+          message={tr("You haven't added an institution to your application yet. Browse the institutions accepting applications and add the ones you want to apply to.")}
           action={
             <Link href="/student/institutions/add" className={buttonClass("secondary")}>
-              Browse institutions
+              {tr("Browse institutions")}
             </Link>
           }
         />

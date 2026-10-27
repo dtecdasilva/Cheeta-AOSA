@@ -9,6 +9,7 @@ import { ADMIN_STATUS_LABELS, STATUS_TONE, STAGES, reachedStages, stageOutcome, 
 import { DATE_PRESETS, presetFor, type DateRange } from "@/lib/admin/filters";
 import type { AdminApplication } from "@/lib/admin/students";
 import { formatDateTime } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * Building blocks for the Administration portal, in the platform's
@@ -40,11 +41,13 @@ export function ToneBadge({ tone, children }: { tone: StatusTone; children: Reac
 }
 
 export function AdminStatusBadge({ status }: { status: ApplicationStatus }) {
-  return <ToneBadge tone={STATUS_TONE[status]}>{ADMIN_STATUS_LABELS[status]}</ToneBadge>;
+  const tr = useT();
+  return <ToneBadge tone={STATUS_TONE[status]}>{tr(ADMIN_STATUS_LABELS[status])}</ToneBadge>;
 }
 
 export function ActiveBadge({ active }: { active: boolean }) {
-  return <ToneBadge tone={active ? "success" : "neutral"}>{active ? "Active" : "Inactive"}</ToneBadge>;
+  const tr = useT();
+  return <ToneBadge tone={active ? "success" : "neutral"}>{active ? tr("Active") : tr("Inactive")}</ToneBadge>;
 }
 
 // ---------------------------------------------------------------------------
@@ -60,24 +63,25 @@ export interface Stat {
 
 /** A row of figures sharing one rounded frame, divided by hairlines. */
 export function StatStrip({ stats, columns = 4 }: { stats: Stat[]; columns?: 3 | 4 | 5 }) {
+  const tr = useT();
   const cols = { 3: "lg:grid-cols-3", 4: "lg:grid-cols-4", 5: "lg:grid-cols-5" }[columns];
   return (
     <div className={`grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)] ${cols}`}>
       {stats.map((s) => {
         const body = (
           <>
-            <p className="text-sm text-[var(--color-ink-soft)]">{s.label}</p>
+            <p className="text-sm text-[var(--color-ink-soft)]">{tr(s.label)}</p>
             <p className={`mt-1.5 break-words font-bold tracking-tight tabular-nums text-[var(--color-ink)] ${columns === 5 ? "text-2xl 2xl:text-3xl" : "text-3xl"}`}>{s.value}</p>
-            {s.detail && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{s.detail}</p>}
+            {s.detail && <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{tr(s.detail)}</p>}
           </>
         );
         return s.href ? (
           <Link key={s.label} href={s.href} className="block min-w-0 bg-[var(--color-surface)] px-5 py-4 transition-colors hover:bg-[var(--color-paper)]">
-            {body}
+            {tr(body)}
           </Link>
         ) : (
           <div key={s.label} className="min-w-0 bg-[var(--color-surface)] px-5 py-4">
-            {body}
+            {tr(body)}
           </div>
         );
       })}
@@ -90,6 +94,7 @@ export function StatStrip({ stats, columns = 4 }: { stats: Stat[]; columns?: 3 |
 // ---------------------------------------------------------------------------
 
 export function FilterBar({ children, onClear, active }: { children: React.ReactNode; onClear?: () => void; active?: boolean }) {
+  const tr = useT();
   return (
     <div className="mb-4 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
@@ -101,7 +106,7 @@ export function FilterBar({ children, onClear, active }: { children: React.React
             className="inline-flex items-center gap-1 text-sm text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]"
           >
             <X className="h-3.5 w-3.5" strokeWidth={2} />
-            Clear filters
+            {tr("Clear filters")}
           </button>
         </div>
       )}
@@ -131,11 +136,13 @@ export function SearchField({
   label?: string;
   wide?: boolean;
 }) {
+  const tr = useT();
+  label = tr(label);
   return (
-    <FilterLabel label={label} wide={wide}>
+    <FilterLabel label={tr(label)} wide={wide}>
       <span className="relative block">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
-        <TextInput type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="pl-9" />
+        <TextInput type="search" value={value} onChange={(e) => onChange(e.target.value)} placeholder={tr(placeholder)} className="pl-9" />
       </span>
     </FilterLabel>
   );
@@ -154,13 +161,15 @@ export function FilterSelect({
   options: { value: string; label: string }[];
   allLabel?: string;
 }) {
+  const tr = useT();
+  allLabel = tr(allLabel);
   return (
-    <FilterLabel label={label}>
+    <FilterLabel label={tr(label)}>
       <SelectInput value={value} onChange={(e) => onChange(e.target.value)}>
-        <option value="">{allLabel}</option>
+        <option value="">{tr(allLabel)}</option>
         {options.map((o) => (
           <option key={o.value} value={o.value}>
-            {o.label}
+            {tr(o.label)}
           </option>
         ))}
       </SelectInput>
@@ -170,10 +179,12 @@ export function FilterSelect({
 
 /** Preset dropdown plus from/to date inputs. Takes two grid cells. */
 export function DateRangeFilter({ value, onChange, label = "Date range" }: { value: DateRange; onChange: (r: DateRange) => void; label?: string }) {
+  const tr = useT();
+  label = tr(label);
   const preset = presetFor(value) ?? "custom";
   return (
     <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-3">
-      <FilterLabel label={label}>
+      <FilterLabel label={tr(label)}>
         <SelectInput
           value={preset}
           onChange={(e) => {
@@ -183,16 +194,16 @@ export function DateRangeFilter({ value, onChange, label = "Date range" }: { val
         >
           {DATE_PRESETS.map((p) => (
             <option key={p.key} value={p.key}>
-              {p.label}
+              {tr(p.label)}
             </option>
           ))}
-          {preset === "custom" && <option value="custom">Custom range</option>}
+          {preset === "custom" && <option value="custom">{tr("Custom range")}</option>}
         </SelectInput>
       </FilterLabel>
-      <FilterLabel label="From">
+      <FilterLabel label={tr("From")}>
         <TextInput type="date" value={value.from} max={value.to || undefined} onChange={(e) => onChange({ ...value, from: e.target.value })} />
       </FilterLabel>
-      <FilterLabel label="To">
+      <FilterLabel label={tr("To")}>
         <TextInput type="date" value={value.to} min={value.from || undefined} onChange={(e) => onChange({ ...value, to: e.target.value })} />
       </FilterLabel>
     </div>
@@ -222,19 +233,20 @@ export function usePaged<T>(items: T[], pageSize = 20) {
 }
 
 export function Pager({ page, pages, setPage }: { page: number; pages: number; setPage: (n: number) => void }) {
+  const tr = useT();
   if (pages <= 1) return null;
   return (
-    <nav aria-label="Pagination" className="mt-3 flex items-center justify-between text-sm">
+    <nav aria-label={tr("Pagination")} className="mt-3 flex items-center justify-between text-sm">
       <button
         type="button"
         disabled={page <= 1}
         onClick={() => setPage(page - 1)}
         className="text-[var(--color-ink)] underline underline-offset-4 disabled:text-[var(--color-ink-faint)] disabled:no-underline"
       >
-        Previous
+        {tr("Previous")}
       </button>
       <span className="text-[var(--color-ink-soft)]">
-        Page {page} of {pages}
+        {tr("Page {page} of {pages}", { page, pages })}
       </span>
       <button
         type="button"
@@ -242,7 +254,7 @@ export function Pager({ page, pages, setPage }: { page: number; pages: number; s
         onClick={() => setPage(page + 1)}
         className="text-[var(--color-ink)] underline underline-offset-4 disabled:text-[var(--color-ink-faint)] disabled:no-underline"
       >
-        Next
+        {tr("Next")}
       </button>
     </nav>
   );
@@ -257,18 +269,19 @@ export function Pager({ page, pages, setPage }: { page: number; pages: number; s
  * reactivating is immediate because it's harmless.
  */
 export function StatusToggle({ active, name, onChange }: { active: boolean; name: string; onChange: (nextActive: boolean) => void }) {
+  const tr = useT();
   const [confirming, setConfirming] = useState(false);
   if (!active) {
     return (
       <button type="button" onClick={() => onChange(true)} className="text-sm text-[var(--color-success-strong)] underline underline-offset-4">
-        Activate
+        {tr("Activate")}
       </button>
     );
   }
   if (confirming) {
     return (
       <span className="inline-flex items-center gap-2 whitespace-nowrap text-sm">
-        <span className="text-[var(--color-ink-soft)]">Deactivate {name}?</span>
+        <span className="text-[var(--color-ink-soft)]">{tr("Deactivate {name}?", { name })}</span>
         <button
           type="button"
           onClick={() => {
@@ -277,17 +290,17 @@ export function StatusToggle({ active, name, onChange }: { active: boolean; name
           }}
           className="font-medium text-[var(--color-danger)] underline underline-offset-4"
         >
-          Deactivate
+          {tr("Deactivate")}
         </button>
         <button type="button" onClick={() => setConfirming(false)} className="text-[var(--color-ink-soft)] underline underline-offset-4">
-          Keep active
+          {tr("Keep active")}
         </button>
       </span>
     );
   }
   return (
     <button type="button" onClick={() => setConfirming(true)} className="text-sm text-[var(--color-danger)] underline underline-offset-4">
-      Deactivate
+      {tr("Deactivate")}
     </button>
   );
 }
@@ -298,10 +311,11 @@ export function StatusToggle({ active, name, onChange }: { active: boolean; name
 
 /** Seven-stage track for one application. `compact` fits in a table cell. */
 export function StageTrack({ app, compact = false }: { app: Pick<AdminApplication, "history" | "payment">; compact?: boolean }) {
+  const tr = useT();
   const reached = reachedStages(app);
   if (compact) {
     return (
-      <span className="inline-flex items-center gap-0.5" aria-label={`${reached.size} of ${STAGES.length} stages reached`}>
+      <span className="inline-flex items-center gap-0.5" aria-label={tr("{size} of {count} stages reached", { size: reached.size, count: STAGES.length })}>
         {STAGES.map((s) => {
           const outcome = stageOutcome(app, s.key);
           const applicable = isStageApplicable(app, s.key);
@@ -314,7 +328,7 @@ export function StageTrack({ app, compact = false }: { app: Pick<AdminApplicatio
             : outcome
             ? `${TONE_CLASSES[outcome.tone].bar} border-transparent opacity-60`
             : "border-[var(--color-line-strong)] bg-[var(--color-surface)]";
-          return <span key={s.key} title={s.label} className={`h-2.5 w-4 rounded-sm border ${cls}`} />;
+          return <span key={s.key} title={tr(s.label)} className={`h-2.5 w-4 rounded-sm border ${cls}`} />;
         })}
       </span>
     );
@@ -340,10 +354,10 @@ export function StageTrack({ app, compact = false }: { app: Pick<AdminApplicatio
               >
                 {done && !outcome ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : i + 1}
               </span>
-              <span className={`text-sm ${done ? "text-[var(--color-ink)]" : "text-[var(--color-ink-faint)]"}`}>{s.label}</span>
+              <span className={`text-sm ${done ? "text-[var(--color-ink)]" : "text-[var(--color-ink-faint)]"}`}>{tr(s.label)}</span>
             </div>
             <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
-              {!applicable ? "Does not apply" : outcome ? outcome.label : done ? "Done" : "Not yet"}
+              {!applicable ? tr("Does not apply") : outcome ? outcome.label : done ? tr("Done") : tr("Not yet")}
             </p>
           </li>
         );
@@ -356,12 +370,13 @@ const ACTOR_LABELS = { applicant: "Applicant", institution: "Institution", syste
 
 /** Every event in an application's life, oldest first, with time between steps. */
 export function ProgressionTimeline({ app, institutionName }: { app: AdminApplication; institutionName: string }) {
+  const tr = useT();
   type Item = { key: string; at: string; title: React.ReactNode; actor: string; note: string };
   const items: Item[] = app.history.map((h, i) => ({
     key: `s-${i}`,
     at: h.at,
     title: <AdminStatusBadge status={h.status} />,
-    actor: h.actor === "institution" ? institutionName : ACTOR_LABELS[h.actor],
+    actor: h.actor === "institution" ? institutionName : tr(ACTOR_LABELS[h.actor]),
     note: h.note,
   }));
   if (app.payment) {
@@ -371,11 +386,11 @@ export function ProgressionTimeline({ app, institutionName }: { app: AdminApplic
       at: p.paidAt ?? p.initiatedAt,
       title: (
         <ToneBadge tone={p.status === "PAID" ? "success" : p.status === "PENDING" ? "amber" : "danger"}>
-          {p.status === "PAID" ? "Payment received" : p.status === "PENDING" ? "Payment pending" : "Payment failed"}
+          {p.status === "PAID" ? tr("Payment received") : p.status === "PENDING" ? tr("Payment pending") : tr("Payment failed")}
         </ToneBadge>
       ),
       actor: "Applicant",
-      note: `${p.method}, reference ${p.reference}.`,
+      note: tr("{method}, reference {reference}.", { method: p.method, reference: p.reference }),
     });
   }
   items.sort((a, b) => a.at.localeCompare(b.at));
@@ -393,14 +408,14 @@ export function ProgressionTimeline({ app, institutionName }: { app: AdminApplic
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {item.title}
+                {tr(item.title)}
                 <span className="text-xs text-[var(--color-ink-faint)]">
                   {formatDateTime(item.at)}
-                  {gapDays !== null && gapDays > 0 ? `, ${gapDays} ${gapDays === 1 ? "day" : "days"} later` : ""}
+                  {gapDays !== null && gapDays > 0 ? tr(", {gapDays} {value} later", { gapDays, value: gapDays === 1 ? "day" : "days" }) : ""}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-[var(--color-ink)]">{item.note}</p>
-              <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">By {item.actor}</p>
+              <p className="mt-1 text-sm text-[var(--color-ink)]">{tr(item.note)}</p>
+              <p className="mt-0.5 text-xs text-[var(--color-ink-soft)]">{tr("By {actor}", { actor: item.actor })}</p>
             </div>
           </li>
         );
@@ -483,6 +498,7 @@ export function ColumnChart({ data, label }: { data: { label: string; value: num
 
 /** Sub-navigation between sibling admin screens. */
 export function SubNav({ items, current }: { items: { label: string; href: string }[]; current: string }) {
+  const tr = useT();
   return (
     <nav className="mb-6 flex flex-wrap gap-x-6 gap-y-2 border-b border-[var(--color-line)]">
       {items.map((i) => {
@@ -496,7 +512,7 @@ export function SubNav({ items, current }: { items: { label: string; href: strin
               active ? "border-[var(--color-brand)] font-medium text-[var(--color-ink)]" : "border-transparent text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]"
             }`}
           >
-            {i.label}
+            {tr(i.label)}
           </Link>
         );
       })}

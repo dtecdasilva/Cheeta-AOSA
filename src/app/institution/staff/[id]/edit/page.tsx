@@ -1,19 +1,20 @@
 import { requireRole } from "@/lib/auth/guard";
-import { InstitutionShell } from "../../../InstitutionShell";
 import StaffForm from "@/components/institution/StaffForm";
-import { findStaffById } from "@/lib/mockData/staff";
+import { NotFoundError } from "@/server/http/errors";
+import { getStaff } from "@/server/modules/institutions/staff.service";
+import { EmptyState, PageHeading, PAGE_MAIN_CLASS } from "@/components/ui";
+import { getT } from "@/lib/i18n/server";
 
-export default async function Page({ params }: { params: { id: string } }) {
-  const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
-  const staff = findStaffById(params.id);
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const tr = await getT();
+  const user = await requireRole(["INSTITUTION_ADMIN"]);
+  const { id } = await params;
+  // Confined to the caller's institution: anyone else's id is "not found".
+  const member = await getStaff(user, id).catch((err) => (err instanceof NotFoundError ? null : Promise.reject(err)));
   return (
-    <main className="px-4 py-6 sm:px-8 sm:py-8">
-      <h1 className="mb-4 text-xl font-semibold">Edit staff member</h1>
-      {staff ? (
-        <StaffForm institutionId={user.institutionId ?? "inst-1"} initial={staff} />
-      ) : (
-        <p className="text-sm text-[var(--color-ink-soft)]">Staff not found.</p>
-      )}
+    <main className={PAGE_MAIN_CLASS}>
+      <PageHeading title={tr("Edit staff member")} />
+      {member ? <StaffForm initial={member} /> : <EmptyState message={tr("This staff member doesn't exist, or belongs to another institution.")} />}
     </main>
   );
 }

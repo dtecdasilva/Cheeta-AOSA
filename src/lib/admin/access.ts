@@ -1,15 +1,12 @@
-import { createCollection } from "./store";
+import { createApiCollection } from "./store";
 import type { Role, AccountStatus } from "@/lib/auth/roles";
 import { PERMISSION_CATALOGUE, type PermissionDef } from "@/lib/auth/permissions";
 
 /**
  * Platform accounts as the Access management screen lists them.
  *
- * Real authentication lives server-side (src/lib/auth/users.ts) and never
- * leaves the server with its password hashes. This is the admin-facing
- * projection of that table — no credentials, plus the audit fields the
- * screen shows. When the backend lands, this store is replaced by a
- * `GET /api/admin/users` that returns exactly this shape.
+ * The admin-facing projection of the users table: no credentials, plus
+ * the audit fields the screen shows.
  */
 
 export interface PlatformAccount {
@@ -54,8 +51,8 @@ const SEEDS: Seed[] = [
   ["usr-inst-admin-4", "M. Jean-Paul Tchoua", "admin@lgbafoussam.example.cm", "+237 670 500 001", "INSTITUTION_ADMIN", "inst-4", "ACTIVE", false, "2026-09-19T12:20:00Z", "2026-02-20"],
 ];
 
-export const accountStore = createCollection<PlatformAccount>("accounts", () =>
-  SEEDS.map(([id, fullName, email, phone, role, institutionId, status, mfa, lastSignInAt, created]) => ({
+/** Sample accounts the demo database is filled with (server/db/seed.ts). The screen itself reads the real ones. */
+export const SAMPLE_ACCOUNTS: PlatformAccount[] = SEEDS.map(([id, fullName, email, phone, role, institutionId, status, mfa, lastSignInAt, created]) => ({
     id,
     fullName,
     email,
@@ -67,5 +64,48 @@ export const accountStore = createCollection<PlatformAccount>("accounts", () =>
     lastSignInAt,
     createdAt: `${created}T09:00:00.000Z`,
     updatedAt: `${created}T09:00:00.000Z`,
-  }))
-);
+  }));
+
+/**
+ * Stored in the database: /api/admin/accounts. Creating an account sends
+ * the invitation with a temporary code; nothing about credentials ever
+ * reaches the browser.
+ */
+export const accountStore = createApiCollection<PlatformAccount>("accounts", () => [], {
+  url: "/api/admin/accounts",
+  fromApi: (r) => ({
+    id: String(r.id),
+    fullName: String(r.fullName ?? ""),
+    email: String(r.email ?? ""),
+    phone: String(r.phone ?? ""),
+    role: r.role as Role,
+    institutionId: String(r.institutionId ?? ""),
+    status: (r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE") as AccountStatus,
+    mfa: r.mfaEnabled === true,
+    lastSignInAt: String(r.lastSignInAt ?? ""),
+    createdAt: String(r.createdAt ?? ""),
+    updatedAt: String(r.updatedAt ?? ""),
+  }),
+  toApi: (a) => {
+    const out: Record<string, unknown> = {};
+    if (a.fullName !== undefined) out.fullName = a.fullName;
+    if (a.email !== undefined) out.email = a.email;
+    if (a.phone !== undefined) out.phone = a.phone || null;
+    if (a.role !== undefined) out.role = a.role;
+    if (a.institutionId !== undefined) out.institutionId = a.institutionId || null;
+    if (a.mfa !== undefined) out.mfaEnabled = a.mfa;
+    if (a.status !== undefined) out.status = a.status;
+    return out;
+  },
+});
+
+/** Emails the account a password reset. Returns the server's reason if it refuses. */
+export async function sendAccountPasswordReset(id: string): Promise<string | null> {
+  try {
+    const res = await fetch(`/api/admin/accounts/${encodeURIComponent(id)}/reset-password`, { method: "POST" });
+    if (res.ok) return null;
+    return ((await res.json().catch(() => ({}))) as { error?: string }).error ?? "The reset could not be sent.";
+  } catch {
+    return "The reset could not be sent. Check your connection and try again.";
+  }
+}

@@ -1,9 +1,9 @@
 import "server-only";
 import { z } from "zod";
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { BASE_CURRENCY } from "@/lib/admin/reference";
 import { FEE_CATEGORIES, FEE_TYPES } from "@/lib/institution/fees";
-import { UPLOAD_FILE_TYPES, documentTypeMaxKb, normaliseFileType, supportedFileTypes, validateRequirementLimits, type DocumentTypeOption } from "@/lib/institution/uploadRequirements";
+import { CUSTOM_DOCUMENT_TYPE, UPLOAD_FILE_TYPES, documentTypeMaxKb, normaliseFileType, supportedFileTypes, validateRequirementLimits, type DocumentTypeOption } from "@/lib/institution/uploadRequirements";
 import { PAYMENT_METHOD_DETAIL_FIELDS, PAYMENT_METHOD_TYPES, unusedDetailFields, validatePaymentMethodDetails, type PaymentMethodType } from "@/lib/institution/paymentMethods";
 import type { Executor } from "@/server/db/client";
 import { applicationDocuments, currencies, departments, faculties, feeConfigs, feePayments, institutionPaymentMethods, institutions, parameters, programs, tuitionPayments, uploadRequirements } from "@/server/db/schema";
@@ -16,6 +16,7 @@ import type { ResourceDef } from "@/server/modules/resource";
 
 type Row = Record<string, unknown>;
 import { assertBelongs, assertNoActiveChildren, assertParam, assertParamParent } from "@/server/modules/checks";
+import { offeredQualificationIds } from "./qualifications.service";
 
 /**
  * Institutions and their structure, as resources (see ../resource.ts).
@@ -25,6 +26,22 @@ import { assertBelongs, assertNoActiveChildren, assertParam, assertParamParent }
 
 const code = (max = 20) => requiredText(max).transform((v) => v.toUpperCase());
 const email = z.union([z.email(), z.literal("")]).default("");
+/** A parameter id that may be left empty (sent as "" or null): stored as null. */
+const optionalParam = z
+  .string()
+  .trim()
+  .max(100)
+  .nullable()
+  .optional()
+  .transform((v) => v || null);
+
+/** Region and town, if given, are a region and a town in it. */
+async function checkPlace(db: Executor, next: Row) {
+  await assertParam(db, "regionId", next.regionId, "regions");
+  await assertParam(db, "townId", next.townId, "towns");
+  if (next.townId && !next.regionId) throw new ValidationError({ regionId: "Choose the region the town is in." });
+  await assertParamParent(db, "townId", next.townId, next.regionId, "This town isn't in the region chosen.");
+}
 
 // ---------------------------------------------------------------------------
 // Institutions
@@ -86,6 +103,9 @@ export const facultyResource: ResourceDef<z.ZodObject> = {
     email,
     phone: text(40).default(""),
     address: text(300).default(""),
+    location: text(200).default(""),
+    regionId: optionalParam,
+    townId: optionalParam,
   }),
   searchColumns: [faculties.name, faculties.code, faculties.dean, faculties.email],
   filters: { institutionId: faculties.institutionId },
@@ -95,9 +115,16 @@ export const facultyResource: ResourceDef<z.ZodObject> = {
   unique: { faculties_institution_code_unique: "Another faculty at this institution already uses this code." },
   async check(db, next, existing) {
     await assertBelongs(db, institutions, "institutionId", next.institutionId, [], "Choose an institution from the list.");
+    await checkPlace(db, next);
     await assertNoActiveChildren(db, next, existing, departments, departments.facultyId, "Deactivate this faculty's departments first.");
   },
 };
+
+/**
+ * Cheeta administration's view of faculties and departments: an institution keeps its own structure, so the
+ * administrator can see every institution's and switch one on or off, but not add one or change its details.
+ */
+const statusOnly = z.strictObject({ status: z.enum(["ACTIVE", "INACTIVE"], { error: "Only the status can be changed here." }) }, { error: "Only the status can be changed here: the institution manages its own details." });
 
 export const departmentResource: ResourceDef<z.ZodObject> = {
   name: "department",
@@ -112,6 +139,10 @@ export const departmentResource: ResourceDef<z.ZodObject> = {
     head: text(200).default(""),
     email,
     phone: text(40).default(""),
+    address: text(300).default(""),
+    location: text(200).default(""),
+    regionId: optionalParam,
+    townId: optionalParam,
   }),
   searchColumns: [departments.name, departments.code, departments.head, departments.email],
   filters: { institutionId: departments.institutionId, facultyId: departments.facultyId },
@@ -121,9 +152,13 @@ export const departmentResource: ResourceDef<z.ZodObject> = {
   unique: { departments_institution_code_unique: "Another department at this institution already uses this code." },
   async check(db, next, existing) {
     await assertBelongs(db, faculties, "facultyId", next.facultyId, [{ column: faculties.institutionId, value: next.institutionId }], "Choose a faculty of this institution.");
+    await checkPlace(db, next);
     await assertNoActiveChildren(db, next, existing, programs, programs.departmentId, "Deactivate this department's programs first.");
   },
 };
+
+export const adminFacultyResource: ResourceDef<z.ZodObject> = { ...facultyResource, update: statusOnly };
+export const adminDepartmentResource: ResourceDef<z.ZodObject> = { ...departmentResource, update: statusOnly };
 
 export const programResource: ResourceDef<z.ZodObject> = {
   name: "program",
@@ -148,10 +183,16 @@ export const programResource: ResourceDef<z.ZodObject> = {
   statusColumn: programs.status,
   institutionColumn: programs.institutionId,
   unique: { programs_institution_code_unique: "Another program at this institution already uses this code." },
-  async check(db, next) {
+  async check(db, next, existing) {
     await assertBelongs(db, faculties, "facultyId", next.facultyId, [{ column: faculties.institutionId, value: next.institutionId }], "Choose a faculty of this institution.");
     await assertBelongs(db, departments, "departmentId", next.departmentId, [{ column: departments.facultyId, value: next.facultyId }], "Choose a department of this faculty.");
     await assertParam(db, "qualificationId", next.qualificationId, "qualification-types");
+    // A program leads to one of the institution's Anticipated Qualifications. Checked when the qualification is set or
+    // changed, so switching an older program on or off isn't refused.
+    if (!existing || next.qualificationId !== existing.qualificationId) {
+      const offered = await offeredQualificationIds(db, String(next.institutionId));
+      if (!offered.has(String(next.qualificationId))) throw new ValidationError({ qualificationId: "Add this qualification to the institution's Anticipated Qualifications first." });
+    }
   },
 };
 
@@ -187,6 +228,9 @@ const paymentMethodFields = {
   branch: text(120).default(""),
   accountName: text(200).default(""),
   accountNumber: text(80).default(""),
+  bankCode: text(10).default(""),
+  branchCode: text(10).default(""),
+  rib: text(10).default(""),
   swift: text(20)
     .default("")
     .transform((v) => v.toUpperCase().replace(/\s+/g, "")),
@@ -315,7 +359,9 @@ export async function documentTypeOptions(db: Executor, institutionId: string): 
       certified: t.attrs?.certified === true,
       inUse: inUse.has(t.id),
     }))
-    .filter((t) => t.fileTypes.length > 0);
+    .filter((t) => t.fileTypes.length > 0)
+    // Last: a document of the institution's own, for anything the list doesn't have. Any checkable format, up to the platform's limit.
+    .concat([{ id: CUSTOM_DOCUMENT_TYPE, label: "Other document (not on the list)", fileTypes: [...UPLOAD_FILE_TYPES], maxSizeKb: platformMaxUploadKb(), certified: false, inUse: false }]);
 }
 
 /**
@@ -332,6 +378,8 @@ export const uploadRequirementResource: ResourceDef<z.ZodObject> = {
   create: z.object({
     institutionId: requiredText(100),
     documentTypeId: z.string({ error: "Choose the document type." }).trim().min(1, "Choose the document type.").max(200),
+    /** For a custom document only: what applicants see it called. */
+    name: text(150).optional(),
     description: text(1000).default(""),
     required: z.boolean({ error: "Say whether the document is required or optional." }).default(true),
     fileTypes: z
@@ -347,7 +395,27 @@ export const uploadRequirementResource: ResourceDef<z.ZodObject> = {
   statusColumn: uploadRequirements.status,
   institutionColumn: uploadRequirements.institutionId,
   unique: { upload_requirements_institution_type_unique: "This document is already on the list. Edit that requirement instead." },
+  // "Other document" is stored as a custom requirement with no document type.
+  prepare(next, existing) {
+    if (next.documentTypeId !== CUSTOM_DOCUMENT_TYPE) return existing?.custom && next.documentTypeId === null ? next : { ...next, custom: false };
+    return { ...next, documentTypeId: null, custom: true };
+  },
   async check(db, next, existing) {
+    if (next.custom) {
+      if (existing && !existing.custom) throw new ValidationError({ documentTypeId: "A requirement from the platform's list can't become a document of your own. Add a new one instead." });
+      const name = String(next.name ?? "").trim();
+      if (name.length < 2) throw new ValidationError({ name: "Enter the document's name, as applicants should see it." });
+      const [same] = await db
+        .select({ id: uploadRequirements.id })
+        .from(uploadRequirements)
+        .where(and(eq(uploadRequirements.institutionId, String(next.institutionId)), sql`lower(${uploadRequirements.name}) = ${name.toLowerCase()}`, existing ? ne(uploadRequirements.id, String(existing.id)) : undefined))
+        .limit(1);
+      if (same) throw new ValidationError({ name: "A document with this name is already on your list." });
+      const changedLimits = !existing || JSON.stringify(next.fileTypes) !== JSON.stringify(existing.fileTypes) || next.maxSizeKb !== existing.maxSizeKb;
+      const errors = changedLimits ? validateRequirementLimits(next as { fileTypes: string[]; maxSizeKb: number }, { label: name, fileTypes: [...UPLOAD_FILE_TYPES], maxSizeKb: platformMaxUploadKb() }) : {};
+      if (Object.keys(errors).length) throw new ValidationError(errors);
+      return;
+    }
     const changedType = !existing || next.documentTypeId !== existing.documentTypeId;
     // The limits are checked when they are set or changed. Switching a requirement on or off, or rewording it,
     // is never refused because the platform has since tightened the document type's limits.
@@ -379,6 +447,7 @@ export const uploadRequirementResource: ResourceDef<z.ZodObject> = {
   },
   // Applicants see the document called what the platform calls it, the same at every institution.
   async derive(db, next) {
+    if (next.custom) return { name: String(next.name).trim() };
     const type = await documentTypeFor(db, next.documentTypeId);
     return type ? { name: type.label } : {};
   },

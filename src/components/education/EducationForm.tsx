@@ -7,6 +7,7 @@ import { Field, TextInput, SelectInput, PrimaryButton, SecondaryButton } from "@
 import { CountrySelect } from "@/components/CountrySelect";
 import { EducationLevelConfig } from "@/lib/education/configTypes";
 import { EducationRecord, EducationRecordInput } from "@/lib/education/types";
+import { useT } from "@/lib/i18n/client";
 
 type FormState = Partial<EducationRecordInput>;
 type FieldErrors = Partial<Record<keyof EducationRecordInput, string>>;
@@ -55,6 +56,7 @@ function validateClientSide(form: FormState, levels: EducationLevelConfig[]): Fi
 }
 
 export function EducationForm() {
+  const tr = useT();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [levels, setLevels] = useState<EducationLevelConfig[]>([]);
@@ -85,10 +87,10 @@ export function EducationForm() {
         if (levelsRes.ok) setLevels(levelsData.levels);
         if (recordsRes.ok) setRecords(recordsData.records);
         if (!levelsRes.ok || !recordsRes.ok) {
-          setFormError("Could not load your education information.");
+          setFormError(tr("Could not load your education information."));
         }
       } catch {
-        if (!cancelled) setFormError("Could not load your education information. Check your connection.");
+        if (!cancelled) setFormError(tr("Could not load your education information. Check your connection."));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -146,7 +148,7 @@ export function EducationForm() {
     const clientErrors = validateClientSide(form, levels);
     if (Object.keys(clientErrors).length > 0) {
       setErrors(clientErrors);
-      setFormError("Some fields need attention before this can be saved.");
+      setFormError(tr("Some fields need attention before this can be saved."));
       return;
     }
 
@@ -162,7 +164,7 @@ export function EducationForm() {
 
       if (!res.ok) {
         setErrors(data.fieldErrors ?? {});
-        setFormError(data.error ?? "Could not save this school.");
+        setFormError(data.error ?? tr("Could not save this school."));
         return;
       }
 
@@ -170,11 +172,11 @@ export function EducationForm() {
         if (isEdit) return prev.map((r) => (r.id === data.record.id ? data.record : r));
         return [...prev, data.record];
       });
-      setSuccessMessage(isEdit ? "School updated." : "School added.");
+      setSuccessMessage(isEdit ? tr("School updated.") : tr("School added."));
       setContinueError(null);
       closeForm();
     } catch {
-      setFormError("Could not save this school. Check your connection and try again.");
+      setFormError(tr("Could not save this school. Check your connection and try again."));
     } finally {
       setSaving(false);
     }
@@ -185,7 +187,7 @@ export function EducationForm() {
       const res = await fetch(`/api/student/education/${id}`, { method: "DELETE" });
       if (res.ok) {
         setRecords((prev) => prev.filter((r) => r.id !== id));
-        setSuccessMessage("School removed.");
+        setSuccessMessage(tr("School removed."));
       }
     } finally {
       setConfirmDeleteId(null);
@@ -194,14 +196,14 @@ export function EducationForm() {
 
   function handleContinue() {
     if (records.length === 0) {
-      setContinueError("Add at least one education record before continuing.");
+      setContinueError(tr("Add at least one education record before continuing."));
       return;
     }
     router.push("/student/application/summary");
   }
 
   if (loading) {
-    return <p className="text-sm text-[var(--color-ink-soft)]">Loading your education information…</p>;
+    return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading your education information…")}</p>;
   }
 
   return (
@@ -209,67 +211,67 @@ export function EducationForm() {
       {successMessage && !formOpen && (
         <p className="flex items-center gap-2 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-4 py-2.5 text-sm text-[var(--color-success-strong)]">
           <CheckCircle2 className="h-4 w-4 shrink-0" strokeWidth={2} />
-          {successMessage}
+          {tr(successMessage)}
         </p>
       )}
 
       {/* Saved records table */}
       <div className="overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]">
         <div className="flex items-center justify-between border-b border-[var(--color-line)] px-5 py-3.5">
-          <p className="font-semibold text-base text-[var(--color-ink)]">Your schools</p>
+          <p className="font-semibold text-base text-[var(--color-ink)]">{tr("Your schools")}</p>
           {!formOpen && (
             <button
               onClick={openAddForm}
               className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-ink)] px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-ink)] hover:text-white"
             >
               <Plus className="h-3.5 w-3.5" strokeWidth={2.5} />
-              Add another school
+              {tr("Add another school")}
             </button>
           )}
         </div>
 
         {records.length === 0 ? (
           <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">
-            No schools added yet. Use &quot;Add another school&quot; to get started.
+            {tr("No schools added yet. Use \"Add another school\" to get started.")}
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-[var(--color-line)] text-left text-xs text-[var(--color-ink-faint)]">
-                  <th className="px-5 py-2.5 font-normal">Start</th>
-                  <th className="px-5 py-2.5 font-normal">End</th>
-                  <th className="px-5 py-2.5 font-normal">School name</th>
-                  <th className="px-5 py-2.5 font-normal">Country</th>
-                  <th className="px-5 py-2.5 font-normal">School type</th>
-                  <th className="px-5 py-2.5 font-normal">Qualification</th>
+                  <th className="px-5 py-2.5 font-normal">{tr("Start")}</th>
+                  <th className="px-5 py-2.5 font-normal">{tr("End")}</th>
+                  <th className="px-5 py-2.5 font-normal">{tr("School name")}</th>
+                  <th className="px-5 py-2.5 font-normal">{tr("Country")}</th>
+                  <th className="px-5 py-2.5 font-normal">{tr("School type")}</th>
+                  <th className="px-5 py-2.5 font-normal">{tr("Qualification")}</th>
                   <th className="px-5 py-2.5 font-normal">&nbsp;</th>
                 </tr>
               </thead>
               <tbody>
                 {records.map((r) => (
                   <tr key={r.id} className="border-b border-[var(--color-line)] last:border-0">
-                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{r.startYear}</td>
-                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{r.endYear}</td>
-                    <td className="px-5 py-3 text-[var(--color-ink)]">{r.schoolName}</td>
-                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{r.country}</td>
-                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{r.schoolType}</td>
-                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{r.qualification}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{tr(r.startYear)}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{tr(r.endYear)}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink)]">{tr(r.schoolName)}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{tr(r.country)}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{tr(r.schoolType)}</td>
+                    <td className="px-5 py-3 text-[var(--color-ink-soft)]">{tr(r.qualification)}</td>
                     <td className="px-5 py-3">
                       {confirmDeleteId === r.id ? (
                         <div className="flex items-center gap-2 whitespace-nowrap">
-                          <span className="text-xs text-[var(--color-ink-soft)]">Remove this school?</span>
+                          <span className="text-xs text-[var(--color-ink-soft)]">{tr("Remove this school?")}</span>
                           <button
                             onClick={() => confirmDelete(r.id)}
                             className="text-xs font-medium text-[var(--color-danger)] underline underline-offset-4"
                           >
-                            Yes
+                            {tr("Yes")}
                           </button>
                           <button
                             onClick={() => setConfirmDeleteId(null)}
                             className="text-xs font-medium text-[var(--color-ink-soft)] underline underline-offset-4"
                           >
-                            Cancel
+                            {tr("Cancel")}
                           </button>
                         </div>
                       ) : (
@@ -279,14 +281,14 @@ export function EducationForm() {
                             className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-ink)] hover:underline"
                           >
                             <Pencil className="h-3 w-3" strokeWidth={2} />
-                            Edit
+                            {tr("Edit")}
                           </button>
                           <button
                             onClick={() => setConfirmDeleteId(r.id)}
                             className="inline-flex items-center gap-1 text-xs font-medium text-[var(--color-danger)] hover:underline"
                           >
                             <Trash2 className="h-3 w-3" strokeWidth={2} />
-                            Delete
+                            {tr("Delete")}
                           </button>
                         </div>
                       )}
@@ -303,81 +305,81 @@ export function EducationForm() {
       {formOpen && (
         <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
           <p className="mb-4 font-semibold text-base text-[var(--color-ink)]">
-            {editingId ? "Edit school" : "Add a school"}
+            {editingId ? tr("Edit school") : tr("Add a school")}
           </p>
 
           {formError && (
             <p role="alert" className="mb-4 rounded-lg border border-[var(--color-danger-soft)] bg-[var(--color-danger-soft)] px-4 py-2.5 text-sm text-[var(--color-danger-strong)]">
-              {formError}
+              {tr(formError)}
             </p>
           )}
 
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Start year" required>
+            <Field label={tr("Start year")} required>
               <TextInput
                 inputMode="numeric"
                 placeholder="e.g. 2015"
                 value={form.startYear ?? ""}
                 onChange={(e) => update("startYear", e.target.value)}
               />
-              <ErrorText message={errors.startYear} />
+              <ErrorText message={tr(errors.startYear)} />
             </Field>
-            <Field label="End year" required>
+            <Field label={tr("End year")} required>
               <TextInput
                 inputMode="numeric"
                 placeholder="e.g. 2019"
                 value={form.endYear ?? ""}
                 onChange={(e) => update("endYear", e.target.value)}
               />
-              <ErrorText message={errors.endYear} />
+              <ErrorText message={tr(errors.endYear)} />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="School name" required>
+              <Field label={tr("School name")} required>
                 <TextInput value={form.schoolName ?? ""} onChange={(e) => update("schoolName", e.target.value)} />
-                <ErrorText message={errors.schoolName} />
+                <ErrorText message={tr(errors.schoolName)} />
               </Field>
             </div>
             <CountrySelect
-              label="Country"
+              label={tr("Country")}
               required
               value={form.country ?? ""}
               onChange={(v) => update("country", v)}
               error={errors.country}
             />
-            <Field label="School type" required>
+            <Field label={tr("School type")} required>
               <SelectInput value={form.schoolType ?? ""} onChange={(e) => update("schoolType", e.target.value)}>
-                <option value="">Select…</option>
+                <option value="">{tr("Select…")}</option>
                 {levels.map((l) => (
                   <option key={l.id} value={l.name}>
-                    {l.name}
+                    {tr(l.name)}
                   </option>
                 ))}
               </SelectInput>
-              <ErrorText message={errors.schoolType} />
+              <ErrorText message={tr(errors.schoolType)} />
             </Field>
-            <Field label="Qualification obtained" required hint={!form.schoolType ? "Select a school type first." : undefined}>
+            <Field label={tr("Qualification obtained")} required hint={!form.schoolType ? tr("Select a school type first.") : undefined}>
               <SelectInput
                 value={form.qualification ?? ""}
                 onChange={(e) => update("qualification", e.target.value)}
                 disabled={!form.schoolType}
               >
-                <option value="">Select…</option>
+                <option value="">{tr("Select…")}</option>
                 {qualificationOptions.map((q) => (
                   <option key={q.id} value={q.label}>
-                    {q.label}
+                    {tr(q.label)}
                   </option>
                 ))}
               </SelectInput>
-              <ErrorText message={errors.qualification} />
+              <ErrorText message={tr(errors.qualification)} />
             </Field>
           </div>
 
           <div className="mt-6 flex items-center gap-3 border-t border-[var(--color-line)] pt-5">
             <SecondaryButton type="button" onClick={closeForm} disabled={saving}>
-              Cancel
+              {tr("Cancel")}
             </SecondaryButton>
             <PrimaryButton type="button" onClick={saveRecord} disabled={saving}>
-              {saving ? "Saving…" : "Save"}
+              {saving ? tr("Saving…") : tr("Save")}
             </PrimaryButton>
           </div>
         </div>
@@ -385,9 +387,9 @@ export function EducationForm() {
 
       {/* Section-level continue */}
       <div className="border-t border-[var(--color-line)] pt-6">
-        {continueError && <p className="mb-3 text-sm text-[var(--color-danger)]">{continueError}</p>}
+        {continueError && <p className="mb-3 text-sm text-[var(--color-danger)]">{tr(continueError)}</p>}
         <PrimaryButton type="button" onClick={handleContinue}>
-          Continue
+          {tr("Continue")}
         </PrimaryButton>
       </div>
     </div>

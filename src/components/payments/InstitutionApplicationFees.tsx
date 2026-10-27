@@ -10,6 +10,7 @@ import { BANK_CODE_HINT, normalizeBankCode } from "@/lib/payments/privacy";
 import { findByBankCode, useInstitutionFees, type InstitutionFee } from "@/lib/payments/records";
 import { buttonClass } from "@/lib/ui/button";
 import { formatDate } from "@/lib/utils";
+import { useT } from "@/lib/i18n/client";
 
 type PaidFee = Extract<InstitutionFee, { state: "PAID" }>;
 
@@ -22,6 +23,7 @@ type PaidFee = Extract<InstitutionFee, { state: "PAID" }>;
  * institution doesn't verify payments, so there is nothing to act on here.
  */
 export function InstitutionApplicationFees() {
+  const tr = useT();
   const money = useMoneyFormat();
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
@@ -44,9 +46,9 @@ export function InstitutionApplicationFees() {
       <StatStrip
         columns={3}
         stats={[
-          { label: "Awaiting payment", value: summary?.awaiting ?? "…", detail: "Being checked by AOSA" },
-          { label: "Paid", value: summary?.paid ?? "…", detail: "Approved by AOSA" },
-          { label: "Application fees approved", value: summary ? money(summary.applicationFees, summary.currency) : "…" },
+          { label: tr("Awaiting payment"), value: summary?.awaiting ?? "…", detail: tr("Being checked by AOSA") },
+          { label: tr("Paid"), value: summary?.paid ?? "…", detail: tr("Approved by AOSA") },
+          { label: tr("Application fees approved"), value: summary ? money(summary.applicationFees, summary.currency) : "…" },
         ]}
       />
       <div className="mt-6">
@@ -61,38 +63,38 @@ export function InstitutionApplicationFees() {
             setPage(1);
           }}
         >
-          <SearchField value={search} onChange={setSearch} placeholder="Applicant, application or bank code" />
+          <SearchField value={search} onChange={setSearch} placeholder={tr("Applicant, application or bank code")} />
           <FilterSelect
-            label="Status"
+            label={tr("Status")}
             value={state}
             onChange={(v) => (setState(v), setPage(1))}
             options={[
-              { value: "AWAITING", label: "Awaiting payment" },
-              { value: "PAID", label: "Paid" },
+              { value: "AWAITING", label: tr("Awaiting payment") },
+              { value: "PAID", label: tr("Paid") },
             ]}
           />
         </FilterBar>
       </div>
       {error && (
         <div className="mt-4">
-          <FormError>{error}</FormError>
+          <FormError>{tr(error)}</FormError>
         </div>
       )}
-      <ResultCount shown={total} total={all} noun="applicants" />
+      <ResultCount shown={total} total={all} noun={tr("applicants")} />
       {!fees ? (
-        !error && <p className="text-sm text-[var(--color-ink-soft)]">Loading application fees…</p>
+        !error && <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading application fees…")}</p>
       ) : fees.length === 0 ? (
-        <EmptyState message={all === 0 ? "No application fee payments yet." : "No applicants match these filters."} />
+        <EmptyState message={all === 0 ? tr("No application fee payments yet.") : tr("No applicants match these filters.")} />
       ) : (
         <TableFrame>
           <thead>
             <tr>
-              <Th>Applicant</Th>
-              <Th>Status</Th>
-              <Th>Application</Th>
-              <Th>Bank code</Th>
-              <Th className="text-right">Application fee</Th>
-              <Th>Approved</Th>
+              <Th>{tr("Applicant")}</Th>
+              <Th>{tr("Status")}</Th>
+              <Th>{tr("Application")}</Th>
+              <Th>{tr("Bank code")}</Th>
+              <Th className="text-right">{tr("Application fee")}</Th>
+              <Th>{tr("Approved")}</Th>
             </tr>
           </thead>
           <tbody>
@@ -102,22 +104,22 @@ export function InstitutionApplicationFees() {
                   <Td>
                     <span className="inline-flex items-center gap-2 text-[var(--color-ink)]">
                       <Lock className="h-3.5 w-3.5 text-[var(--color-ink-faint)]" strokeWidth={1.75} aria-hidden />
-                      {fee.displayName}
+                      {tr(fee.displayName)}
                     </span>
                   </Td>
                   <Td colSpan={5}>
-                    <ToneBadge tone="info">Awaiting payment</ToneBadge>
+                    <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
                   </Td>
                 </tr>
               ) : (
                 <tr key={fee.id}>
                   <Td className="text-[var(--color-ink)]">{fee.displayName}</Td>
                   <Td>
-                    <ToneBadge tone="success">Paid</ToneBadge>
+                    <ToneBadge tone="success">{tr("Paid")}</ToneBadge>
                   </Td>
                   <Td>
-                    <p className="text-[var(--color-ink)]">{fee.applicationReference}</p>
-                    {fee.programName && <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{fee.programName}</p>}
+                    <p className="text-[var(--color-ink)]">{tr(fee.applicationReference)}</p>
+                    {fee.programName && <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(fee.programName)}</p>}
                   </Td>
                   <Td className="whitespace-nowrap font-mono text-xs text-[var(--color-ink)]">{fee.bankCode}</Td>
                   <Td className="whitespace-nowrap text-right tabular-nums">{money(fee.applicationFee, fee.currency)}</Td>
@@ -140,6 +142,7 @@ export function InstitutionApplicationFees() {
  * answer doesn't say which, so the lookup can't be used to probe.
  */
 function FeeBankCodeLookup() {
+  const tr = useT();
   const money = useMoneyFormat();
   const [input, setInput] = useState("");
   const [looking, setLooking] = useState(false);
@@ -157,7 +160,7 @@ function FeeBankCodeLookup() {
   return (
     <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4 sm:p-5" aria-labelledby="bank-code-lookup">
       <h2 id="bank-code-lookup" className="font-semibold text-base text-[var(--color-ink)]">
-        Find a paid applicant by bank code
+        {tr("Find a paid applicant by bank code")}
       </h2>
       <form
         className="mt-3 flex flex-wrap items-end gap-3"
@@ -167,36 +170,36 @@ function FeeBankCodeLookup() {
         }}
       >
         <label className="block min-w-[14rem] flex-1">
-          <span className="mb-1 block text-xs text-[var(--color-ink-soft)]">{BANK_CODE_HINT}</span>
-          <TextInput value={input} onChange={(e) => setInput(e.target.value)} placeholder="BK26-A7KQ-M9TX" className="font-mono uppercase" autoComplete="off" spellCheck={false} />
+          <span className="mb-1 block text-xs text-[var(--color-ink-soft)]">{tr(BANK_CODE_HINT)}</span>
+          <TextInput value={input} onChange={(e) => setInput(e.target.value)} placeholder={tr("BK26-A7KQ-M9TX")} className="font-mono uppercase" autoComplete="off" spellCheck={false} />
         </label>
         <button type="submit" className={buttonClass("primary")} disabled={looking}>
           <Search className="h-4 w-4" strokeWidth={1.75} />
-          {looking ? "Looking…" : "Find applicant"}
+          {looking ? tr("Looking…") : tr("Find applicant")}
         </button>
       </form>
 
       {result && (
         <div className="mt-4 border-t border-[var(--color-line)] pt-4" role="status" aria-live="polite">
           {result.error ? (
-            <FormError>{result.error}</FormError>
+            <FormError>{tr(result.error)}</FormError>
           ) : result.fee ? (
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <p className="text-sm font-medium text-[var(--color-ink)]">{result.fee.displayName}</p>
+                <p className="text-sm font-medium text-[var(--color-ink)]">{tr(result.fee.displayName)}</p>
                 <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">
-                  Application fee{result.fee.programName ? ` for ${result.fee.programName}` : ""}, application {result.fee.applicationReference}
+                  {tr("Application fee")}{result.fee.programName ? ` for ${result.fee.programName}` : ""}{tr(", application {applicationReference}", { applicationReference: result.fee.applicationReference })}
                 </p>
-                <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">Approved by AOSA {formatDate(result.fee.approvedAt)}</p>
+                <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr("Approved by AOSA {value}", { value: formatDate(result.fee.approvedAt) })}</p>
               </div>
               <div className="text-right">
-                <ToneBadge tone="success">Paid</ToneBadge>
+                <ToneBadge tone="success">{tr("Paid")}</ToneBadge>
                 <p className="mt-1 text-sm tabular-nums text-[var(--color-ink)]">{money(result.fee.applicationFee, result.fee.currency)}</p>
               </div>
             </div>
           ) : (
             <p className="text-sm text-[var(--color-ink-soft)]">
-              No approved payment at your institution has the bank code <span className="font-mono text-[var(--color-ink)]">{result.code}</span>. Check the code against the approval notice. Payments AOSA hasn&apos;t approved yet don&apos;t have a code.
+              {tr("No approved payment at your institution has the bank code")}{" "}<span className="font-mono text-[var(--color-ink)]">{result.code}</span>. Check the code against the approval notice. Payments AOSA hasn&apos;t approved yet don&apos;t have a code.
             </p>
           )}
         </div>

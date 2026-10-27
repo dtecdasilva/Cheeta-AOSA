@@ -7,6 +7,7 @@ import { Field, FormError, PrimaryButton, SecondaryButton, SelectInput, TextArea
 import { ActiveBadge, FilterBar, FilterSelect, Pager, ResultCount, SearchField, StatStrip, StatusToggle, usePaged, type Stat } from "@/components/admin/ui";
 import { matchesSearch } from "@/lib/admin/filters";
 import { newId, type Collection } from "@/lib/admin/store";
+import { useT } from "@/lib/i18n/client";
 
 /**
  * One screen for "a list of records an administrator adds, edits and
@@ -93,6 +94,8 @@ export interface RecordManagerProps<T extends Managed> {
   intro?: React.ReactNode;
   /** Content below the list. */
   children?: React.ReactNode;
+  /** Records are kept elsewhere (an institution's own structure): no Add, and a record can be viewed and switched on or off, not edited. */
+  statusOnly?: boolean;
 }
 
 type Values = Record<string, string | boolean>;
@@ -118,6 +121,7 @@ function fromValues<T>(base: T, values: Values, fields: FieldSpec<T>[]): T {
 }
 
 export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
+  const tr = useT();
   const { store, filters = [], sort } = props;
   const items = store.useItems();
   const [search, setSearch] = useState("");
@@ -147,10 +151,10 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
   return (
     <>
       <PageHeading
-        title={props.title}
-        description={props.description}
+        title={tr(props.title)}
+        description={tr(props.description)}
         actions={
-          editing?.id !== null && (
+          editing?.id !== null && !props.statusOnly && (
             <PrimaryButton
               type="button"
               onClick={() => {
@@ -159,13 +163,13 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
               }}
             >
               <Plus className="h-4 w-4" strokeWidth={2} />
-              Add {props.singular}
+              {tr("Add {singular}", { singular: props.singular })}
             </PrimaryButton>
           )
         }
       />
 
-      {props.intro}
+      {tr(props.intro)}
 
       {props.stats && (
         <div className="mb-6">
@@ -176,21 +180,22 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
       {storeError && (
         <div role="alert" className="mb-4 flex items-start justify-between gap-4 rounded-lg border border-[var(--color-danger)]/25 bg-[var(--color-danger-soft)] px-3 py-2 text-sm text-[var(--color-danger-strong)]">
           <p>
-            <span className="font-medium">Not saved.</span> {storeError}
+            <span className="font-medium">{tr("Not saved.")}</span> {tr(storeError)}
           </p>
           <button type="button" onClick={() => store.clearError()} className="shrink-0 underline underline-offset-4">
-            Dismiss
+            {tr("Dismiss")}
           </button>
         </div>
       )}
 
       {notice && !storeError && (
         <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-          {notice}
+          {tr(notice)}
         </p>
       )}
 
-      {editing && (editing.id === null || editingItem) && (
+      {props.statusOnly && editingItem && <RecordDetails fields={props.fields} item={editingItem} onClose={() => setEditing(null)} />}
+      {!props.statusOnly && editing && (editing.id === null || editingItem) && (
         <RecordForm
           key={editing.id ?? "new"}
           {...props}
@@ -212,25 +217,25 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
           setFilterValues({});
         }}
       >
-        <SearchField value={search} onChange={setSearch} placeholder={props.searchPlaceholder} />
+        <SearchField value={search} onChange={setSearch} placeholder={tr(props.searchPlaceholder)} />
         {filters.map((f) => (
-          <FilterSelect key={f.key} label={f.label} value={filterValues[f.key] ?? ""} onChange={(v) => setFilterValues((s) => ({ ...s, [f.key]: v }))} options={f.options} />
+          <FilterSelect key={f.key} label={tr(f.label)} value={filterValues[f.key] ?? ""} onChange={(v) => setFilterValues((s) => ({ ...s, [f.key]: v }))} options={f.options} />
         ))}
         <FilterSelect
-          label="Status"
+          label={tr("Status")}
           value={status}
           onChange={setStatus}
           options={[
-            { value: "ACTIVE", label: "Active" },
-            { value: "INACTIVE", label: "Inactive" },
+            { value: "ACTIVE", label: tr("Active") },
+            { value: "INACTIVE", label: tr("Inactive") },
           ]}
         />
       </FilterBar>
 
-      <ResultCount shown={filtered.length} total={items.length} noun={props.plural} />
+      <ResultCount shown={filtered.length} total={items.length} noun={tr(props.plural)} />
 
       {filtered.length === 0 ? (
-        <EmptyState message={items.length === 0 ? `No ${props.plural} yet.` : `No ${props.plural} match these filters.`} />
+        <EmptyState message={items.length === 0 ? tr("No {plural} yet.", { plural: props.plural }) : tr("No {plural} match these filters.", { plural: props.plural })} />
       ) : (
         <>
           <TableFrame>
@@ -238,12 +243,12 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
               <tr>
                 {props.columns.map((c) => (
                   <Th key={c.label} className={c.align === "right" ? "text-right" : ""}>
-                    {c.label}
+                    {tr(c.label)}
                   </Th>
                 ))}
-                <Th>Status</Th>
+                <Th>{tr("Status")}</Th>
                 <Th>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{tr("Actions")}</span>
                 </Th>
               </tr>
             </thead>
@@ -272,11 +277,11 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
                           }}
                           className="text-sm text-[var(--color-ink)] underline underline-offset-4"
                         >
-                          Edit
+                          {props.statusOnly ? tr("View") : tr("Edit")}
                         </button>
                         {blocker ? (
-                          <span className="text-xs text-[var(--color-ink-faint)]" title={blocker}>
-                            In use
+                          <span className="text-xs text-[var(--color-ink-faint)]" title={tr(blocker)}>
+                            {tr("In use")}
                           </span>
                         ) : (
                           <StatusToggle active={item.status === "ACTIVE"} name={`this ${props.singular}`} onChange={(next) => setActive(item, next)} />
@@ -284,7 +289,7 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
                         {store.canRemove &&
                           (confirmDelete === item.id ? (
                             <span className="flex items-center gap-2 text-sm">
-                              <span className="text-[var(--color-ink-soft)]">Delete?</span>
+                              <span className="text-[var(--color-ink-soft)]">{tr("Delete?")}</span>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -294,10 +299,10 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
                                 }}
                                 className="font-medium text-[var(--color-danger)] underline underline-offset-4"
                               >
-                                Yes
+                                {tr("Yes")}
                               </button>
                               <button type="button" onClick={() => setConfirmDelete(null)} className="text-[var(--color-ink-soft)] underline underline-offset-4">
-                                Cancel
+                                {tr("Cancel")}
                               </button>
                             </span>
                           ) : (
@@ -309,7 +314,7 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
                               }}
                               className="text-sm text-[var(--color-danger)] underline underline-offset-4"
                             >
-                              Delete
+                              {tr("Delete")}
                             </button>
                           ))}
                       </div>
@@ -328,6 +333,36 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
   );
 }
 
+/** A record shown read-only, field by field (statusOnly screens). */
+function RecordDetails<T extends Managed>({ fields, item, onClose }: { fields: FieldSpec<T>[]; item: T; onClose: () => void }) {
+  const tr = useT();
+  const shown = (f: FieldSpec<T>) => {
+    const v = item[f.key];
+    if (v === undefined || v === null || v === "") return "—";
+    const opts = typeof f.options === "function" ? f.options(item) : f.options;
+    const label = opts?.find((o) => o.value === String(v))?.label;
+    return label ?? (typeof v === "boolean" ? (v ? tr("Yes") : tr("No")) : String(v));
+  };
+  return (
+    <div className="mb-6 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
+      <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+        {fields
+          .filter((f) => !f.showIf || f.showIf(item))
+          .map((f) => (
+            <div key={f.key}>
+              <dt className="text-xs text-[var(--color-ink-faint)]">{tr(f.label)}</dt>
+              <dd className="text-sm text-[var(--color-ink)]">{shown(f)}</dd>
+            </div>
+          ))}
+      </dl>
+      <p className="mt-4 text-xs text-[var(--color-ink-soft)]">{tr("The institution manages these details in its own portal. Here you can only switch the record on or off.")}</p>
+      <button type="button" onClick={onClose} className="mt-3 text-sm underline underline-offset-4">
+        {tr("Close")}
+      </button>
+    </div>
+  );
+}
+
 function RecordForm<T extends Managed>({
   fields,
   singular,
@@ -342,6 +377,7 @@ function RecordForm<T extends Managed>({
   onCancel,
   onSaved,
 }: RecordManagerProps<T> & { all: T[]; initial?: T; onCancel: () => void; onSaved: (item: T, isNew: boolean) => void }) {
+  const tr = useT();
   const base = useMemo(() => initial ?? blank(), [initial, blank]);
   const [values, setValues] = useState<Values>(() => toValues(base, fields));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -364,16 +400,16 @@ function RecordForm<T extends Managed>({
       const v = values[f.key];
       if (f.kind === "checkbox") continue;
       if (f.required && (v === "" || v === undefined)) {
-        found[f.key] = f.kind === "select" ? `Choose ${f.label.toLowerCase()}.` : `Enter ${f.label.toLowerCase()}.`;
+        found[f.key] = f.kind === "select" ? tr("Choose {toLowerCase}.", { toLowerCase: f.label.toLowerCase() }) : tr("Enter {toLowerCase}.", { toLowerCase: f.label.toLowerCase() });
         continue;
       }
       if (f.kind === "number" && v !== "") {
         const n = Number(v);
-        if (Number.isNaN(n)) found[f.key] = `${f.label} must be a number.`;
-        else if (f.min !== undefined && n < f.min) found[f.key] = `${f.label} can't be less than ${f.min}.`;
-        else if (f.max !== undefined && n > f.max) found[f.key] = `${f.label} can't be more than ${f.max}.`;
+        if (Number.isNaN(n)) found[f.key] = tr("{label} must be a number.", { label: tr(f.label) });
+        else if (f.min !== undefined && n < f.min) found[f.key] = tr("{label} can't be less than {min}.", { label: tr(f.label), min: f.min });
+        else if (f.max !== undefined && n > f.max) found[f.key] = tr("{label} can't be more than {max}.", { label: tr(f.label), max: f.max });
       }
-      if (f.kind === "email" && typeof v === "string" && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) found[f.key] = "Enter a valid email address.";
+      if (f.kind === "email" && typeof v === "string" && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) found[f.key] = tr("Enter a valid email address.");
     }
     Object.assign(found, Object.fromEntries(Object.entries(validate?.(draft, all, initial?.id ?? null) ?? {}).filter(([k, m]) => m && !found[k])));
     if (Object.values(found).some(Boolean)) {
@@ -401,7 +437,7 @@ function RecordForm<T extends Managed>({
   return (
     <Card className="mb-6">
       <form onSubmit={save} noValidate>
-        <p className="mb-4 font-semibold tracking-tight text-lg text-[var(--color-ink)]">{initial ? `Edit ${nameOf(initial)}` : `Add ${singular}`}</p>
+        <p className="mb-4 font-semibold tracking-tight text-lg text-[var(--color-ink)]">{initial ? tr("Edit {value}", { value: nameOf(initial) }) : tr("Add {singular}", { singular })}</p>
         <div className="grid gap-4 sm:grid-cols-2">
           {visible.map((f) => {
             const locked = !!initial && f.lockedOnEdit;
@@ -414,22 +450,22 @@ function RecordForm<T extends Managed>({
                     <input type="checkbox" checked={Boolean(v)} onChange={(e) => set(f, e.target.checked)} className="mt-0.5 h-4 w-4 accent-[var(--color-brand)]" />
                     <span>
                       {f.checkboxLabel ?? f.label}
-                      {f.hint && <span className="mt-0.5 block text-xs text-[var(--color-ink-faint)]">{f.hint}</span>}
+                      {f.hint && <span className="mt-0.5 block text-xs text-[var(--color-ink-faint)]">{tr(f.hint)}</span>}
                     </span>
                   </label>
                 ) : (
-                  <Field label={f.label} required={f.required} hint={locked ? "Can't be changed once created." : f.hint} error={errors[f.key]}>
+                  <Field label={tr(f.label)} required={f.required} hint={locked ? tr("Can't be changed once created.") : f.hint} error={errors[f.key]}>
                     {f.kind === "select" ? (
                       <SelectInput value={String(v)} onChange={(e) => set(f, e.target.value)} disabled={locked}>
-                        <option value="">{opts.length ? `Choose ${f.label.toLowerCase()}` : "Nothing to choose yet"}</option>
+                        <option value="">{opts.length ? tr("Choose {toLowerCase}", { toLowerCase: f.label.toLowerCase() }) : tr("Nothing to choose yet")}</option>
                         {opts.map((o) => (
                           <option key={o.value} value={o.value}>
-                            {o.label}
+                            {tr(o.label)}
                           </option>
                         ))}
                       </SelectInput>
                     ) : f.kind === "textarea" ? (
-                      <TextArea rows={3} value={String(v)} onChange={(e) => set(f, e.target.value)} placeholder={f.placeholder} />
+                      <TextArea rows={3} value={String(v)} onChange={(e) => set(f, e.target.value)} placeholder={tr(f.placeholder)} />
                     ) : (
                       <TextInput
                         type={f.kind === "number" ? "number" : f.kind === "email" ? "email" : "text"}
@@ -439,7 +475,7 @@ function RecordForm<T extends Managed>({
                         max={f.max}
                         step={f.step}
                         onChange={(e) => set(f, e.target.value)}
-                        placeholder={f.placeholder}
+                        placeholder={tr(f.placeholder)}
                         disabled={locked}
                       />
                     )}
@@ -451,13 +487,13 @@ function RecordForm<T extends Managed>({
         </div>
         {errorCount > 0 && (
           <div className="mt-4">
-            <FormError>{errorCount === 1 ? "Fix the highlighted field." : `Fix the ${errorCount} highlighted fields.`}</FormError>
+            <FormError>{errorCount === 1 ? tr("Fix the highlighted field.") : tr("Fix the {errorCount} highlighted fields.", { errorCount })}</FormError>
           </div>
         )}
         <div className="mt-5 flex flex-wrap gap-2">
-          <PrimaryButton type="submit">{initial ? "Save changes" : `Add ${singular}`}</PrimaryButton>
+          <PrimaryButton type="submit">{initial ? tr("Save changes") : tr("Add {singular}", { singular })}</PrimaryButton>
           <SecondaryButton type="button" onClick={onCancel}>
-            Cancel
+            {tr("Cancel")}
           </SecondaryButton>
         </div>
       </form>

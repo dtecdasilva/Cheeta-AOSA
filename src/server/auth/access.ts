@@ -1,4 +1,5 @@
 import "server-only";
+import { audit } from "@/server/audit/audit";
 import { and, eq, notInArray } from "drizzle-orm";
 import { PERMISSION_CATALOGUE, isAssignableTo, type PermissionDef, type PermissionKey } from "@/lib/auth/permissions";
 import { ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_PORTAL, type Role } from "@/lib/auth/roles";
@@ -87,6 +88,7 @@ export async function setUserPermissions(db: Executor, user: Account, keys: read
   const refused = unique.filter((k) => !isAssignableTo(k, user.role as Role));
   if (refused.length) throw new ValidationError({ permissions: `Not a permission this account can be given: ${refused.join(", ")}.` });
 
+  const before = (await db.select({ key: userPermissions.permissionKey }).from(userPermissions).where(eq(userPermissions.userId, user.id))).map((r) => r.key);
   await db.delete(userPermissions).where(unique.length ? and(eq(userPermissions.userId, user.id), notInArray(userPermissions.permissionKey, unique)) : eq(userPermissions.userId, user.id));
   if (unique.length) {
     await db
@@ -94,9 +96,15 @@ export async function setUserPermissions(db: Executor, user: Account, keys: read
       .values(unique.map((permissionKey) => ({ userId: user.id, permissionKey, grantedBy })))
       .onConflictDoNothing();
   }
+  const granted = unique.filter((k) => !before.includes(k));
+  const revoked = before.filter((k) => !unique.includes(k));
+  if (granted.length || revoked.length) {
+    await audit(db, { action: "permissions_changed", entityType: "permission", entityId: user.id, before: { permissions: [...before].sort() }, after: { permissions: [...unique].sort() }, meta: { granted, revoked } });
+  }
 }
 
 /** Removes every individual grant, e.g. when an account moves to another role. */
 export async function clearUserPermissions(db: Executor, userId: string) {
-  await db.delete(userPermissions).where(eq(userPermissions.userId, userId));
+  const removed = await db.delete(userPermissions).where(eq(userPermissions.userId, userId)).returning({ key: userPermissions.permissionKey });
+  if (removed.length) await audit(db, { action: "permissions_changed", entityType: "permission", entityId: userId, before: { permissions: removed.map((r) => r.key).sort() }, after: { permissions: [] }, meta: { granted: [], revoked: removed.map((r) => r.key) } });
 }

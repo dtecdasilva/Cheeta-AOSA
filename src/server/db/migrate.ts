@@ -74,34 +74,36 @@ export async function runMigrations(): Promise<MigrationReport> {
     log.warn("Migration files that are not in meta/_journal.json will not be applied. Create migrations with `npm run db:generate` in this folder.", { folder: MIGRATIONS, files: unlisted });
   }
 
-  await db.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
-  await db.execute(sql`CREATE TABLE IF NOT EXISTS ${APPLIED} (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`);
-  const recorded = ((await db.execute(sql`SELECT hash, created_at FROM ${APPLIED}`)) as unknown as { rows: { hash: string; created_at: string | number | null }[] }).rows;
-  const recordedAt = new Map(recorded.map((r) => [Number(r.created_at), r.hash]));
-  const recordedHash = new Set(recorded.map((r) => r.hash));
+  // One instance at a time: several starting together (a deploy, a scale-up) wait their turn on this lock,
+  // and the ones after the first find nothing pending. The lock is released when the transaction ends.
+  const { pending, changed } = await db.transaction(async (tx) => {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(724163)`);
+    await tx.execute(sql`CREATE SCHEMA IF NOT EXISTS "drizzle"`);
+    await tx.execute(sql`CREATE TABLE IF NOT EXISTS ${APPLIED} (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at bigint)`);
+    const recorded = ((await tx.execute(sql`SELECT hash, created_at FROM ${APPLIED}`)) as unknown as { rows: { hash: string; created_at: string | number | null }[] }).rows;
+    const recordedAt = new Map(recorded.map((r) => [Number(r.created_at), r.hash]));
+    const recordedHash = new Set(recorded.map((r) => r.hash));
 
-  const all = files.map((file, i) => ({ ...file, tag: journal[i].tag }));
-  const pending = all.filter((m) => !recordedAt.has(m.folderMillis) && !recordedHash.has(m.hash));
-  // Recorded as applied, but the file isn't what was applied.
-  const changed = all.filter((m) => recordedAt.has(m.folderMillis) && recordedAt.get(m.folderMillis) !== m.hash).map((m) => m.tag);
+    const all = files.map((file, i) => ({ ...file, tag: journal[i].tag }));
+    const pending = all.filter((m) => !recordedAt.has(m.folderMillis) && !recordedHash.has(m.hash));
+    // Recorded as applied, but the file isn't what was applied.
+    const changed = all.filter((m) => recordedAt.has(m.folderMillis) && recordedAt.get(m.folderMillis) !== m.hash).map((m) => m.tag);
 
-  const empty = pending.filter((m) => isEmpty(m.sql)).map((m) => m.tag);
-  if (empty.length) {
-    throw new Error(`Migration ${empty.join(", ")} in ${MIGRATIONS} is empty. Nothing was applied. Put its SQL in the file (or run \`npm run db:generate\` again), then restart.`);
-  }
-  if (changed.length) {
-    log.warn("These migrations were changed after they were applied. The database has the earlier version; the current contents will not run.", { migrations: changed });
-  }
-
-  if (pending.length) {
-    await db.transaction(async (tx) => {
-      for (const migration of pending) {
-        log.info("Applying migration", { migration: migration.tag });
-        for (const statement of migration.sql) await tx.execute(sql.raw(statement));
-        await tx.execute(sql`INSERT INTO ${APPLIED} ("hash", "created_at") VALUES (${migration.hash}, ${migration.folderMillis})`);
-      }
-    });
-  }
+    const empty = pending.filter((m) => isEmpty(m.sql)).map((m) => m.tag);
+    if (empty.length) {
+      throw new Error(`Migration ${empty.join(", ")} in ${MIGRATIONS} is empty. Nothing was applied. Put its SQL in the file (or run \`npm run db:generate\` again), then restart.`);
+    }
+    if (changed.length) {
+      log.warn("These migrations were changed after they were applied. The database has the earlier version; the current contents will not run.", { migrations: changed });
+    }
+    // Either all of the pending ones are applied or none are.
+    for (const migration of pending) {
+      log.info("Applying migration", { migration: migration.tag });
+      for (const statement of migration.sql) await tx.execute(sql.raw(statement));
+      await tx.execute(sql`INSERT INTO ${APPLIED} ("hash", "created_at") VALUES (${migration.hash}, ${migration.folderMillis})`);
+    }
+    return { pending, changed };
+  });
 
   log.info("Database migrations up to date", {
     applied: pending.length ? pending.map((m) => m.tag).join(", ") : "none",
