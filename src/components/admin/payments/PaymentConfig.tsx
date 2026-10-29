@@ -10,6 +10,7 @@ import { PAYMENT_DEFAULTS, paymentSettingsStore, type PaymentSettings } from "@/
 import { parameterStore, sortParams } from "@/lib/admin/parameters";
 import { BASE_CURRENCY, currencyStore } from "@/lib/admin/reference";
 import { useT } from "@/lib/i18n/client";
+import { DELIBERATION_ENABLED } from "@/lib/features";
 
 /**
  * An amount in francs that may be left empty. Empty means "not decided
@@ -100,6 +101,8 @@ export function PaymentConfig() {
           },
           {
             title: tr("Deliberation fees"),
+            // Switched off until deliberation is released (src/lib/features.ts); the saved prices are kept.
+            hidden: !DELIBERATION_ENABLED,
             description:
               tr("Deliberation is a paid service for institutions. Every institution sees its Deliberation List and can reject applications, but admitting applicants through the platform needs a subscription. Leave a price empty until it has been decided: no institution can subscribe until both are set. Enter 0 for no charge."),
             fields: [
@@ -199,7 +202,7 @@ export function PaymentConfig() {
       />
 
       <InstitutionWebFees platformFee={platformWebFee} />
-      <DeliberationSubscriptions />
+      {DELIBERATION_ENABLED && <DeliberationSubscriptions />}
     </>
   );
 }

@@ -1,3 +1,5 @@
+import { DELIBERATION_ENABLED } from "@/lib/features";
+
 /** Report keys, dependency-free so server pages can validate the URL. */
 export const REPORT_KEYS = [
   "student-registration",
@@ -18,5 +20,5 @@ export const isReportKey = (s: string): s is ReportKey => (REPORT_KEYS as readon
 
 /** Platform registration is AOSA's business, not an institution's. */
 export function reportsFor(scope: "admin" | "institution"): ReportKey[] {
-  return REPORT_KEYS.filter((k) => scope === "admin" || k !== "student-registration");
+  return REPORT_KEYS.filter((k) => (scope === "admin" || k !== "student-registration") && (DELIBERATION_ENABLED || k !== "deliberation"));
 }

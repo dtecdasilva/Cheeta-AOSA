@@ -36,6 +36,8 @@ export interface SettingsSection<T> {
   title: string;
   description?: string;
   fields: SettingSpec<T>[];
+  /** Not shown or checked (a module that is switched off); its saved values are kept as they are. */
+  hidden?: boolean;
 }
 
 interface EditorProps<T extends { id: string; updatedAt: string }> {
@@ -58,7 +60,7 @@ export function SettingsEditor<T extends { id: string; updatedAt: string }>(prop
 function EditorForm<T extends { id: string; updatedAt: string }>({
   store,
   defaults,
-  sections,
+  sections: allSections,
   validate,
   aside,
   saved,
@@ -66,6 +68,7 @@ function EditorForm<T extends { id: string; updatedAt: string }>({
   setNotice,
 }: EditorProps<T> & { saved: T; notice: string; setNotice: (s: string) => void }) {
   const tr = useT();
+  const sections = allSections.filter((s) => !s.hidden);
   const [draft, setDraft] = useState<T>(saved);
   const [errors, setErrors] = useState<Record<string, string>>({});
   // For settings kept in the database: why the server refused the last save, if it did.

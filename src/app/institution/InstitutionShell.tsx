@@ -33,13 +33,14 @@ import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { Logo } from "@/components/brand/Logo";
 import { useUnreadCount } from "@/components/notifications/NotificationCentre";
 import { useT } from "@/lib/i18n/client";
+import { DELIBERATION_ENABLED } from "@/lib/features";
 
 interface NavItem {
   label: string;
   href: string;
   icon: LucideIcon;
   /** Which derived count, if any, to show as a badge. */
-  badge?: "applications" | "notifications";
+  badge?: "applications" | "notifications" | "soon";
   /** Only the institution's administrator sees it. */
   adminOnly?: boolean;
 }
@@ -58,7 +59,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Student Applications", href: "/institution/applications", icon: FileText, badge: "applications" },
   { label: "Acknowledged Applications", href: "/institution/applications/acknowledged", icon: BadgeCheck },
   { label: "Rejected Applications", href: "/institution/applications/rejected", icon: X },
-  { label: "Deliberation", href: "/institution/deliberations", icon: ListChecks },
+  { label: "Deliberation", href: "/institution/deliberations", icon: ListChecks, badge: DELIBERATION_ENABLED ? undefined : "soon" },
   { label: "Admissions", href: "/institution/admissions", icon: FileText },
   { label: "Application Fees", href: "/institution/payments", icon: Receipt },
   { label: "Tuition Verification", href: "/institution/tuition", icon: BadgeCheck },
@@ -112,6 +113,9 @@ export function InstitutionShell({ user, children }: { user: PublicUser; childre
               <span className="ml-auto min-w-5 rounded-full bg-[var(--color-brand)] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">
                 {toReview}
               </span>
+            )}
+            {item.badge === "soon" && (
+              <span className="ml-auto rounded-full border border-[var(--color-line-strong)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--color-ink-soft)]">{tr("Soon")}</span>
             )}
             {item.badge === "notifications" && unreadNotifications > 0 && (
               <span className="ml-auto min-w-5 rounded-full bg-[var(--color-brand)] px-1.5 py-0.5 text-center text-[10px] font-semibold text-white">

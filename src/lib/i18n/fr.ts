@@ -3603,5 +3603,9 @@ export const FR: Record<string, string> = {
  "This town isn't in the region chosen.": "Cette ville n'est pas dans la région choisie.",
  "Only the status can be changed here: the institution manages its own details.": "Seul le statut peut être modifié ici : l'établissement gère ses propres détails.",
  "Choose qualifications from the list.": "Choisissez des qualifications dans la liste.",
- "Deposited": "Déposé"
+ "Deposited": "Déposé",
+ "Soon": "Bientôt",
+ "Coming soon": "Bientôt disponible",
+ "Admission rules, deliberation runs and admission offers.": "Règles d'admission, délibérations et offres d'admission.",
+ "Deliberation will be available here soon. You can keep reviewing applications in the meantime: everything you acknowledge stays on your deliberation list, ready for the first run.": "La délibération sera bientôt disponible ici. Vous pouvez continuer à examiner les candidatures en attendant : tout ce que vous validez reste sur votre liste de délibération, prêt pour la première délibération.",
 };

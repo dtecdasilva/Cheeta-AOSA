@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DELIBERATION_ENABLED } from "@/lib/features";
 import { useInstitutionList } from "@/lib/institution/api";
 import { ADMISSION_STATUS_LABELS, type AdmissionStatus } from "@/lib/admissions/letter";
 import type { AdmissionListItem } from "@/lib/admissions/list";
@@ -86,9 +87,11 @@ export default function AdmissionsTable({ initialStatus }: { initialStatus?: str
             {items ? tr("Showing {count} of {total} admissions", { count: items.length, total }) : tr("Loading…")} · {counts.OFFERED ?? 0} offered, {counts.ACCEPTED ?? 0}{" "}{tr("taken up,")}{" "}{counts.REJECTED ?? 0} declined{counts.WITHDRAWN ? tr(", {WITHDRAWN} withdrawn", { WITHDRAWN: counts.WITHDRAWN }) : ""}
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/institution/admissions/provisional" className="text-sm font-medium text-[var(--color-ink)] underline underline-offset-4">
-              {tr("Make a provisional offer")}
-            </Link>
+            {DELIBERATION_ENABLED && (
+              <Link href="/institution/admissions/provisional" className="text-sm font-medium text-[var(--color-ink)] underline underline-offset-4">
+                {tr("Make a provisional offer")}
+              </Link>
+            )}
             <SecondaryButton onClick={reset}>{tr("Reset filters")}</SecondaryButton>
           </div>
         </div>
