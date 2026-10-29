@@ -19,8 +19,9 @@ const nonNeg = z.number().int().min(0);
 
 const systemSchema = z.object({
   platformName: z.string().trim().min(1).max(100),
-  supportEmail: z.email(),
-  supportPhone: z.string().trim().min(1).max(40),
+  // Optional until the real contacts are known.
+  supportEmail: z.email().or(z.literal("")),
+  supportPhone: z.string().trim().max(40),
   defaultLanguage: z.enum(["en", "fr"]),
   timezone: z.string().trim().min(1).max(60),
   dateFormat: z.enum(["DD/MM/YYYY", "YYYY-MM-DD"]),
@@ -47,9 +48,10 @@ const paymentSchema = z.object({
   // Null until the administrator sets a price; see PaymentSettings.
   deliberationSubscriptionFee: nonNeg.max(100_000_000).nullable(),
   deliberationPerNameFee: nonNeg.max(1_000_000).nullable(),
-  webFeeCollectionBank: z.string().trim().min(1).max(120),
-  webFeeAccountName: z.string().trim().min(1).max(120),
-  webFeeAccountNumber: z.string().trim().min(1).max(60),
+  // Optional until the real collection account is known.
+  webFeeCollectionBank: z.string().trim().max(120),
+  webFeeAccountName: z.string().trim().max(120),
+  webFeeAccountNumber: z.string().trim().max(60),
   allowedMethodIds: z.array(z.string()).min(1, "Allow at least one payment channel."),
   requireReceipt: z.boolean(),
   approvalTargetHours: z.number().int().min(1).max(336),

@@ -43,6 +43,13 @@
       "when": 1793094655112,
       "tag": "0005_platform_upgrade",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793297571252,
+      "tag": "0006_fresh_start",
+      "breakpoints": true
     }
   ]
 }

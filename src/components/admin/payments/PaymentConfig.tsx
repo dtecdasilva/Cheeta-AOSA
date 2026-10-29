@@ -123,9 +123,9 @@ export function PaymentConfig() {
             title: tr("Web fee collection account"),
             description: tr("The account applicants pay the platform's web fee into. Institutions never see this amount."),
             fields: [
-              { key: "webFeeCollectionBank", label: tr("Bank"), kind: "text", required: true },
-              { key: "webFeeAccountName", label: tr("Account name"), kind: "text", required: true },
-              { key: "webFeeAccountNumber", label: tr("Account number / IBAN"), kind: "text", required: true, wide: true },
+              { key: "webFeeCollectionBank", label: tr("Bank"), kind: "text" },
+              { key: "webFeeAccountName", label: tr("Account name"), kind: "text" },
+              { key: "webFeeAccountNumber", label: tr("Account number / IBAN"), kind: "text", wide: true },
             ],
           },
           {

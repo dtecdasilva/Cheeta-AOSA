@@ -36,8 +36,8 @@ export function SystemConfig() {
             description: tr("How the platform presents itself in emails, documents and the sign-in page."),
             fields: [
               { key: "platformName", label: tr("Platform name"), kind: "text", required: true },
-              { key: "supportEmail", label: tr("Support email"), kind: "email", required: true },
-              { key: "supportPhone", label: tr("Support phone"), kind: "text", required: true },
+              { key: "supportEmail", label: tr("Support email"), kind: "email" },
+              { key: "supportPhone", label: tr("Support phone"), kind: "text" },
               {
                 key: "defaultLanguage",
                 label: tr("Default language"),

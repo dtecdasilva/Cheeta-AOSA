@@ -23,20 +23,6 @@ export default async function LoginPage() {
             {tr("Institution and administration accounts are provisioned by the platform directly — contact your institution or the Cheeta/AOSA administration team if you need one.")}
           </p>
 
-          <div className="mt-6 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4 text-sm">
-            <p className="mb-2 font-medium">{tr("Demo institution accounts")}</p>
-            <div className="space-y-1 text-xs">
-              <div>
-                <span className="font-medium">{tr("Institution Administrator")}</span>{tr(": admin@montfebe.cheeta.local")}
-                <span className="ml-2 font-mono">{tr("Institution123!")}</span>
-              </div>
-              <div>
-                <span className="font-medium">{tr("Institution Admission User")}</span>{tr(": admissions@montfebe.cheeta.local")}
-                <span className="ml-2 font-mono">{tr("Institution123!")}</span>
-              </div>
-            </div>
-          </div>
-
           <a href="/" className="mt-6 block text-center text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
             {tr("Back to home")}
           </a>

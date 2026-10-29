@@ -34,8 +34,9 @@ export interface SystemSettings {
 export const SYSTEM_DEFAULTS: SystemSettings = {
   id: "platform",
   platformName: "Cheeta AOSA",
-  supportEmail: "support@aosa.cheeta.local",
-  supportPhone: "+237 222 00 00 00",
+  // Blank until the administrator enters the real contacts (System settings).
+  supportEmail: "",
+  supportPhone: "",
   defaultLanguage: "en",
   timezone: "Africa/Douala",
   dateFormat: "DD/MM/YYYY",
@@ -92,9 +93,10 @@ export const PAYMENT_DEFAULTS: PaymentSettings = {
   defaultWebFee: 2000,
   deliberationSubscriptionFee: null,
   deliberationPerNameFee: null,
-  webFeeCollectionBank: "Afriland First Bank",
-  webFeeAccountName: "Cheeta AOSA — Web fees",
-  webFeeAccountNumber: "CM21 10005 00001 00000000001 21",
+  // Blank until the administrator enters the real collection account (Payment configuration).
+  webFeeCollectionBank: "",
+  webFeeAccountName: "",
+  webFeeAccountNumber: "",
   allowedMethodIds: ["MTN-MOMO", "ORANGE-MONEY", "BANK", "WALLET", "TRANSFER"].map((c) => `payment-method-types:${c}`),
   requireReceipt: true,
   approvalTargetHours: 48,
