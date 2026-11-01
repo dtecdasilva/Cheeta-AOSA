@@ -51,9 +51,10 @@ const inviteSchema = z
   .object({
     fullName: requiredText(200),
     email: z.email().transform((v) => v.trim().toLowerCase()),
-    phone: z.string().trim().max(40).optional(),
+    // The form sends null for a field left empty (no phone; no institution for a Cheeta administrator).
+    phone: z.string().trim().max(40).nullish().transform((v) => v || undefined),
     role: roleEnum,
-    institutionId: z.string().trim().optional(),
+    institutionId: z.string().trim().nullish().transform((v) => v || undefined),
     mfaEnabled: z.boolean().default(false),
   })
   .refine((v) => !isInstitutionRole(v.role) || !!v.institutionId, { path: ["institutionId"], message: "Choose the institution." });
