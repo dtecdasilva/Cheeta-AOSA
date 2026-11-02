@@ -20,11 +20,10 @@ export default async function PaymentMethodView({ method, canEdit }: { method: P
         <DescriptionList
           items={[
             ...describePaymentMethod(method).map((row) => ({ label: row.label, value: row.value })),
-            { label: tr("Instructions for payers"), value: method.instructions },
-            { label: tr("Tuition"), value: method.acceptsTuition ? tr("Also accepts tuition payments") : tr("Application fees only") },
+            { label: tr("Notes for Cheeta"), value: method.instructions },
             { label: tr("Verification"), value: verification },
             { label: tr("Status"), value: method.status === "ACTIVE" ? tr("Active") : tr("Inactive") },
-            { label: tr("Shown to applicants"), value: method.status === "ACTIVE" && method.verification === "VERIFIED" ? tr("Yes") : tr("No") },
+            { label: tr("Cheeta can pay into it"), value: method.status === "ACTIVE" && method.verification === "VERIFIED" ? tr("Yes") : tr("No") },
           ]}
         />
       </Card>

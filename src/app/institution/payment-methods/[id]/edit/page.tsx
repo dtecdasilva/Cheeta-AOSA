@@ -16,8 +16,8 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
 
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title={tr("Edit payment method")} />
-      {record ? <PaymentMethodForm initial={record} /> : <EmptyState message={tr("This payment method doesn't exist, or belongs to another institution.")} />}
+      <PageHeading title={tr("Edit payout account")} />
+      {record ? <PaymentMethodForm initial={record} /> : <EmptyState message={tr("This payout account doesn't exist, or belongs to another institution.")} />}
     </main>
   );
 }

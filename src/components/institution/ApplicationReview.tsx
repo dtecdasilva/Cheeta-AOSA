@@ -9,7 +9,7 @@ import { AdminStatusBadge, ToneBadge } from "@/components/admin/ui";
 import { ADMIN_STATUS_LABELS } from "@/lib/admin/status";
 import { useMoneyFormat } from "@/lib/currency/useCurrencies";
 import { useOptions } from "@/lib/institution/api";
-import { useApplicationReview, type ActionOutcome, type PaymentCheck, type ReviewApplication, type ReviewDocument } from "@/lib/institution/applications";
+import { useApplicationReview, type ActionOutcome, type ReviewApplication, type ReviewDocument } from "@/lib/institution/applications";
 import { formatDate, formatDateTime } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
 
@@ -31,12 +31,6 @@ const DOC_STATUS: Record<ReviewDocument["reviewStatus"], { label: string; tone: 
   PENDING: { label: "To review", tone: "neutral" },
   APPROVED: { label: "Approved", tone: "success" },
   REJECTED: { label: "Rejected", tone: "danger" },
-};
-
-const PAYMENT_STATUS: Record<PaymentCheck, { label: string; tone: "neutral" | "success" | "danger" }> = {
-  PENDING: { label: "Not checked yet", tone: "neutral" },
-  VERIFIED: { label: "Received", tone: "success" },
-  NOT_RECEIVED: { label: "Not received", tone: "danger" },
 };
 
 const ACTOR: Record<string, string> = { applicant: "Applicant", institution: "Institution", admin: "Cheeta administration", system: "Automatically" };
@@ -107,7 +101,7 @@ export default function ApplicationReview({ id }: { id: string }) {
       {app.submitted && app.actions && <DecisionPanel app={app} reasons={reasons} onAcknowledge={(note) => run(review.acknowledge(note), tr("Application acknowledged. The applicant has been told and is on your deliberation list."))} onReject={(reasonId, note) => run(review.reject(reasonId, note), tr("Application rejected. The applicant has been told why."))} />}
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {app.payment && <PaymentPanel app={app} onCheck={(decision, note) => run(review.verifyPayment(decision, note), decision === "verify" ? tr("Payment recorded as received.") : tr("Recorded as not received. Cheeta administration has been asked to look into it."))} />}
+        {app.payment && <PaymentPanel app={app} />}
         <Card padded={false}>
           <CardHeader title={tr("Study choices")} />
           {app.choices?.length ? (
@@ -303,85 +297,22 @@ function CancelDecisionPanel({ app, onCancel }: { app: ReviewApplication; onCanc
 // Payment
 // ---------------------------------------------------------------------------
 
-function PaymentPanel({ app, onCheck }: { app: ReviewApplication; onCheck: (decision: "verify" | "not_received", note: string) => Promise<ActionOutcome> }) {
+function PaymentPanel({ app }: { app: ReviewApplication }) {
   const tr = useT();
   const money = useMoneyFormat();
-  const [mode, setMode] = useState<"verify" | "not_received" | null>(null);
-  const [note, setNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const p = app.payment!;
-  const check = PAYMENT_STATUS[p.verification.status];
-
-  async function confirm() {
-    if (!mode || saving) return;
-    if (mode === "not_received" && !note.trim()) return setError(tr("Say what you found, for Cheeta administration to look into."));
-    setSaving(true);
-    setError(null);
-    const result = await onCheck(mode, note.trim());
-    setSaving(false);
-    if (!result.ok) return setError(Object.values(result.fieldErrors)[0] ?? result.error);
-    setMode(null);
-    setNote("");
-  }
-
   return (
     <Card padded={false}>
-      <CardHeader title={tr("Application fee")} description={tr("Approved by Cheeta administration. Check it reached your account.")} />
+      <CardHeader title={tr("Application fee")} description={tr("Paid to Cheeta AOSA and approved by Cheeta administration. Cheeta pays your institution this fee under Payouts.")} />
       <DescriptionList
         items={[
           { label: tr("Bank code"), value: <span className="font-mono">{p.bankCode}</span> },
           { label: tr("Your application fee"), value: money(p.applicationFee, p.currency) },
-          { label: tr("Paid into"), value: p.account ? `${p.account.label}: ${p.account.provider}, ${p.account.accountNumber}` : "—" },
           { label: tr("Payment reference"), value: <span className="font-mono">{p.reference}</span> },
           { label: tr("Paid on"), value: formatDate(p.paidAt) },
-          { label: tr("Sent from"), value: p.paidFrom || "—" },
-          {
-            label: tr("Received in your account"),
-            value: (
-              <span>
-                <ToneBadge tone={check.tone}>{tr(check.label)}</ToneBadge>
-                {p.verification.at && (
-                  <span className="mt-1 block text-xs text-[var(--color-ink-soft)]">
-                    {p.verification.by ? `${p.verification.by}, ` : ""}
-                    {formatDateTime(p.verification.at)}
-                    {p.verification.note ? `: ${p.verification.note}` : ""}
-                  </span>
-                )}
-              </span>
-            ),
-          },
+          { label: tr("Status"), value: <ToneBadge tone="success">{tr("Approved by Cheeta")}</ToneBadge> },
         ]}
       />
-      {app.actions?.verifyPayment && (
-        <div className="border-t border-[var(--color-line)] px-5 py-4">
-          {mode === null ? (
-            <div className="flex flex-wrap gap-2">
-              <PrimaryButton type="button" onClick={() => setMode("verify")} disabled={p.verification.status === "VERIFIED"}>
-                {tr("Payment received")}
-              </PrimaryButton>
-              <SecondaryButton type="button" onClick={() => setMode("not_received")} disabled={p.verification.status === "NOT_RECEIVED"}>
-                {tr("Not received")}
-              </SecondaryButton>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <Field label={mode === "verify" ? tr("Note (optional)") : tr("What did you find?")} required={mode === "not_received"}>
-                <TextArea rows={2} value={note} onChange={(e) => (setNote(e.target.value), setError(null))} maxLength={1000} placeholder={mode === "verify" ? tr("Seen on the statement of 12 October.") : tr("No credit with this reference on our statement.")} />
-              </Field>
-              {error && <FormError>{tr(error)}</FormError>}
-              <div className="flex flex-wrap gap-2">
-                <PrimaryButton type="button" onClick={confirm} disabled={saving}>
-                  {saving ? tr("Saving…") : mode === "verify" ? tr("Confirm received") : tr("Record as not received")}
-                </PrimaryButton>
-                <SecondaryButton type="button" onClick={() => (setMode(null), setError(null))} disabled={saving}>
-                  {tr("Cancel")}
-                </SecondaryButton>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </Card>
   );
 }

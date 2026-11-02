@@ -8,7 +8,7 @@ import { ButtonLinkClass } from "@/components/Form";
 import { FilterBar, FilterSelect, Pager, ResultCount, SearchField, StatStrip, ToneBadge, usePaged } from "@/components/admin/ui";
 import { BankCodeLookup } from "@/components/payments/BankCodeLookup";
 import { INSTITUTION_TUITION_META, type InstitutionTuitionView } from "@/lib/tuition/data";
-import { markTuitionReceived, useInstitutionTuition } from "@/lib/tuition/api";
+import { useInstitutionTuition } from "@/lib/tuition/api";
 import { FormError } from "@/components/Form";
 import { matchesSearch } from "@/lib/admin/filters";
 import { useHydrated } from "@/lib/admin/store";
@@ -18,9 +18,8 @@ import { useT } from "@/lib/i18n/client";
 /**
  * The institution's side of tuition. Everything here goes through
  * `institutionTuitionView`, which redacts what the institution may not
- * see. The institution doesn't verify payments (AOSA does); its job here
- * is to find each approved payment on its own statement and mark it
- * received.
+ * see. Students pay tuition to Cheeta AOSA, which verifies each payment
+ * and pays the institution under Payouts; there is nothing to reconcile.
  */
 
 function Note() {
@@ -28,7 +27,7 @@ function Note() {
   return (
     <p className="mb-6 flex items-start gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-info-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-info)]" strokeWidth={1.75} />
-      {tr("AOSA verifies every tuition payment. While a payment is being checked you see only the student's first name and “awaiting payment”. Once it's approved it appears here with a bank code: find it on your statement and mark it received.")}
+      {tr("Students pay tuition to Cheeta AOSA, which verifies every payment and pays your institution under Payouts. While a payment is being checked you see only the student's first name and “awaiting payment”. Once it's approved it appears here with a bank code.")}
     </p>
   );
 }
@@ -47,45 +46,31 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
 
   const [search, setSearch] = useState("");
   const [state, setState] = useState("");
-  const [reconcile, setReconcile] = useState("");
 
   const filtered = views
     .filter(
       (v) =>
         (!state || v.state === state) &&
-        (!reconcile || (reconcile === "to-reconcile" ? v.toReconcile > 0 : v.confirmedPayments.length > 0 && v.toReconcile === 0)) &&
         // Masked rows can only be found by the masked name.
         matchesSearch(search, v.masked ? [v.displayName] : [v.displayName, v.registrationNo, v.applicationRef, v.programName, ...v.confirmedPayments.map((p) => p.bankCode)])
     )
-    .sort((x, y) => Number(y.toReconcile > 0) - Number(x.toReconcile > 0) || Number(x.masked) - Number(y.masked) || x.displayName.localeCompare(y.displayName));
+    .sort((x, y) => Number(x.masked) - Number(y.masked) || x.displayName.localeCompare(y.displayName));
 
   const { slice, page, pages, setPage } = usePaged(filtered, 25);
   const identified = views.filter((v) => !v.masked);
   const sum = (k: "confirmed" | "outstanding") => identified.reduce((s, v) => s + (v[k] ?? 0), 0);
   const awaiting = views.filter((v) => v.masked).length;
-  const toReconcile = views.reduce((s, v) => s + v.toReconcile, 0);
 
   return (
     <>
       {loadError && <div className="mb-4"><FormError>{tr(loadError)}</FormError></div>}
       <Note />
       <StatStrip
-        columns={5}
+        columns={4}
         stats={[
           { label: tr("Admitted students"), value: views.length },
           { label: tr("Awaiting payment"), value: awaiting, detail: tr("Being checked by AOSA") },
           { label: tr("Approved by AOSA"), value: formatCurrency(sum("confirmed")), detail: tr("{count} paid in full", { count: identified.filter((v) => v.state === "PAID").length }) },
-          {
-            label: tr("To mark received"),
-            value: toReconcile,
-            detail: toReconcile ? (
-              <button type="button" onClick={() => setReconcile("to-reconcile")} className="underline underline-offset-4">
-                {tr("Show them")}
-              </button>
-            ) : (
-              tr("All reconciled")
-            ),
-          },
           { label: tr("Outstanding"), value: formatCurrency(sum("outstanding")), detail: tr("Students with an approved payment or none yet") },
         ]}
       />
@@ -95,19 +80,9 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
       </div>
 
       <div className="mt-6">
-        <FilterBar active={!!(search || state || reconcile)} onClear={() => { setSearch(""); setState(""); setReconcile(""); }}>
+        <FilterBar active={!!(search || state)} onClear={() => { setSearch(""); setState(""); }}>
           <SearchField value={search} onChange={setSearch} placeholder={tr("Student, registration no. or bank code")} />
           <FilterSelect label={tr("Status")} value={state} onChange={setState} options={Object.entries(INSTITUTION_TUITION_META).map(([k, m]) => ({ value: k, label: m.label }))} />
-          <FilterSelect
-            label={tr("Reconciliation")}
-            value={reconcile}
-            onChange={setReconcile}
-            allLabel={tr("Any")}
-            options={[
-              { value: "to-reconcile", label: tr("Payments to mark received") },
-              { value: "done", label: tr("All marked received") },
-            ]}
-          />
         </FilterBar>
       </div>
 
@@ -167,7 +142,6 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
                         {v.confirmedPayments.map((p) => (
                           <li key={p.id} className="whitespace-nowrap font-mono text-xs text-[var(--color-ink)]">
                             {p.bankCode}
-                            {!p.receivedAt && <span className="ml-2 font-sans text-[var(--color-warning-strong)]">{tr("to mark")}</span>}
                           </li>
                         ))}
                       </ul>
@@ -189,17 +163,8 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
   const hydrated = useHydrated();
   const { items: views, loaded } = useInstitutionTuition();
   const v = views.find((a) => a.id === id);
-  const [notice, setNotice] = useState("");
-  const [error, setError] = useState("");
   void institutionId;
   void staffName;
-
-  async function setReceived(paymentId: string, bankCode: string, received: boolean) {
-    const r = await markTuitionReceived(paymentId, received);
-    if (!r.ok) return setError(r.error);
-    setError("");
-    setNotice(received ? tr("{bankCode} marked received.", { bankCode }) : tr("{bankCode} is no longer marked received.", { bankCode }));
-  }
 
   const back = (
     <Link href={basePath} className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
@@ -254,16 +219,6 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
         <StateBadge v={v} />
       </div>
 
-      {error && (
-        <div className="mb-4">
-          <FormError>{tr(error)}</FormError>
-        </div>
-      )}
-      {notice && (
-        <p role="status" className="mb-4 rounded-lg border border-[var(--color-success-soft)] bg-[var(--color-success-soft)] px-3 py-2 text-sm text-[var(--color-success-strong)]">
-          {tr(notice)}
-        </p>
-      )}
 
       <StatStrip
         columns={4}
@@ -278,7 +233,7 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
       <div className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">
           <Card padded={false}>
-            <CardHeader title={tr("Approved payments")} description={tr("Find each bank code on your statement, then mark it received.")} />
+            <CardHeader title={tr("Approved payments")} description={tr("Verified by Cheeta AOSA. Cheeta pays your institution these amounts under Payouts.")} />
             {v.confirmedPayments.length === 0 ? (
               <p className="px-5 py-8 text-center text-sm text-[var(--color-ink-soft)]">{tr("No approved payments yet.")}</p>
             ) : (
@@ -290,31 +245,6 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
                       <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr("Approved by AOSA {value}", { value: formatDate(p.verifiedAt) })}</p>
                     </div>
                     <p className="tabular-nums text-[var(--color-ink)]">{formatCurrency(p.amount)}</p>
-                    <div className="text-right">
-                      {p.receivedAt ? (
-                        <>
-                          <ToneBadge tone="success">{tr("Received")}</ToneBadge>
-                          <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
-                            {formatDate(p.receivedAt)}, {tr(p.receivedBy)}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => void setReceived(p.id, p.bankCode, false)}
-                            className="mt-1 text-xs text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-ink)]"
-                          >
-                            {tr("Undo")}
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => void setReceived(p.id, p.bankCode, true)}
-                          className="inline-flex items-center rounded-lg border border-[var(--color-ink)] px-3 py-1.5 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-ink)] hover:text-white"
-                        >
-                          {tr("Mark received")}
-                        </button>
-                      )}
-                    </div>
                   </li>
                 ))}
               </ul>

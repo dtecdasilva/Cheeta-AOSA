@@ -14,11 +14,11 @@ import { buttonClass } from "@/lib/ui/button";
 import { useT } from "@/lib/i18n/client";
 
 /**
- * Every way the applicant can pay each institution, next to what's still
- * owed there. The amounts come from /api/student/fees (the same figures
+ * Every way the applicant can pay, next to what's still owed for each
+ * institution. The amounts come from /api/student/fees (the same figures
  * as the Application Fee Summary) and the accounts from
- * /api/student/payment-methods: each institution's own payment methods,
- * and only the ones that are active and verified by Cheeta administration.
+ * /api/student/payment-methods: Cheeta AOSA's own accounts. Applicants pay
+ * everything to Cheeta, which pays each institution its share.
  */
 
 const ICONS: Record<PaymentMethodType, LucideIcon> = { bank: Landmark, mobile_operator: Smartphone, money_transfer: Banknote, debit_wallet: Wallet };
@@ -42,7 +42,7 @@ export function PaymentOptions() {
         <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{tr("How paying works")}</p>
         <ol className="mt-3 grid gap-px overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-line)] sm:grid-cols-3">
           {[
-            [tr("Pay the institution"), tr("Use one of the accounts below. Quote your application reference so the payment can be matched.")],
+            [tr("Pay Cheeta AOSA"), tr("Pay into one of Cheeta AOSA's accounts below. Quote your application reference so the payment can be matched. Cheeta pays the institution its share.")],
             [tr("Record your payment"), tr("Add the transaction reference and upload the receipt under the method you used.")],
             [tr("Wait for approval"), tr("AOSA checks the payment, usually within 48 hours, and issues a bank code. Your application can then be submitted.")],
           ].map(([title, text], i) => (
@@ -142,7 +142,7 @@ export function PaymentOptions() {
                             )}
                           </>
                         ) : (
-                          <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">{tr("Not offered by this institution.")}</p>
+                          <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">{tr("Not offered at the moment.")}</p>
                         )}
                       </li>
                     );
@@ -160,22 +160,36 @@ export function PaymentOptions() {
             <div>
               <p className="font-semibold tracking-tight text-lg text-[var(--color-ink)]">{tr("My Payment Options")}</p>
               <p className="mt-1 max-w-2xl text-sm text-[var(--color-ink-soft)]">
-                {tr("Print this table and use it to pay each institution's application fee and the web fee, then come back to record your payment and submit your application.")}
+                {tr("Print this sheet and use it to pay Cheeta AOSA the amount for each application (the institution's application fee and the web fee), then come back to record your payment and submit your application.")}
               </p>
             </div>
             <button type="button" onClick={() => window.print()} className={`no-print ${buttonClass("secondary")}`}>
               <Printer className="h-4 w-4" /> {tr("Print")}
             </button>
           </div>
-          {fees.applications.map((line) => {
-            const accounts = accountsOf(line.id);
+          <div className="break-inside-avoid rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-5 py-4">
+            <p className="font-medium text-[var(--color-ink)]">{tr("Amounts to pay")}</p>
+            <table className="mt-2 w-full text-sm">
+              <tbody>
+                {fees.applications.map((line) => (
+                  <tr key={line.id} className="border-t border-[var(--color-line)]">
+                    <td className="py-1.5 pr-4 text-[var(--color-ink)]">{tr(line.institution.name)}</td>
+                    <td className="py-1.5 pr-4 text-[var(--color-ink-soft)]">{tr("Reference {reference}", { reference: line.reference })}</td>
+                    <td className="py-1.5 text-right tabular-nums text-[var(--color-ink)]">
+                      {line.state === "PAID" ? tr("Paid") : line.state === "AWAITING" ? tr("Awaiting approval") : line.state === "UNPRICED" ? tr("Not priced yet") : <ConvertedAmount amount={line.total ?? 0} fromCode={line.currency} toCode={line.currency} />}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {(() => {
+            const accounts = fees.applications.length ? accountsOf(fees.applications[0].id) : [];
             return (
-              <div key={line.id} className="break-inside-avoid rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-5 py-4">
-                <p className="font-medium text-[var(--color-ink)]">
-                  {tr(line.institution.name)} <span className="text-sm font-normal text-[var(--color-ink-soft)]">· {tr("Application reference {reference}", { reference: line.reference })}</span>
-                </p>
+              <div className="break-inside-avoid rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] px-5 py-4">
+                <p className="font-medium text-[var(--color-ink)]">{tr("Cheeta AOSA's accounts")}</p>
                 {accounts.length === 0 ? (
-                  <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{tr("This institution has no verified payment account yet.")}</p>
+                  <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{tr("No payment account is available yet. Please check again later.")}</p>
                 ) : (
                   PAYMENT_KINDS.filter((k) => accounts.some((a) => a.type === k.type)).map((kind) => (
                     <div key={kind.type} className="mt-3">
@@ -203,7 +217,7 @@ export function PaymentOptions() {
                 )}
               </div>
             );
-          })}
+          })()}
         </section>
       )}
 

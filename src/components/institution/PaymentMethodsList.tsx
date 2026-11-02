@@ -27,17 +27,17 @@ export default function PaymentMethodsList() {
 
   return (
     <InstitutionListShell
-      title={tr("Payment methods")}
+      title={tr("Payout accounts")}
       addHref="/institution/payment-methods/add"
-      addLabel={tr("Add method")}
-      emptyMessage={tr("No payment methods configured.")}
+      addLabel={tr("Add account")}
+      emptyMessage={tr("No payout accounts yet.")}
       canEdit={canEdit}
       loading={!items && !error}
       error={error}
       isEmpty={items?.length === 0}
       note={
         <p className="rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">
-          {tr("Applicants see a method once it is active and Cheeta administration has verified it. Changing where the money goes (the bank, name or number) sends it back to be checked.")}
+          {tr("Applicants pay Cheeta AOSA, never you directly. Cheeta pays what it owes you into these accounts once it has verified them. Changing where the money goes (the bank, name or number) sends an account back to be checked.")}
         </p>
       }
     >

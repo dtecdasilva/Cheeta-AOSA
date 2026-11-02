@@ -171,9 +171,12 @@ export const institutionPaymentMethods = pgTable(
   "institution_payment_methods",
   {
     id: id(),
-    institutionId: text("institution_id")
-      .notNull()
-      .references(() => institutions.id),
+    /**
+     * The institution whose payout account this is: where Cheeta sends the money it owes the institution.
+     * Null for Cheeta's own collection accounts, the only accounts applicants pay into (application fees,
+     * web fee and tuition all go to Cheeta first).
+     */
+    institutionId: text("institution_id").references(() => institutions.id),
     type: text("type", { enum: PAYMENT_METHOD_TYPES }).notNull(),
     label: text("label").notNull(),
     /** Bank, transfer agency, mobile operator or wallet provider. */

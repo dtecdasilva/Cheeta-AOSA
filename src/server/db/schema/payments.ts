@@ -1,10 +1,11 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
+import { date, index, integer, jsonb, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core";
 import { id, timestamps, ts } from "./_shared";
 import { users } from "./identity";
 import { applicationInstitutions } from "./applications";
 import { files } from "./files";
 import { exchangeRateSnapshots, parameters } from "./reference";
+import { institutionPaymentMethods, institutions } from "./institutions";
 
 /** The institution account a payment was made into, as it read on the day. */
 export interface PaymentAccountCopy {
@@ -117,4 +118,41 @@ export const feePayments = pgTable(
       .on(t.applicationInstitutionId, t.reference)
       .where(sql`${t.approval} <> 'REJECTED'`),
   ]
+);
+
+/**
+ * Money Cheeta has paid out to an institution.
+ *
+ * Applicants pay everything to Cheeta (application fee, web fee, tuition).
+ * What an institution is owed is worked out, never stored: its share of
+ * every approved application-fee payment (the application fee, not the web
+ * fee) plus every verified tuition payment, less the payouts recorded here.
+ *
+ * A payout is a financial record: it is never edited or deleted. One made
+ * in error is cancelled with a reason (`cancelled_at`), which puts the
+ * amount back on what is owed.
+ */
+export const institutionPayouts = pgTable(
+  "institution_payouts",
+  {
+    id: id(),
+    institutionId: text("institution_id")
+      .notNull()
+      .references(() => institutions.id),
+    amount: integer("amount").notNull(),
+    currency: text("currency").notNull().default("XAF"),
+    paidOn: date("paid_on").notNull(),
+    /** The institution's payout account it was sent to, and that account as it read on the day. */
+    payoutAccountId: text("payout_account_id").references(() => institutionPaymentMethods.id),
+    payoutAccount: jsonb("payout_account").$type<PaymentAccountCopy>(),
+    /** The bank or mobile-money transaction reference. */
+    reference: text("reference").notNull(),
+    note: text("note").notNull().default(""),
+    recordedBy: text("recorded_by").references(() => users.id),
+    cancelledAt: ts("cancelled_at"),
+    cancelledBy: text("cancelled_by").references(() => users.id),
+    cancelReason: text("cancel_reason"),
+    ...timestamps,
+  },
+  (t) => [index("institution_payouts_institution_idx").on(t.institutionId, t.paidOn)]
 );

@@ -54,7 +54,7 @@ export const PAYMENT_KINDS: PaymentKind[] = [
     type: "debit_wallet",
     slug: "debit-wallet",
     label: "Debit wallet",
-    blurb: "Pay from a digital wallet the institution accepts.",
+    blurb: "Pay from a digital wallet Cheeta AOSA accepts.",
     referenceLabel: "Wallet reference",
     paidFromLabel: "Wallet the money was sent from",
     paidFromHint: "Your wallet id or number.",

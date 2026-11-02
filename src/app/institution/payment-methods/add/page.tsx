@@ -9,7 +9,7 @@ export default async function Page() {
   await requireRole(["INSTITUTION_ADMIN"]);
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title={tr("Add payment method")} description={tr("Configure a new way for applicants to pay.")} />
+      <PageHeading title={tr("Add payout account")} description={tr("An account where Cheeta AOSA pays your institution.")} />
       <PaymentMethodForm />
     </main>
   );

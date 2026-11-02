@@ -59,10 +59,10 @@ function NoProcessingNote({ role }: { role: "institution" | "admin" | "student" 
     <p className="mb-6 flex items-start gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-info-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-info)]" strokeWidth={1.75} />
       {role === "student"
-        ? tr("Pay your tuition using one of the institution's payment methods, then record the payment here. No money is taken on this platform. Payments count towards your tuition once AOSA has verified them. Each verified payment gets a bank code.")
+        ? tr("Pay your tuition into one of Cheeta AOSA's accounts, then record the payment here. No money is taken on this platform. Payments count towards your tuition once Cheeta has verified them, and Cheeta then pays the institution. Each verified payment gets a bank code.")
         : role === "admin"
           ? tr("No money moves here. Verifying confirms that a payment the student recorded has actually arrived, and issues a bank code. Until then the institution only sees the student's first name and \"awaiting payment\". Only verified payments reduce the outstanding amount.")
-          : tr("No money moves here. AOSA verifies every payment. Until it does, you'll see only the student's first name and \"awaiting payment\". Verified payments appear under a bank code: find each one on your statement and mark it received.")}
+          : tr("Students pay tuition to Cheeta AOSA. Cheeta verifies every payment; until it does, you'll see only the student's first name and \"awaiting payment\". Verified payments appear under a bank code and are added to what Cheeta owes you (see Payouts).")}
     </p>
   );
 }
@@ -808,7 +808,7 @@ function RecordPaymentForm({ account, onCancel, onSaved }: { account: ApiTuition
           {method && (method.accountNumber || method.instructions) && (
             <p className="mt-1 text-xs text-[var(--color-ink-soft)]">{[method.accountName, method.accountNumber, method.instructions].filter(Boolean).join(" · ")}</p>
           )}
-          {!options.length && <p className="mt-1 text-xs text-[var(--color-warning-strong)]">{tr("The institution hasn't set up a way to pay tuition yet. Contact its bursary.")}</p>}
+          {!options.length && <p className="mt-1 text-xs text-[var(--color-warning-strong)]">{tr("No payment account is available yet. Please check again later.")}</p>}
         </Field>
         <Field label={tr("Payment reference")} required error={errors.reference}>
           <TextInput value={form.reference} onChange={(e) => set("reference", e.target.value)} className="font-mono" />

@@ -8,7 +8,7 @@ export default async function Page() {
   await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title={tr("Payment Methods")} description={tr("How applicants can pay their fees to your institution.")} />
+      <PageHeading title={tr("Payout Accounts")} description={tr("Where Cheeta AOSA pays your institution what it collects for you.")} />
       <PaymentMethodsList />
     </main>
   );

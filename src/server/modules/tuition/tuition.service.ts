@@ -414,18 +414,21 @@ export async function getAccountForAdmin(id: string) {
   return a;
 }
 
-/** The student's own accounts (one per offer taken up), with the institution's payment methods that accept tuition. */
+/**
+ * The student's own accounts (one per offer taken up), each with the ways to pay tuition: Cheeta's own
+ * collection accounts. Students pay tuition to Cheeta, which pays the institution.
+ */
 export async function listMine(user: PublicUser) {
   const db = getDb();
   const accounts = await loadAccounts(db, eq(applications.applicantId, user.id), "student");
-  const instIds = [...new Set(accounts.map((a) => a.institutionId))];
-  const methods = instIds.length
+  const methods = accounts.length
     ? await db
         .select({ id: institutionPaymentMethods.id, institutionId: institutionPaymentMethods.institutionId, label: institutionPaymentMethods.label, type: institutionPaymentMethods.type, provider: institutionPaymentMethods.provider, accountName: institutionPaymentMethods.accountName, accountNumber: institutionPaymentMethods.accountNumber, instructions: institutionPaymentMethods.instructions })
         .from(institutionPaymentMethods)
-        .where(and(inArray(institutionPaymentMethods.institutionId, instIds), eq(institutionPaymentMethods.acceptsTuition, true), eq(institutionPaymentMethods.status, "ACTIVE"), eq(institutionPaymentMethods.verification, "VERIFIED")))
+        .where(and(isNull(institutionPaymentMethods.institutionId), eq(institutionPaymentMethods.status, "ACTIVE")))
+        .orderBy(institutionPaymentMethods.type, institutionPaymentMethods.label)
     : [];
-  return accounts.map((a) => ({ ...a, paymentMethods: methods.filter((m) => m.institutionId === a.institutionId) }));
+  return accounts.map((a) => ({ ...a, paymentMethods: methods }));
 }
 
 const assertInstitutionAccess = (db: Executor, user: PublicUser) => assertPermission(db, user, "PAYMENTS_UPLOADS", "Tuition needs the \"Student Payments & Uploads\" permission.");
@@ -491,9 +494,9 @@ export async function recordPayment(user: PublicUser, accountId: string, input: 
   const [method] = await db
     .select({ id: institutionPaymentMethods.id })
     .from(institutionPaymentMethods)
-    .where(and(eq(institutionPaymentMethods.id, v.paymentMethodId), eq(institutionPaymentMethods.institutionId, a.institutionId), eq(institutionPaymentMethods.acceptsTuition, true), eq(institutionPaymentMethods.status, "ACTIVE"), eq(institutionPaymentMethods.verification, "VERIFIED")))
+    .where(and(eq(institutionPaymentMethods.id, v.paymentMethodId), isNull(institutionPaymentMethods.institutionId), eq(institutionPaymentMethods.status, "ACTIVE")))
     .limit(1);
-  if (!method) throw new ValidationError({ paymentMethodId: "Choose one of the institution's ways to pay tuition." });
+  if (!method) throw new ValidationError({ paymentMethodId: "Choose one of Cheeta AOSA's payment accounts." });
   if (v.receiptFileId) {
     const [f] = await db.select({ id: files.id }).from(files).where(and(eq(files.id, v.receiptFileId), eq(files.ownerUserId, user.id), eq(files.purpose, "payment-receipt"), isNull(files.deletedAt))).limit(1);
     if (!f) throw new ValidationError({ receiptFileId: "Upload the receipt again." });
@@ -631,7 +634,7 @@ export async function reviewTuitionPayment(user: PublicUser, paymentId: string, 
     const action$ = { label: "View tuition", href: "/student/tuition" };
     if (v.action === "verify") {
       await notifyEvent(tx, { event: "verification.tuition_verified", to: { userId: p.applicantId }, applicationId: p.applicationId, values, inApp: { title: "Tuition payment verified", summary: `Your payment ${p.p.reference} is verified. Still to pay: ${money(f.outstanding)}.`, category: "VERIFICATION" }, action: action$ });
-      await notify(tx, { audience: "institution", institutionId: p.institutionId, category: "PAYMENT", title: `Tuition payment verified: ${bankCode}`, summary: `${money(p.p.amount)} verified by Cheeta administration. Mark it received once it is on your statement.`, action: { label: "Open tuition", href: `/institution/tuition/${p.p.accountId}` } });
+      await notify(tx, { audience: "institution", institutionId: p.institutionId, category: "PAYMENT", title: `Tuition payment verified: ${bankCode}`, summary: `${money(p.p.amount)} verified by Cheeta administration. Cheeta pays it to your institution under Payouts.`, action: { label: "Open tuition", href: `/institution/tuition/${p.p.accountId}` } });
     } else if (v.action === "reject") {
       await notifyEvent(tx, { event: "rejection.tuition_rejected", to: { userId: p.applicantId }, applicationId: p.applicationId, values, inApp: { title: "Tuition payment not accepted", summary: `Your payment ${p.p.reference} couldn't be verified: ${reason}`, category: "REJECTION" }, important: true, action: action$ });
     } else if (v.action === "query") {
@@ -649,23 +652,11 @@ export async function reviewTuitionPayment(user: PublicUser, paymentId: string, 
 
 /** The institution confirms (or takes back) that a verified payment is on its own statement. */
 export async function markReceived(user: PublicUser, paymentId: string, input: unknown) {
-  const { received } = parseWith(z.object({ received: z.boolean() }), input);
-  const db = getDb();
-  await assertInstitutionAccess(db, user);
-  const institutionId = institutionOf(user);
-  const [p] = await db
-    .select({ p: tuitionPayments })
-    .from(tuitionPayments)
-    .innerJoin(tuitionAccounts, eq(tuitionAccounts.id, tuitionPayments.accountId))
-    .where(and(eq(tuitionPayments.id, paymentId), eq(tuitionAccounts.institutionId, institutionId)))
-    .limit(1);
-  // A payment Cheeta hasn't verified doesn't exist for the institution.
-  if (!p || p.p.status !== "VERIFIED") throw new NotFoundError("Payment");
-  await db.transaction(async (tx) => {
-    await tx.update(tuitionPayments).set(received ? { receivedAt: new Date(), receivedBy: user.id } : { receivedAt: null, receivedBy: null }).where(and(eq(tuitionPayments.id, paymentId), eq(tuitionPayments.status, "VERIFIED")));
-    await audit(tx, { action: received ? "received" : "unreceived", entityType: "tuition-payment", entityId: paymentId, institutionId, before: { receivedAt: p.p.receivedAt }, after: { received } });
-  });
-  return getForInstitution(user, p.p.accountId);
+  // Tuition is paid to Cheeta AOSA, which pays the institution (Payouts).
+  void user;
+  void paymentId;
+  void input;
+  throw new ConflictError("Tuition is paid to Cheeta AOSA, which pays your institution under Payouts. There is nothing to mark received.");
 }
 
 /** Finds a verified tuition payment of this institution by its bank code. */

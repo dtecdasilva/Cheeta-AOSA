@@ -21,6 +21,7 @@ import {
   ListChecks,
   History,
   GraduationCap,
+  HandCoins,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -53,7 +54,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Anticipated Qualifications", href: "/institution/qualifications", icon: GraduationCap },
   { label: "Study Programs", href: "/institution/programs", icon: FileText },
   { label: "Billing", href: "/institution/billing", icon: Wallet },
-  { label: "Payment Methods", href: "/institution/payment-methods", icon: CreditCard },
+  { label: "Payout Accounts", href: "/institution/payment-methods", icon: CreditCard },
+  { label: "Payouts", href: "/institution/payouts", icon: HandCoins },
   { label: "Manage Users", href: "/institution/staff", icon: List },
   { label: "Upload Requirements", href: "/institution/uploads/requirements", icon: Upload },
   { label: "Student Applications", href: "/institution/applications", icon: FileText, badge: "applications" },

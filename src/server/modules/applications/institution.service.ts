@@ -233,7 +233,8 @@ async function loadForInstitution(db: Executor, user: PublicUser, id: string) {
 /** What still stands between this application and being acknowledged, or null if nothing does. */
 function acknowledgeBlocker(app: LoadedApplication): string | null {
   if (!movesFor(app.status, "institution").includes("I_ACKNOWLEDGED")) return `An application that is "${ADMIN_STATUS_LABELS[app.status as ApplicationStatus]}" can't be acknowledged.`;
-  if (app.paymentVerification !== "VERIFIED") return "Verify the payment first: confirm the application fee reached your account.";
+  // The money goes to Cheeta, so Cheeta's approval of the fee is the payment check.
+  if (!app.payments.some((p) => p.approval === "APPROVED")) return "Cheeta AOSA has not approved the application fee yet.";
   const unreviewed = app.requirements.filter((r) => r.required && !app.documents.some((d) => d.requirementId === r.id && d.reviewStatus === "APPROVED"));
   if (unreviewed.length) return `Verify the uploads first. Not yet approved: ${unreviewed.map((r) => r.name).join(", ")}.`;
   return null;
@@ -321,7 +322,6 @@ export async function getForInstitution(user: PublicUser, id: string) {
   const typeLabel = (id: string) => examConfig?.types.find((t) => t.id === id)?.qualification ?? id;
   const resultTypeLabel = (id: string | null) => (id ? examConfig?.resultTypes.find((t) => t.id === id)?.label ?? null : null);
   const blocker = submitted ? acknowledgeBlocker(app) : "The application hasn't been submitted yet.";
-  const awaitingReview = AWAITING_REVIEW_STATUSES.includes(app.status as ApplicationStatus);
 
   return {
     ...base,
@@ -368,7 +368,8 @@ export async function getForInstitution(user: PublicUser, id: string) {
     abilities,
     // What can be done now, and if not, why not. The server checks the same again when it is attempted.
     actions: {
-      verifyPayment: abilities.verifyPayment && awaitingReview,
+      // Applicants pay Cheeta, not the institution: there is nothing for it to confirm.
+      verifyPayment: false,
       verifyUploads: abilities.verifyUploads && submitted && !FINAL_STATUSES.includes(app.status as ApplicationStatus),
       acknowledge: { allowed: abilities.acknowledge && !blocker, reason: abilities.acknowledge ? blocker : "Your staff account doesn't have permission to acknowledge applications." },
       reject: { allowed: abilities.reject && movesFor(app.status, "institution").includes("I_REJECTED"), reason: !abilities.reject ? "Your staff account doesn't have permission to reject applications." : movesFor(app.status, "institution").includes("I_REJECTED") ? null : `An application that is "${ADMIN_STATUS_LABELS[app.status as ApplicationStatus]}" can't be rejected.` },
@@ -456,64 +457,17 @@ export async function decide(user: PublicUser, id: string, input: unknown, actor
   return actor === "admin" ? null : getForInstitution(user, id);
 }
 
-const paymentCheckSchema = z.discriminatedUnion("decision", [
-  z.object({ decision: z.literal("verify"), note: z.string().trim().max(1000).optional() }),
-  z.object({ decision: z.literal("not_received"), note: z.string({ error: "Say what you found, for Cheeta administration to look into." }).trim().min(1, "Say what you found, for Cheeta administration to look into.").max(1000) }),
-]);
-
 /**
- * The institution's check that the application fee reached its own
- * account. Cheeta administration has already approved the payment; this
- * records whether the institution can see the money too. "Not received"
- * goes to Cheeta administration to look into, and the application can't
- * be acknowledged until the payment is verified.
+ * The institution's former check that the application fee reached its own
+ * account. Applicants now pay Cheeta AOSA, which pays the institution
+ * (Payouts), so Cheeta's approval is the only payment check. The route
+ * stays so an old page gets a clear answer.
  */
 export async function verifyPayment(user: PublicUser, id: string, input: unknown) {
-  const v = parseWith(paymentCheckSchema, input);
-  const db = getDb();
-  await db.transaction(async (tx) => {
-    const app = await loadForInstitution(tx, user, id);
-    await assertPermission(tx, user, "PAYMENTS_UPLOADS");
-    if (!AWAITING_REVIEW_STATUSES.includes(app.status as ApplicationStatus)) throw new ConflictError("The payment is checked while the application is awaiting review.");
-    const payment = app.payments.find((p) => p.approval === "APPROVED");
-    if (!payment) throw new ConflictError("There is no approved payment to check.");
-    const result = v.decision === "verify" ? "VERIFIED" : "NOT_RECEIVED";
-    await tx
-      .update(applicationInstitutions)
-      .set({ paymentVerification: result, paymentVerifiedBy: user.id, paymentVerifiedAt: new Date(), paymentVerificationNote: v.note ?? "" })
-      .where(eq(applicationInstitutions.id, app.id));
-    await audit(tx, {
-      action: "verify-payment",
-      entityType: "application",
-      entityId: app.id,
-      institutionId: app.institutionId,
-      before: { paymentVerification: app.paymentVerification },
-      after: { paymentVerification: result },
-      meta: { bankCode: payment.bankCode, ...(v.note ? { note: v.note } : {}) },
-    });
-    if (result === "VERIFIED") {
-      await notifyEvent(tx, {
-        event: "verification.payment_verified",
-        to: { userId: app.application.applicantId },
-        applicationId: app.id,
-        values: { "payment.reference": payment.bankCode ?? "" },
-        inApp: { title: `${app.institution.name} confirmed your fee`, summary: `${app.institution.name} has confirmed it received your application fee.`, category: "VERIFICATION" },
-        action: { label: "View application", href: "/student/application/status" },
-      });
-    }
-    if (result === "NOT_RECEIVED") {
-      await notify(tx, {
-        audience: "admin",
-        category: "PAYMENT",
-        title: `Payment not found by ${app.institution.name}: ${payment.bankCode}`,
-        summary: `${app.reference}: the institution can't find this payment in its account. ${v.note ?? ""}`.trim(),
-        important: true,
-        reference: app.reference,
-        action: { label: "Review payments", href: "/admin/payments" },
-      });
-    }
-  });
-  return getForInstitution(user, id);
+  void user;
+  void id;
+  void input;
+  throw new ConflictError("Applicants pay Cheeta AOSA, which pays your institution under Payouts. There is no payment for your institution to confirm.");
 }
 
 const reviewSchema = z.discriminatedUnion("decision", [
@@ -796,7 +750,8 @@ export async function dashboardCounts(user: PublicUser) {
     total,
     awaitingReview: n("SUBMITTED") + n("RESUBMITTED"),
     awaitingPayment: Number(awaitingPayment.n),
-    paymentToCheck: abilities.verifyPayment ? Number(paymentToCheck.n) : null,
+    // Nothing to confirm: Cheeta collects and pays the institution.
+    paymentToCheck: (void paymentToCheck, null),
     uploadsToVerify: abilities.verifyUploads ? Number(uploadsToVerify.n) : null,
     acknowledged: abilities.acknowledge ? n("I_ACKNOWLEDGED") : null,
     rejected: abilities.reject ? n("I_REJECTED") : null,

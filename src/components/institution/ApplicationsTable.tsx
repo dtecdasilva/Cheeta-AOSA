@@ -7,16 +7,10 @@ import { Field, FormError, SecondaryButton, SelectInput, TextInput } from "@/com
 import { AdminStatusBadge, Pager, ToneBadge } from "@/components/admin/ui";
 import { Card, TableFrame, Td, Th } from "@/components/ui";
 import { ADMIN_STATUS_LABELS, ALL_STATUSES } from "@/lib/admin/status";
-import { useInstitutionApplications, type ApplicationFilters, type PaymentCheck } from "@/lib/institution/applications";
+import { useInstitutionApplications, type ApplicationFilters } from "@/lib/institution/applications";
 import type { ApplicationStatus } from "@/lib/types";
 import { formatDate } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
-
-const PAYMENT_CHECK: Record<PaymentCheck, { label: string; tone: "neutral" | "success" | "danger" }> = {
-  PENDING: { label: "Payment to verify", tone: "neutral" },
-  VERIFIED: { label: "Payment verified", tone: "success" },
-  NOT_RECEIVED: { label: "Payment not received", tone: "danger" },
-};
 
 const EMPTY: ApplicationFilters = { status: "", q: "", reference: "", from: "", to: "" };
 
@@ -145,7 +139,7 @@ export default function ApplicationsTable({ fixedStatus, initialStatus }: { fixe
                   <Td>
                     {a.documents ? (
                       <div className="space-y-1">
-                        <ToneBadge tone={PAYMENT_CHECK[a.paymentVerification].tone}>{tr(PAYMENT_CHECK[a.paymentVerification].label)}</ToneBadge>
+                        <ToneBadge tone="success">{tr("Fee approved by Cheeta")}</ToneBadge>
                         <p className="text-xs text-[var(--color-ink-soft)]">
                           {tr("Documents: {approved} approved", { approved: a.documents.approved })}
                           {a.documents.pending ? tr(", {pending} to review", { pending: a.documents.pending }) : ""}

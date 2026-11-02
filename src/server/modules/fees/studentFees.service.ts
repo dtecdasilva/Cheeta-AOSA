@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { BASE_CURRENCY } from "@/lib/admin/reference";
 import type { PublicUser } from "@/lib/auth/users";
@@ -187,10 +187,11 @@ export async function setMyDisplayCurrency(user: PublicUser, input: unknown): Pr
 // ---------------------------------------------------------------------------
 
 /**
- * The accounts the applicant can pay into: for each institution they have
- * applied to, its payment methods that are active and that Cheeta
- * administration has verified. An unverified or rejected account is never
- * shown to an applicant. `type` narrows it to one kind of method.
+ * The accounts the applicant can pay into: Cheeta's own collection accounts
+ * (active ones), the same for every institution they have applied to.
+ * Applicants pay everything to Cheeta, which pays each institution its
+ * share; an institution's own accounts are where Cheeta pays it and are
+ * never shown to applicants. `type` narrows it to one kind of method.
  */
 export async function listMyPaymentMethods(user: PublicUser, query: { type?: unknown } = {}): Promise<PayableInstitution[]> {
   const { type } = parseWith(z.object({ type: z.enum(PAYMENT_METHOD_TYPES, { error: "Unknown kind of payment method." }).optional() }), { type: query.type || undefined });
@@ -209,7 +210,7 @@ export async function listMyPaymentMethods(user: PublicUser, query: { type?: unk
     .from(institutionPaymentMethods)
     .where(
       and(
-        inArray(institutionPaymentMethods.institutionId, [...new Set(rows.map((r) => r.institutionId))]),
+        isNull(institutionPaymentMethods.institutionId),
         eq(institutionPaymentMethods.status, "ACTIVE"),
         eq(institutionPaymentMethods.verification, "VERIFIED"),
         type ? eq(institutionPaymentMethods.type, type) : undefined
@@ -221,9 +222,7 @@ export async function listMyPaymentMethods(user: PublicUser, query: { type?: unk
     applicationId: r.id,
     reference: r.reference,
     institution: { id: r.institutionId, name: r.institutionName },
-    methods: methods
-      .filter((m) => m.institutionId === r.institutionId)
-      .map((m) => ({ id: m.id, type: m.type as PaymentMethodType, label: m.label, provider: m.provider, branch: m.branch, accountName: m.accountName, accountNumber: m.accountNumber, swift: m.swift, bankCode: m.bankCode, branchCode: m.branchCode, rib: m.rib, instructions: m.instructions })),
+    methods: methods.map((m) => ({ id: m.id, type: m.type as PaymentMethodType, label: m.label, provider: m.provider, branch: m.branch, accountName: m.accountName, accountNumber: m.accountNumber, swift: m.swift, bankCode: m.bankCode, branchCode: m.branchCode, rib: m.rib, instructions: m.instructions })),
   }));
 }
 

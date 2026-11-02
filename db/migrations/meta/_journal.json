@@ -50,6 +50,13 @@
       "when": 1793297571252,
       "tag": "0006_fresh_start",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793607170089,
+      "tag": "0007_cheeta_collects",
+      "breakpoints": true
     }
   ]
 }

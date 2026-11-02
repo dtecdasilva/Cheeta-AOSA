@@ -391,7 +391,6 @@ function tuition(rows: Tuition[]): ReportDef<Tuition> {
       { key: "pay", label: "Payment status", sort: (r) => r.paymentStatus, text: (r) => PAYMENT_STATUS_META[r.paymentStatus].label, render: (r) => badge(PAYMENT_STATUS_META[r.paymentStatus]), adminOnly: true },
       { key: "verif", label: "Verification", sort: (r) => r.verificationStatus, text: (r) => VERIFICATION_META[r.verificationStatus].label, render: (r) => badge(VERIFICATION_META[r.verificationStatus]), adminOnly: true },
       { key: "istate", label: "Status", sort: (r) => r.institutionState, text: (r) => INSTITUTION_TUITION_META[r.institutionState].label, render: (r) => badge(INSTITUTION_TUITION_META[r.institutionState]), institutionOnly: true },
-      { key: "reconcile", label: "To mark received", align: "right", sort: (r) => r.toReconcile, text: (r) => String(r.toReconcile), institutionOnly: true },
     ],
     filters: [
       institutionFilter(rows),

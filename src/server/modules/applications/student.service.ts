@@ -1,6 +1,6 @@
 import "server-only";
 import { assertAcceptingApplications, stateOf } from "@/server/modules/institutions/applicationWindow.service";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { CORRECTABLE_STATUSES, EDITABLE_STATUSES } from "@/lib/applications/statusFlow";
 import { DECLARATION_VERSION } from "@/lib/applications/declaration";
@@ -439,15 +439,15 @@ export async function recordFeePayment(user: PublicUser, applicationInstitutionI
       if (file.ownerUserId !== user.id || file.purpose !== "payment-receipt") throw new ValidationError({ receiptFileId: "Upload the receipt again." });
     }
 
-    // The account must be one of this institution's that applicants are shown: active, and verified by Cheeta administration.
+    // Applicants pay Cheeta: the account must be one of Cheeta's active collection accounts.
     let account: typeof institutionPaymentMethods.$inferSelect | null = null;
     if (v.paymentMethodId) {
       [account = null] = await tx
         .select()
         .from(institutionPaymentMethods)
-        .where(and(eq(institutionPaymentMethods.id, v.paymentMethodId), eq(institutionPaymentMethods.institutionId, app.institutionId), eq(institutionPaymentMethods.status, "ACTIVE"), eq(institutionPaymentMethods.verification, "VERIFIED")))
+        .where(and(eq(institutionPaymentMethods.id, v.paymentMethodId), isNull(institutionPaymentMethods.institutionId), eq(institutionPaymentMethods.status, "ACTIVE")))
         .limit(1);
-      if (!account) throw new ValidationError({ paymentMethodId: "Choose one of this institution's payment accounts." });
+      if (!account) throw new ValidationError({ paymentMethodId: "Choose one of Cheeta AOSA's payment accounts." });
     }
 
     const channels = await allowedChannels(tx, payment.allowedMethodIds);

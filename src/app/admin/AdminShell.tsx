@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutGrid, Menu, X, Building2, Layers, List, FileText, UserPlus, Users, ClipboardList, CreditCard, Settings, Globe, DollarSign, GitBranch, SlidersHorizontal, GraduationCap, MapPin, BadgeCheck, Bell, Receipt, Stethoscope, Award, Printer, BarChart3, History } from "lucide-react";
+import { LayoutGrid, Menu, X, Building2, Layers, List, FileText, UserPlus, Users, ClipboardList, CreditCard, Settings, Globe, DollarSign, GitBranch, SlidersHorizontal, GraduationCap, MapPin, BadgeCheck, Bell, Receipt, Stethoscope, Award, Printer, BarChart3, History, Landmark, HandCoins } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
@@ -47,10 +47,12 @@ const NAV_SECTIONS: { title: string | null; items: NavItem[] }[] = [
   {
     title: "Payments",
     items: [
-      { label: "Institution Payment Methods", href: "/admin/payment-methods", icon: CreditCard },
-      { label: "Payment Configuration", href: "/admin/payment-config", icon: CreditCard },
+      { label: "Cheeta Accounts", href: "/admin/collection-accounts", icon: Landmark },
+      { label: "Institution Payout Accounts", href: "/admin/payment-methods", icon: CreditCard },
+      { label: "Payment Configuration", href: "/admin/payment-config", icon: Settings },
       { label: "Application fee payments", href: "/admin/payments", icon: Receipt },
       { label: "Tuition verification", href: "/admin/tuition", icon: BadgeCheck },
+      { label: "Payouts", href: "/admin/payouts", icon: HandCoins },
     ],
   },
   {

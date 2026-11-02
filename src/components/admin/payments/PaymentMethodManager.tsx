@@ -20,11 +20,12 @@ const typeOptions = (Object.keys(METHOD_TYPE_LABELS) as PaymentMethodType[]).map
 const verificationOptions = (Object.keys(VERIFICATION_META) as MethodVerification[]).map((v) => ({ value: v, label: VERIFICATION_META[v].label }));
 
 /**
- * Every account institutions collect money into, from
- * /api/admin/payment-methods. AOSA checks each one before applicants are
- * shown it: a new or edited account goes back to "Awaiting check", and
- * this screen is the only place one is verified or rejected. A rejection
- * carries a reason the institution can read.
+ * Every institution's payout accounts, from /api/admin/payment-methods:
+ * where Cheeta sends the money it owes each institution (Payouts).
+ * Applicants never see them; they pay Cheeta's own accounts. Cheeta checks
+ * each one before paying into it: a new or edited account goes back to
+ * "Awaiting check", and this screen is the only place one is verified or
+ * rejected. A rejection carries a reason the institution can read.
  */
 export function PaymentMethodManager() {
   const tr = useT();
@@ -46,10 +47,10 @@ export function PaymentMethodManager() {
 
   return (
     <RecordManager<AdminPaymentMethod>
-      title={tr("Institution payment methods")}
-      description={tr("The bank accounts, mobile money numbers and wallets each institution collects fees into. Applicants only see verified, active methods.")}
-      singular={tr("payment method")}
-      plural={tr("payment methods")}
+      title={tr("Institution payout accounts")}
+      description={tr("The bank accounts, mobile money numbers and wallets where Cheeta pays each institution what it is owed. Check each one before paying into it. Applicants never see these; they pay into Cheeta's own accounts.")}
+      singular={tr("payout account")}
+      plural={tr("payout accounts")}
       store={paymentMethodStore}
       idPrefix="pm"
       nameOf={(m) => m.label}
@@ -62,8 +63,8 @@ export function PaymentMethodManager() {
         { key: "ver", label: tr("Verification"), options: verificationOptions, get: (m) => m.verification },
       ]}
       stats={(items) => [
-        { label: tr("Payment methods"), value: items.length },
-        { label: tr("Awaiting check"), value: items.filter((m) => m.verification === "PENDING").length, detail: tr("Not shown to applicants yet") },
+        { label: tr("Payout accounts"), value: items.length },
+        { label: tr("Awaiting check"), value: items.filter((m) => m.verification === "PENDING").length, detail: tr("Not used for payouts yet") },
         { label: tr("Verified and active"), value: items.filter((m) => m.verification === "VERIFIED" && m.status === "ACTIVE").length },
         {
           label: tr("Institutions without one"),
@@ -97,7 +98,7 @@ export function PaymentMethodManager() {
       fields={[
         { key: "institutionId", label: tr("Institution"), kind: "select", required: true, options: institutionOptions, lockedOnEdit: true },
         { key: "type", label: tr("Type"), kind: "select", required: true, options: typeOptions },
-        { key: "label", label: tr("Label shown to applicants"), kind: "text", required: true, placeholder: tr("Main bank account") },
+        { key: "label", label: tr("Label"), kind: "text", required: true, placeholder: tr("Main bank account") },
         { key: "provider", label: tr("Provider"), kind: "text", required: true, hint: tr("Bank, mobile operator, transfer agency or wallet provider.") },
         { key: "branch", label: tr("Branch or pay-out town"), kind: "text", showIf: (m) => !!PAYMENT_METHOD_FIELDS[m.type]?.branch, hint: tr("The bank branch, or the town a transfer is collected in.") },
         { key: "accountName", label: tr("Account or recipient name"), kind: "text", required: true },
@@ -106,8 +107,7 @@ export function PaymentMethodManager() {
         { key: "branchCode", label: tr("Branch code"), kind: "text", showIf: (m) => m.type === "bank", hint: tr("5 digits, as on the RIB.") },
         { key: "rib", label: tr("RIB key"), kind: "text", showIf: (m) => m.type === "bank", hint: tr("The 2 digits at the end of the RIB.") },
         { key: "swift", label: tr("SWIFT / BIC"), kind: "text", uppercase: true, showIf: (m) => m.type === "bank" },
-        { key: "instructions", label: tr("Instructions for payers"), kind: "textarea", placeholder: tr("Use your application reference as the payment reference.") },
-        { key: "acceptsTuition", label: tr("Tuition"), kind: "checkbox", checkboxLabel: tr("Also accept tuition payments into this account") },
+        { key: "instructions", label: tr("Notes for Cheeta"), kind: "textarea", placeholder: tr("Reference to quote when paying us.") },
       ]}
       // Changing where money goes needs a fresh check.
       beforeSave={(m) => ({ ...m, verification: "PENDING", verificationNote: "" })}
@@ -131,10 +131,7 @@ export function PaymentMethodManager() {
           render: (m) => (
             <>
               <p className="font-medium text-[var(--color-ink)]">{tr(m.label)}</p>
-              <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
-                {tr(METHOD_TYPE_LABELS[m.type])}
-                {m.acceptsTuition ? tr(" · fees and tuition") : tr(" · application fees")}
-              </p>
+              <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">{tr(METHOD_TYPE_LABELS[m.type])}</p>
             </>
           ),
         },

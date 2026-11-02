@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { and, asc, eq, ne, sql } from "drizzle-orm";
+import { and, asc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { BASE_CURRENCY } from "@/lib/admin/reference";
 import { FEE_CATEGORIES, FEE_TYPES } from "@/lib/institution/fees";
 import { CUSTOM_DOCUMENT_TYPE, UPLOAD_FILE_TYPES, documentTypeMaxKb, normaliseFileType, supportedFileTypes, validateRequirementLimits, type DocumentTypeOption } from "@/lib/institution/uploadRequirements";
@@ -279,9 +279,14 @@ const paymentMethodBase = {
   present: ({ verifiedBy: _verifiedBy, ...row }: Row) => row,
 } satisfies Partial<ResourceDef<z.ZodObject>>;
 
-/** Cheeta administration's view: every institution's methods, and the only place one is verified or rejected. */
+/**
+ * Cheeta administration's view of the institutions' payout accounts (where Cheeta sends the money it owes
+ * them), and the only place one is verified or rejected. Cheeta's own collection accounts are a separate
+ * resource (below).
+ */
 export const adminPaymentMethodResource: ResourceDef<z.ZodObject> = {
   ...paymentMethodBase,
+  where: isNotNull(institutionPaymentMethods.institutionId),
   create: z.object({
     ...paymentMethodFields,
     verification: z.enum(["VERIFIED", "PENDING", "REJECTED"]).default("PENDING"),
@@ -299,6 +304,33 @@ export const adminPaymentMethodResource: ResourceDef<z.ZodObject> = {
       // The note explains a rejection; it doesn't outlive one.
       verificationNote: record.verification === "REJECTED" ? record.verificationNote : "",
     };
+  },
+};
+
+/**
+ * Cheeta's own collection accounts: the only accounts applicants are shown and pay into, for the
+ * application fee with the web fee, and for tuition. Kept by Cheeta administration; they belong to no
+ * institution, so there is nothing to verify.
+ */
+const { institutionId: _institutionId, acceptsTuition: _acceptsTuition, ...collectionAccountFields } = paymentMethodFields;
+void _institutionId;
+void _acceptsTuition;
+
+export const collectionAccountResource: ResourceDef<z.ZodObject> = {
+  ...paymentMethodBase,
+  name: "Cheeta account",
+  idPrefix: "cpm",
+  where: isNull(institutionPaymentMethods.institutionId),
+  filters: { type: institutionPaymentMethods.type },
+  orderBy: [institutionPaymentMethods.type, institutionPaymentMethods.label],
+  institutionColumn: undefined,
+  create: z.object(collectionAccountFields),
+  async check(_db, next, existing) {
+    if (existing && !ACCOUNT_FIELDS.some((k) => next[k] !== existing[k])) return;
+    ValidationError.assert(validatePaymentMethodDetails(next as Parameters<typeof validatePaymentMethodDetails>[0]));
+  },
+  prepare(next) {
+    return { ...tidyDetails(next), institutionId: null, acceptsTuition: true, verification: "VERIFIED", verificationNote: "" };
   },
 };
 

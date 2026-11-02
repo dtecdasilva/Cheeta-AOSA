@@ -188,7 +188,7 @@ export function PaymentConfig() {
               </li>
               <li>
                 <Link href="/admin/payment-methods" className="text-[var(--color-ink)] underline underline-offset-4">
-                  {tr("Institution payment methods")}
+                  {tr("Institution payout accounts")}
                 </Link>
               </li>
               <li>

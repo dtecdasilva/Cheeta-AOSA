@@ -54,7 +54,7 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
       <Card className="max-w-2xl">
         <p className="text-lg font-semibold tracking-tight text-[var(--color-ink)]">{tr("Payment recorded")}</p>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
-          {tr("Cheeta administration will check it against the institution's account, usually within 48 hours. You will be notified when it is approved.")}
+          {tr("Cheeta administration will check it against its account, usually within 48 hours. You will be notified when it is approved.")}
         </p>
         {line && line.total !== null && (
           <p className="mt-3 text-sm text-[var(--color-ink)]">
