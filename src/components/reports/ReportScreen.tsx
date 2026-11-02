@@ -138,7 +138,7 @@ export function ReportScreen<R extends { id: string; masked: boolean; maskedName
   }, [printing]);
 
   const header = columns.map((c) => c.label);
-  const matrix = () => filtered.map((r) => (r.masked ? [r.maskedName, tr("Awaiting payment"), ...columns.slice(2).map(() => "")] : columns.map((c) => c.text(r))));
+  const matrix = () => filtered.map((r) => (r.masked ? [r.maskedName, tr("Not paid"), ...columns.slice(2).map(() => "")] : columns.map((c) => c.text(r))));
   const stamp = new Date().toISOString().slice(0, 10);
   const filename = `cheeta-${def.key}-report-${stamp}`;
 
@@ -251,7 +251,7 @@ export function ReportScreen<R extends { id: string; masked: boolean; maskedName
                         </span>
                       </td>
                       <td colSpan={columns.length - 1} className="border-b border-[var(--color-line)] px-4 py-2.5">
-                        <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
+                        <ToneBadge tone="info">{tr("Not paid")}</ToneBadge>
                       </td>
                     </tr>
                   ) : (

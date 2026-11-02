@@ -247,7 +247,7 @@ export function MatriculationList({ basePath, institutionId }: { basePath: strin
                     </span>
                   </Td>
                   <Td colSpan={5}>
-                    <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
+                    <ToneBadge tone="info">{tr("Not paid")}</ToneBadge>
                   </Td>
                 </tr>
               ) : (
@@ -323,7 +323,7 @@ export function MatriculationDetail({ accountId, basePath, institutionId, actor,
     return (
       <>
         {tr(back)}
-        <EmptyState message={tr("{studentName} — awaiting payment. Details appear once Cheeta administration verifies the payment.", { studentName: row.account.studentName })} />
+        <EmptyState message={tr("{studentName} — not paid. Details appear once Cheeta administration verifies the payment.", { studentName: row.account.studentName })} />
       </>
     );
   }

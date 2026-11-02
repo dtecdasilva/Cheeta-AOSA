@@ -27,7 +27,7 @@ function Note() {
   return (
     <p className="mb-6 flex items-start gap-2 rounded-lg border border-[var(--color-line)] bg-[var(--color-info-soft)] px-4 py-3 text-sm text-[var(--color-ink)]">
       <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--color-info)]" strokeWidth={1.75} />
-      {tr("Students pay tuition to Cheeta AOSA, which verifies every payment and pays your institution under Payouts. While a payment is being checked you see only the student's first name and “awaiting payment”. Once it's approved it appears here with a bank code.")}
+      {tr("Students pay tuition to Cheeta AOSA, which verifies every payment and pays your institution under Payouts. While a payment is being checked you see only the student's first name and “not paid”. Once it's approved it appears here with a bank code.")}
     </p>
   );
 }
@@ -69,7 +69,7 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
         columns={4}
         stats={[
           { label: tr("Admitted students"), value: views.length },
-          { label: tr("Awaiting payment"), value: awaiting, detail: tr("Being checked by AOSA") },
+          { label: tr("Not paid"), value: awaiting, detail: tr("Being checked by AOSA") },
           { label: tr("Approved by AOSA"), value: formatCurrency(sum("confirmed")), detail: tr("{count} paid in full", { count: identified.filter((v) => v.state === "PAID").length }) },
           { label: tr("Outstanding"), value: formatCurrency(sum("outstanding")), detail: tr("Students with an approved payment or none yet") },
         ]}
@@ -188,7 +188,7 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
       <>
         {tr(back)}
         <EmptyState
-          message={tr("{displayName} — awaiting payment. Details appear once AOSA approves the payment.", { displayName: v.displayName })}
+          message={tr("{displayName} — not paid. Details appear once Cheeta approves the payment.", { displayName: v.displayName })}
           action={<Link href={basePath} className={ButtonLinkClass("secondary")}>{tr("Back to tuition")}</Link>}
         />
       </>

@@ -46,7 +46,7 @@ export function InstitutionApplicationFees() {
       <StatStrip
         columns={3}
         stats={[
-          { label: tr("Awaiting payment"), value: summary?.awaiting ?? "…", detail: tr("Being checked by AOSA") },
+          { label: tr("Not paid"), value: summary?.awaiting ?? "…", detail: tr("Being checked by AOSA") },
           { label: tr("Paid"), value: summary?.paid ?? "…", detail: tr("Approved by AOSA") },
           { label: tr("Application fees approved"), value: summary ? money(summary.applicationFees, summary.currency) : "…" },
         ]}
@@ -69,7 +69,7 @@ export function InstitutionApplicationFees() {
             value={state}
             onChange={(v) => (setState(v), setPage(1))}
             options={[
-              { value: "AWAITING", label: tr("Awaiting payment") },
+              { value: "AWAITING", label: tr("Not paid") },
               { value: "PAID", label: tr("Paid") },
             ]}
           />
@@ -108,7 +108,7 @@ export function InstitutionApplicationFees() {
                     </span>
                   </Td>
                   <Td colSpan={5}>
-                    <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
+                    <ToneBadge tone="info">{tr("Not paid")}</ToneBadge>
                   </Td>
                 </tr>
               ) : (

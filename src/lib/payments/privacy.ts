@@ -5,10 +5,9 @@
  *
  * 1. Institutions never see the platform's web fee. They only ever see
  *    their own application fee or tuition.
- * 2. When a student has paid but AOSA hasn't confirmed it yet, the
- *    institution sees one line: the student's first name, surname
- *    initial and "awaiting payment". No amount, method, reference,
- *    contact details or program.
+ * 2. Until Cheeta has approved a student's payment, the institution sees
+ *    one line: the student's first name only and "not paid". No other
+ *    names, no amount, method, reference, contact details or program.
  * 3. AOSA administration is the only party that reviews the payment
  *    itself (amount, reference, receipt) and approves it.
  * 4. Approval issues a bank code. From then on the institution can
@@ -21,17 +20,15 @@
 
 import { seededRandom } from "@/lib/admin/store";
 
-/** "Aïssatou Mballa" → "Aïssatou M." */
+/** "Aïssatou Grace", "Mballa" → "Aïssatou": the first name only, no other names or initials. */
 export function maskName(firstName: string, lastName: string): string {
-  const initial = lastName.trim().charAt(0).toUpperCase();
-  return initial ? `${firstName.trim()} ${initial}.` : firstName.trim();
+  void lastName;
+  return firstName.trim().split(/\s+/)[0] || "Student";
 }
 
-/** Splits a stored full name for masking. The last word is the surname. */
+/** A stored full name, masked: its first word only ("Daniel Grace Mbah" → "Daniel"). */
 export function maskFullName(fullName: string): string {
-  const parts = fullName.trim().split(/\s+/);
-  if (parts.length < 2) return parts[0] ?? "Student";
-  return maskName(parts.slice(0, -1).join(" "), parts[parts.length - 1]);
+  return fullName.trim().split(/\s+/)[0] || "Student";
 }
 
 /**

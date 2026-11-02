@@ -8,7 +8,7 @@ export default async function InstitutionFeePaymentsPage() {
   await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title={tr("Application fees")} description={tr("Applicants whose fee AOSA has approved, identified by bank code. Anyone still being checked shows as awaiting payment.")} />
+      <PageHeading title={tr("Application fees")} description={tr("Applicants whose fee AOSA has approved, identified by bank code. Anyone Cheeta has not approved yet shows by first name only, as not paid.")} />
       <InstitutionApplicationFees />
     </main>
   );

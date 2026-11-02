@@ -119,7 +119,7 @@ export default function ApplicationsTable({ fixedStatus, initialStatus }: { fixe
                     </span>
                   </Td>
                   <Td colSpan={4}>
-                    <ToneBadge tone="info">{tr("Awaiting payment")}</ToneBadge>
+                    <ToneBadge tone="info">{tr("Not paid")}</ToneBadge>
                   </Td>
                 </tr>
               ) : (

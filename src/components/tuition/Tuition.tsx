@@ -61,8 +61,8 @@ function NoProcessingNote({ role }: { role: "institution" | "admin" | "student" 
       {role === "student"
         ? tr("Pay your tuition into one of Cheeta AOSA's accounts, then record the payment here. No money is taken on this platform. Payments count towards your tuition once Cheeta has verified them, and Cheeta then pays the institution. Each verified payment gets a bank code.")
         : role === "admin"
-          ? tr("No money moves here. Verifying confirms that a payment the student recorded has actually arrived, and issues a bank code. Until then the institution only sees the student's first name and \"awaiting payment\". Only verified payments reduce the outstanding amount.")
-          : tr("Students pay tuition to Cheeta AOSA. Cheeta verifies every payment; until it does, you'll see only the student's first name and \"awaiting payment\". Verified payments appear under a bank code and are added to what Cheeta owes you (see Payouts).")}
+          ? tr("No money moves here. Verifying confirms that a payment the student recorded has actually arrived, and issues a bank code. Until then the institution only sees the student's first name and \"not paid\". Only verified payments reduce the outstanding amount.")
+          : tr("Students pay tuition to Cheeta AOSA. Cheeta verifies every payment; until it does, you'll see only the student's first name and \"not paid\". Verified payments appear under a bank code and are added to what Cheeta owes you (see Payouts).")}
     </p>
   );
 }

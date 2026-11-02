@@ -9,7 +9,7 @@ export default async function InstitutionReportsPage() {
   const user = await requireRole(["INSTITUTION_ADMIN", "INSTITUTION_ADMISSION_USER"]);
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title={tr("Reports")} description={tr("Your institution's applications, admissions, payments and matriculation. Students awaiting payment approval show by first name only.")} />
+      <PageHeading title={tr("Reports")} description={tr("Your institution's applications, admissions, payments and matriculation. Students who have not paid show by first name only.")} />
       <ReportsIndex scope="institution" basePath="/institution/reports" institutionId={resolveInstitutionId(user)} />
     </main>
   );

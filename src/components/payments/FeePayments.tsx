@@ -30,18 +30,18 @@ export function AwaitingPaymentList({ limit = 8 }: { institutionId?: string; lim
     <section className="overflow-hidden rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)]" aria-labelledby="awaiting-payment">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-[var(--color-line)] px-5 py-3.5">
         <h2 id="awaiting-payment" className="font-semibold text-base text-[var(--color-ink)]">
-          {tr("Awaiting payment")}
+          {tr("Not paid")}
         </h2>
         <p className="text-xs text-[var(--color-ink-faint)]">{tr("Details appear once AOSA approves")}</p>
       </div>
       {items.length === 0 ? (
-        <p className="px-5 py-6 text-sm text-[var(--color-ink-soft)]">{tr("No one is awaiting payment approval.")}</p>
+        <p className="px-5 py-6 text-sm text-[var(--color-ink-soft)]">{tr("Everyone has paid.")}</p>
       ) : (
         <ul className="divide-y divide-[var(--color-line)]">
           {items.slice(0, limit).map((i) => (
             <li key={i.id} className="flex items-center justify-between gap-3 px-5 py-2.5 text-sm">
               <span className="text-[var(--color-ink)]">
-                {tr(i.name)} <span className="text-[var(--color-ink-soft)]">{tr("— awaiting payment")}</span>
+                {tr(i.name)} <span className="text-[var(--color-ink-soft)]">{tr("— not paid")}</span>
               </span>
               <span className="text-xs text-[var(--color-ink-faint)]">{tr(i.what)}</span>
             </li>

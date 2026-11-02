@@ -199,7 +199,7 @@ export async function listForInstitution(user: PublicUser, req: NextRequest) {
     const paid = !!r.bankCode;
     const submitted = !EDITABLE_STATUSES.includes(r.status as ApplicationStatus);
     if (!paid) {
-      return { id: r.id, reference: r.reference, applicationNumber: r.applicationNumber, status: r.status, submittedAt: r.submittedAt, updatedAt: r.updatedAt, masked: true, applicant: `${maskAccountName(r.fullName, r.email)} — awaiting payment` };
+      return { id: r.id, reference: r.reference, applicationNumber: r.applicationNumber, status: r.status, submittedAt: r.submittedAt, updatedAt: r.updatedAt, masked: true, applicant: `${maskAccountName(r.fullName, r.email)} — not paid` };
     }
     return {
       id: r.id,
@@ -285,7 +285,8 @@ export async function getForInstitution(user: PublicUser, id: string) {
   const abilities = await abilitiesOf(db, user);
   assertCanSee(abilities, app.status);
   if (!approved) {
-    return { ...base, masked: true as const, applicant: { displayName: `${maskAccountName(applicant.fullName, applicant.email)} — awaiting payment` } };
+    // Unpaid: the first name, the status and when it changed. No notes, names of staff or anything else.
+    return { ...base, history: base.history.map((h) => ({ ...h, by: null, note: null, reason: null })), masked: true as const, applicant: { displayName: `${maskAccountName(applicant.fullName, applicant.email)} — not paid` } };
   }
 
   const [demographic, education, examinations, results, examConfig] = submitted
@@ -584,8 +585,8 @@ export async function addComment(user: PublicUser, id: string, input: unknown) {
 // Application fees, as the institution may see them
 // ---------------------------------------------------------------------------
 
-/** Everything before the surname, for searching masked applicants without matching (and so revealing) the surname. */
-const firstNames = sql<string>`regexp_replace(${users.fullName}, '\\s+\\S+$', '')`;
+/** The first name alone, for searching masked applicants without matching (and so revealing) any other name. */
+const firstNames = sql<string>`split_part(btrim(${users.fullName}), ' ', 1)`;
 
 /** The payments on applications to one institution, one row per application: its approved payment if it has one. */
 function feeRows(db: Executor, institutionId: string) {

@@ -486,7 +486,7 @@ export type InstitutionTuitionState = "NOT_PAID" | "AWAITING" | "PART_PAID" | "P
 
 export const INSTITUTION_TUITION_META: Record<InstitutionTuitionState, { label: string; tone: "neutral" | "info" | "amber" | "success" | "danger" }> = {
   NOT_PAID: { label: "Not paid", tone: "neutral" },
-  AWAITING: { label: "Awaiting payment", tone: "info" },
+  AWAITING: { label: "Not paid", tone: "info" },
   PART_PAID: { label: "Part paid", tone: "amber" },
   PAID: { label: "Paid in full", tone: "success" },
 };
