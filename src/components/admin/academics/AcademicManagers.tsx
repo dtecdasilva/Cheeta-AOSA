@@ -79,6 +79,7 @@ export function FacultyManager() {
     <RecordManager<AdminFaculty>
       title={tr("Faculty / School")}
       description={tr("The faculties and schools every institution is organised into. Each institution manages its own; here you can view them and switch them on or off.")}
+      intro={<p className="mb-6 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">{tr("Faculties are added by each institution's own administrator: they sign in to the institution portal and use Faculty / School → Add faculty. To set up an institution, create its Institution administrator account under Access Management; they receive their sign-in code by email.")}</p>}
       singular={tr("faculty")}
       plural={tr("faculties")}
       store={facultyStore}
@@ -159,6 +160,7 @@ export function DepartmentManager() {
     <RecordManager<AdminDepartment>
       title={tr("Departments")}
       description={tr("Departments within each faculty. Each institution manages its own; here you can view them and switch them on or off.")}
+      intro={<p className="mb-6 rounded-lg border border-[var(--color-line)] bg-[var(--color-surface)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">{tr("Departments are added by each institution's own administrator: they sign in to the institution portal and use Departments → Add department, after adding the faculty it belongs to.")}</p>}
       singular={tr("department")}
       plural={tr("departments")}
       store={departmentStore}
