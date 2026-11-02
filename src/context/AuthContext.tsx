@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { PublicUser } from "@/lib/auth/users";
 
 interface AuthContextValue {
@@ -13,31 +13,47 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<PublicUser | null>(null);
-  const [loading, setLoading] = useState(true);
+/**
+ * The signed-in user, for screens that show or hide things by role.
+ *
+ * The portal layouts already know the user (requireRole, on the server) and
+ * pass it in as `initialUser`, so a portal page has the right user from its
+ * first render instead of waiting for /api/auth/session: no Add or Edit
+ * button can be hidden because that request was slow, failed or came back
+ * out of order. The session is still re-read on every page change, and an
+ * answer older than the latest request is ignored.
+ */
+export function AuthProvider({ children, initialUser }: { children: React.ReactNode; initialUser?: PublicUser | null }) {
+  const [user, setUser] = useState<PublicUser | null>(initialUser ?? null);
+  const [loading, setLoading] = useState(initialUser === undefined);
   const router = useRouter();
+  const latest = useRef(0);
 
   const refresh = useCallback(async () => {
+    const ticket = ++latest.current;
     try {
       const res = await fetch("/api/auth/session", { cache: "no-store" });
+      if (!res.ok) return; // keep what we have; the server still enforces every request
       const data = await res.json();
-      setUser(data.user ?? null);
+      if (ticket === latest.current) setUser(data.user ?? null);
     } catch {
-      setUser(null);
+      // A network hiccup isn't a sign-out: keep the current user.
     } finally {
-      setLoading(false);
+      if (ticket === latest.current) setLoading(false);
     }
   }, []);
 
+  // The provider lives in the root layout and survives client-side navigation, so signing in (or out, or
+  // resetting a password) on one page and moving to another would otherwise leave it holding the old
+  // session: a newly signed-in administrator would see no Add or Edit buttons until a full reload.
+  // Re-reading the session on every page change keeps it in step with the cookie.
+  const pathname = usePathname();
   useEffect(() => {
-    // Fetches the current session exactly once on mount to hydrate client
-    // state from the server-set cookie. This is a deliberate, one-time
-    // synchronization with an external system (the session API), not a
-    // pattern that needs restructuring away from setState-in-effect.
+    // A deliberate synchronization with an external system (the session API), not a pattern that needs
+    // restructuring away from setState-in-effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
-  }, [refresh]);
+  }, [refresh, pathname]);
 
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });

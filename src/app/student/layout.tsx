@@ -1,4 +1,5 @@
 import { requireRole } from "@/lib/auth/guard";
+import { AuthProvider } from "@/context/AuthContext";
 import { StudentShell } from "./StudentShell";
 
 export default async function StudentLayout({ children }: { children: React.ReactNode }) {
@@ -8,5 +9,9 @@ export default async function StudentLayout({ children }: { children: React.Reac
   // (or anyone else) can do from the browser to see it anyway.
   const user = await requireRole(["STUDENT"]);
 
-  return <StudentShell user={user}>{children}</StudentShell>;
+  return (
+    <AuthProvider initialUser={user}>
+      <StudentShell user={user}>{children}</StudentShell>
+    </AuthProvider>
+  );
 }
