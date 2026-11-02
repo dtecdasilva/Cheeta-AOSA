@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SESSION_COOKIE } from "./session";
@@ -12,10 +13,11 @@ import { Role, ROLE_HOME } from "./roles";
  * keeps mismatched requests from ever reaching a page, and this re-checks
  * the same session at render time so a layout never trusts the URL alone.
  */
-export async function getSessionUser(): Promise<PublicUser | null> {
+export const getSessionUser = cache(async (): Promise<PublicUser | null> => {
+  // Once per request: the portal layout and the page both ask, and share the one database lookup.
   const store = await cookies();
   return resolveSession(store.get(SESSION_COOKIE)?.value);
-}
+});
 
 /**
  * Use at the top of a portal's server layout: redirects to /login if there

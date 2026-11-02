@@ -131,8 +131,16 @@ export function useNotifications(audience: Audience) {
 
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), 60_000);
-    return () => clearInterval(timer);
+    // Only while the tab is on screen; a tab left open in the background doesn't keep asking.
+    const tick = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    const timer = setInterval(tick, 60_000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, []);
 
   const mine = useMemo(() => [...all].sort(byNewest), [all]);

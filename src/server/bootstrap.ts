@@ -13,7 +13,7 @@ import { syncAllMedicalRecords } from "@/server/modules/medical/medical.service"
 import { adoptLegacyMatriculations } from "@/server/modules/matriculation/matriculation.service";
 import { inviteAccount } from "@/server/modules/accounts/accounts.service";
 import { and, eq } from "drizzle-orm";
-import { users } from "@/server/db/schema";
+import { settings, users } from "@/server/db/schema";
 import { ConflictError } from "@/server/http/errors";
 
 /**
@@ -43,6 +43,44 @@ async function ensureAdministrator(log: ReturnType<typeof logger.child>) {
 }
 
 /**
+ * The deployed version (Vercel sets the commit). Start-up housekeeping (roles and permissions, bringing
+ * older records up to date) runs once per version: the first instance records it, and every later
+ * instance of the same version skips that work, so a cold start answers sooner. Without a version
+ * (local development) it always runs.
+ */
+const BUILD = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_DEPLOYMENT_ID || "";
+const HOUSEKEEPING_KEY = "bootstrap";
+
+async function housekeepingDone(): Promise<boolean> {
+  if (!BUILD) return false;
+  const [row] = await getDb().select({ value: settings.value }).from(settings).where(eq(settings.key, HOUSEKEEPING_KEY)).limit(1);
+  return row?.value?.build === BUILD;
+}
+
+async function recordHousekeeping() {
+  if (!BUILD) return;
+  const value = { build: BUILD, at: new Date().toISOString() };
+  await getDb().insert(settings).values({ key: HOUSEKEEPING_KEY, value }).onConflictDoUpdate({ target: settings.key, set: { value, updatedAt: new Date() } });
+}
+
+/** Bringing records stored by earlier versions up to date. Each step is a no-op once done; recorded per version. */
+async function runHousekeeping(db: ReturnType<typeof getDb>) {
+  // Results recorded before they were tied to an examination are attached to one. A no-op once done.
+  await db.transaction((tx) => adoptLegacyExaminationResults(tx));
+  // Documents, upload requirements and rejected payments stored by earlier versions get the fields added since. Also a no-op once done.
+  await db.transaction((tx) => adoptLegacyRecords(tx));
+  // Seeded notification templates added or reworded since this database was seeded. A no-op once done.
+  await db.transaction((tx) => upgradeSeededTemplates(tx));
+  // Tuition accounts for offers taken up before accounts were opened automatically. A no-op once done.
+  await db.transaction((tx) => openMissingTuitionAccounts(tx));
+  // Medical records for admitted students who don't have them yet. A no-op once done.
+  await db.transaction((tx) => syncAllMedicalRecords(tx));
+  // Matriculations recorded before they carried the student, institution and program. A no-op once done.
+  await db.transaction((tx) => adoptLegacyMatriculations(tx));
+  await recordHousekeeping();
+}
+
+/**
  * Server start-up: validate configuration (importing `env` throws on a bad
  * value), bring the schema up to date (AUTO_MIGRATE, on by default;
  * instances starting together take turns on a database lock), seed an
@@ -68,26 +106,16 @@ export async function bootstrap() {
   try {
     if (env.AUTO_MIGRATE) migrations = await runMigrations();
     const db = getDb();
+    const skipHousekeeping = !migrations?.applied.length && (await housekeepingDone());
     // Roles and permissions are defined in code; bring their tables in line before anything reads them.
-    await db.transaction((tx) => syncAccessCatalogue(tx));
+    if (!skipHousekeeping) await db.transaction((tx) => syncAccessCatalogue(tx));
     if (await isDatabaseEmpty(db)) {
       log.info("Empty database: loading seed data", { demo: env.SEED_DEMO_DATA });
       await seedDatabase(db, { demo: env.SEED_DEMO_DATA });
     }
-    // Results recorded before they were tied to an examination are attached to one. A no-op once done.
-    await db.transaction((tx) => adoptLegacyExaminationResults(tx));
-    // Documents, upload requirements and rejected payments stored by earlier versions get the fields added since. Also a no-op once done.
-    await db.transaction((tx) => adoptLegacyRecords(tx));
-    // Seeded notification templates added or reworded since this database was seeded. A no-op once done.
-    await db.transaction((tx) => upgradeSeededTemplates(tx));
-    // Tuition accounts for offers taken up before accounts were opened automatically. A no-op once done.
-    await db.transaction((tx) => openMissingTuitionAccounts(tx));
-    // Medical records for admitted students who don't have them yet. A no-op once done.
-    await db.transaction((tx) => syncAllMedicalRecords(tx));
-    // Matriculations recorded before they carried the student, institution and program. A no-op once done.
-    await db.transaction((tx) => adoptLegacyMatriculations(tx));
+    if (!skipHousekeeping) await runHousekeeping(db);
     await ensureAdministrator(log);
-    log.info("Backend ready", { database: dbDriver() });
+    log.info("Backend ready", { database: dbDriver(), housekeeping: skipHousekeeping ? "skipped (done for this version)" : "run" });
   } catch (err) {
     // The commonest cause by far: the code was updated but no migration was generated
     // for its schema changes, so a table or column it needs isn't there. Say so plainly

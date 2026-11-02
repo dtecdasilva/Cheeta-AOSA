@@ -48,12 +48,18 @@ export function AuthProvider({ children, initialUser }: { children: React.ReactN
   // session: a newly signed-in administrator would see no Add or Edit buttons until a full reload.
   // Re-reading the session on every page change keeps it in step with the cookie.
   const pathname = usePathname();
+  // Inside a portal the layout hands over the user from the server (initialUser), and the portal's own
+  // provider takes over, so neither asks again on every click. Elsewhere (sign-in, registration, the
+  // home page) the session is re-read on each page change to follow signing in and out.
+  const seeded = initialUser !== undefined;
+  const inPortal = /^\/(admin|institution|student)(\/|$)/.test(pathname ?? "");
   useEffect(() => {
+    if (seeded || inPortal) return;
     // A deliberate synchronization with an external system (the session API), not a pattern that needs
     // restructuring away from setState-in-effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     refresh();
-  }, [refresh, pathname]);
+  }, [refresh, pathname, seeded, inPortal]);
 
   const logout = useCallback(async () => {
     await fetch("/api/auth/logout", { method: "POST" });

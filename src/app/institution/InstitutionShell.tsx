@@ -81,12 +81,24 @@ export function InstitutionShell({ user, children }: { user: PublicUser; childre
   const pathname = usePathname();
   // Applications waiting for the institution's review (GET /api/institution/dashboard), for the sidebar badge.
   const [toReview, setToReview] = useState(0);
+  // Read once, then every minute and whenever the tab comes back into view; not on every click, which
+  // added a full dashboard request to each page change.
   useEffect(() => {
-    fetch("/api/institution/dashboard", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((b) => b && setToReview(b.data.awaitingReview ?? 0))
-      .catch(() => undefined);
-  }, [pathname]);
+    const load = () => {
+      if (document.visibilityState !== "visible") return;
+      fetch("/api/institution/dashboard", { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((b) => b && setToReview(b.data.awaitingReview ?? 0))
+        .catch(() => undefined);
+    };
+    load();
+    const timer = setInterval(load, 60_000);
+    document.addEventListener("visibilitychange", load);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", load);
+    };
+  }, []);
   const unreadNotifications = useUnreadCount("institution");
 
   // The most specific entry wins: on /institution/applications/rejected only "Rejected Applications" is highlighted.
