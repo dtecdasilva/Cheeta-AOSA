@@ -57,6 +57,13 @@
       "when": 1793607170089,
       "tag": "0007_cheeta_collects",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1793660856517,
+      "tag": "0008_password_change",
+      "breakpoints": true
     }
   ]
 }

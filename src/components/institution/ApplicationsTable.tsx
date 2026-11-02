@@ -69,8 +69,8 @@ export default function ApplicationsTable({ fixedStatus, initialStatus }: { fixe
         </div>
         <div className="mt-4 flex items-center justify-between gap-3">
           <p className="text-xs text-[var(--color-ink-soft)]" aria-live="polite">
-            {tr("Showing")}{" "}{rows?.length ?? 0}{" "}{tr("of {total}", { total })}
-            {total !== all ? tr(" ({all} in all)", { all }) : ""} application{total === 1 ? "" : "s"}
+            {total === 1 ? tr("Showing {shown} of 1 application", { shown: rows?.length ?? 0 }) : tr("Showing {shown} of {total} applications", { shown: rows?.length ?? 0, total })}
+            {total !== all ? tr(" ({all} in all)", { all }) : ""}
           </p>
           <SecondaryButton
             onClick={() => {

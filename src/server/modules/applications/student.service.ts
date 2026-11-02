@@ -1,4 +1,5 @@
 import "server-only";
+import { formatAmount } from "@/lib/currency/data";
 import { assertAcceptingApplications, stateOf } from "@/server/modules/institutions/applicationWindow.service";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { z } from "zod";
@@ -503,7 +504,7 @@ export async function recordFeePayment(user: PublicUser, applicationInstitutionI
       },
     });
     await syncCompletion(tx, app.id);
-    await notify(tx, { audience: "admin", category: "PAYMENT", title: `Payment to approve: ${app.reference}`, summary: `${v.reference}, ${fee.amount} ${fee.currency}.`, reference: app.reference, action: { label: "Review payments", href: "/admin/payments" } });
+    await notify(tx, { audience: "admin", category: "PAYMENT", title: `Payment to approve: ${app.reference}`, summary: `${v.reference}, ${formatAmount(fee.amount, fee.currency)}.`, reference: app.reference, action: { label: "Review payments", href: "/admin/payments" } });
   });
   return getMyApplication(user, applicationInstitutionId);
 }

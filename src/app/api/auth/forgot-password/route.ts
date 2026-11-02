@@ -18,8 +18,9 @@ const body = z.object({ email: z.string().trim().min(1, "Enter your email addres
  * through the notification engine ("Password reset requested").
  */
 export const POST = handler({ auth: "public" }, async ({ req }) => {
-  rateLimit(req, "forgot-password", 5, 15 * 60_000);
+  rateLimit(req, "forgot-password", 100, 15 * 60_000);
   const { email } = await parseBody(req, body);
+  rateLimit(req, "forgot-password-account", 5, 15 * 60_000, email);
   const user = await findUserByEmail(email);
   if (!user || user.status !== "ACTIVE") {
     await audit(getDb(), { action: "password_reset_requested", entityType: "account", entityId: user?.id ?? null, meta: { outcome: user ? "inactive_account" : "unknown_email" } });

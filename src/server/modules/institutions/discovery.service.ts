@@ -7,6 +7,28 @@ import { departments, faculties, institutions, parameters, programs, uploadRequi
 import { NotFoundError } from "@/server/http/errors";
 import { assessFee } from "@/server/modules/fees/calculation";
 import { platformMaxUploadKb } from "./institutions.resources";
+import { currentAcademicYear } from "@/server/modules/applications/applications.queries";
+import { getSettings } from "@/server/modules/settings/settings.service";
+
+type Intake = { open: true } | { open: false; label: string; reason: string };
+
+const fmtDay = (d: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${d}T00:00:00Z`));
+
+/**
+ * The platform's intake (the current academic year's opening and closing
+ * dates), which applies on top of each institution's own window: outside
+ * it no institution can be added, so the listing must not say "Open".
+ */
+export async function platformIntake(db: Executor): Promise<Intake> {
+  const [year, system] = await Promise.all([currentAcademicYear(db), getSettings("system")]);
+  if (!year) return { open: false, label: "Closed", reason: "Applications aren't open yet: no academic year is accepting applications." };
+  const today = new Date().toISOString().slice(0, 10);
+  const opens = String(year.attrs.opensOn ?? "");
+  const closes = String(year.attrs.closesOn ?? "");
+  if (opens && today < opens) return { open: false, label: `Opens ${fmtDay(opens)}`, reason: `Applications open on ${opens}.` };
+  if (closes && today > closes && !system.allowLateSubmissions) return { open: false, label: `Closed on ${fmtDay(closes)}`, reason: `Applications closed on ${closes}.` };
+  return { open: true };
+}
 
 /**
  * What applicants see of institutions: the ones accepting applications,
@@ -32,11 +54,12 @@ function maxChoices(attrs: Record<string, unknown> | undefined): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, 3) : 3;
 }
 
-async function listing(db: Executor, row: InstitutionRow, labels: Awaited<ReturnType<typeof labelsOf>>, offered: { availableSpaces: number }[]): Promise<InstitutionListing> {
+async function listing(db: Executor, row: InstitutionRow, labels: Awaited<ReturnType<typeof labelsOf>>, offered: { availableSpaces: number }[], intake: Intake): Promise<InstitutionListing> {
   const fee = await assessFee(db, { id: row.id, webFee: row.webFee });
   const type = labels.get(row.typeId);
+  const own = stateOf(row);
   return {
-    applications: stateOf(row),
+    applications: intake.open || !own.open ? own : { ...own, open: false, label: intake.label, reason: intake.reason },
     id: row.id,
     name: row.name,
     type: type?.label ?? "",
@@ -70,9 +93,9 @@ export async function listOpenInstitutions(): Promise<InstitutionListing[]> {
   const db = getDb();
   const rows = await db.select().from(institutions).where(eq(institutions.status, "ACTIVE")).orderBy(asc(institutions.name));
   if (!rows.length) return [];
-  const [labels, offered] = await Promise.all([labelsOf(db, rows.flatMap((r) => [r.typeId, r.townId, r.regionId])), offeredPrograms(db, rows.map((r) => r.id))]);
+  const [labels, offered, intake] = await Promise.all([labelsOf(db, rows.flatMap((r) => [r.typeId, r.townId, r.regionId])), offeredPrograms(db, rows.map((r) => r.id)), platformIntake(db)]);
   const out: InstitutionListing[] = [];
-  for (const row of rows) out.push(await listing(db, row, labels, offered.filter((o) => o.program.institutionId === row.id).map((o) => o.program)));
+  for (const row of rows) out.push(await listing(db, row, labels, offered.filter((o) => o.program.institutionId === row.id).map((o) => o.program), intake));
   return out;
 }
 
@@ -111,7 +134,7 @@ export async function getOpenInstitution(id: string): Promise<InstitutionDetails
   requirements.sort((a, b) => Number(b.required) - Number(a.required) || a.name.localeCompare(b.name));
 
   return {
-    ...(await listing(db, row, labels, offered.map((o) => o.program))),
+    ...(await listing(db, row, labels, offered.map((o) => o.program), await platformIntake(db))),
     address: row.address,
     phone: row.phone,
     email: row.email,

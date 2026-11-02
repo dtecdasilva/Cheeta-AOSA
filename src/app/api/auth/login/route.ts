@@ -8,7 +8,7 @@ import { handler } from "@/server/http/handler";
 import { ForbiddenError, TooManyRequestsError, UnauthorizedError } from "@/server/http/errors";
 import { ok } from "@/server/http/respond";
 import { parseBody } from "@/server/http/validate";
-import { rateLimit } from "@/server/http/rateLimit";
+import { assertUnderFailureLimit, noteFailure, rateLimit } from "@/server/http/rateLimit";
 import { getSettings } from "@/server/modules/settings/settings.service";
 import { audit } from "@/server/audit/audit";
 import { getDb } from "@/server/db/client";
@@ -22,8 +22,10 @@ const body = z.object({
 });
 
 export const POST = handler({ auth: "public" }, async ({ req }) => {
-  rateLimit(req, "login", 20, 10 * 60_000);
+  // A wide ceiling for one shared address, and a tight one for each account tried from it.
+  rateLimit(req, "login", 300, 10 * 60_000);
   const { email, password } = await parseBody(req, body);
+  assertUnderFailureLimit(req, "login-account", 15, email);
   const user = await findUserByEmail(email);
 
   // The same answer for "no such account" and "wrong password", so the
@@ -32,6 +34,7 @@ export const POST = handler({ auth: "public" }, async ({ req }) => {
   if (!user) {
     // Recorded without the address itself in clear: the trail mustn't become a list of what people typed.
     await audit(getDb(), { action: "login_failed", entityType: "account", entityId: null, meta: { reason: "unknown_email", emailDomain: email.split("@")[1] ?? "" } });
+    noteFailure(req, "login-account", 10 * 60_000, email);
     throw invalid;
   }
 
@@ -45,6 +48,7 @@ export const POST = handler({ auth: "public" }, async ({ req }) => {
     const { lockoutAttempts } = await getSettings("system");
     await recordFailedLogin(user.id, lockoutAttempts);
     await audit(getDb(), { action: "login_failed", entityType: "account", entityId: user.id, actorUserId: user.id, meta: { reason: "wrong_password" } });
+    noteFailure(req, "login-account", 10 * 60_000, email);
     throw invalid;
   }
 
@@ -61,7 +65,7 @@ export const POST = handler({ auth: "public" }, async ({ req }) => {
     await audit(getDb(), { action: "email_verified", entityType: "account", entityId: user.id, actorUserId: user.id, meta: { via: "first_sign_in" } });
   }
   await audit(getDb(), { action: "login", entityType: "account", entityId: user.id, actorUserId: user.id, institutionId: user.institutionId });
-  const res = ok({ user: toPublicUser(user), redirectTo: ROLE_HOME[user.role] });
+  const res = ok({ user: toPublicUser(user), redirectTo: user.mustChangePassword ? "/change-password" : ROLE_HOME[user.role] });
   res.cookies.set(SESSION_COOKIE, await openSession(user, req), SESSION_COOKIE_OPTIONS);
   // The language follows the person: the one saved on the account wins; if none is saved yet, the one they are using now is kept.
   const [saved] = await getDb().select({ language: users.language }).from(users).where(eq(users.id, user.id)).limit(1);

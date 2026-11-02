@@ -1,9 +1,6 @@
+/** An XAF amount the way the rest of the platform writes it: "250,000 FCFA". */
 export function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat("en-CM", {
-    style: "currency",
-    currency: "XAF",
-    maximumFractionDigits: 0,
-  }).format(amount);
+  return `${Math.round(amount).toLocaleString("en-US")} FCFA`;
 }
 
 export function formatDate(iso: string | null): string {

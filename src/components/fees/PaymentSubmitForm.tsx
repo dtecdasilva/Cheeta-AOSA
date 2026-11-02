@@ -85,7 +85,7 @@ export function PaymentSubmitForm({ type, application, account }: { type: Paymen
       <div className="max-w-2xl space-y-4">
         {asked && <AmountDue line={asked} />}
         <EmptyState
-          message={asked && isPayable(asked) ? tr("{name} doesn't take payment by {toLowerCase}.", { name: tr(asked.institution.name), toLowerCase: kind.label.toLowerCase() }) : asked ? tr("There is nothing to record for this application.") : tr("None of your unpaid applications can be paid by {toLowerCase}.", { toLowerCase: kind.label.toLowerCase() })}
+          message={asked && isPayable(asked) ? tr("Cheeta AOSA doesn't take payment by {toLowerCase} at the moment.", { toLowerCase: kind.label.toLowerCase() }) : asked ? tr("There is nothing to record for this application.") : !fees.applications.some(isPayable) ? tr("You have nothing left to pay.") : tr("Cheeta AOSA doesn't take payment by {toLowerCase} at the moment.", { toLowerCase: kind.label.toLowerCase() })}
           action={
             <Link href="/student/fees/payment-options" className={buttonClass("secondary")}>
               {tr("See your payment options")}

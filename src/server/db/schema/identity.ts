@@ -47,6 +47,12 @@ export const users = pgTable(
     emailVerifiedAt: ts("email_verified_at"),
     mfaEnabled: boolean("mfa_enabled").notNull().default(false),
     /**
+     * Set while the password is still the temporary code that was emailed
+     * (registration, an invitation): the owner must choose their own before
+     * using any portal. Cleared when they do.
+     */
+    mustChangePassword: boolean("must_change_password").notNull().default(false),
+    /**
      * Copied into every session token. Bumping it (password reset,
      * deactivation, a role change) ends every session the account has at
      * once; signing out ends just one, through auth_sessions.

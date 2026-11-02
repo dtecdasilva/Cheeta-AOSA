@@ -1,6 +1,7 @@
 import "server-only";
 import { and, count, eq, inArray } from "drizzle-orm";
 import { ADMIN_STATUS_LABELS } from "@/lib/admin/status";
+import { formatAmount } from "@/lib/currency/data";
 import { EDITABLE_STATUSES, canTransition, nextStatuses, type StatusActor } from "@/lib/applications/statusFlow";
 import { demographicCompletion } from "@/lib/demographic/completion";
 import type { ApplicationStatus } from "@/lib/types";
@@ -275,7 +276,7 @@ export async function readiness(db: Executor, app: LoadedApplication, opts: { re
       key: "fee",
       label: "Application fee",
       ok: feeOk,
-      detail: approved ? `${approved.amount} ${approved.currency}` : fee ? `${fee.amount} ${fee.currency} to pay` : "The fee can't be worked out at the moment. Try again later.",
+      detail: approved ? formatAmount(approved.amount, approved.currency) : fee ? `${formatAmount(fee.amount, fee.currency)} to pay` : "The fee can't be worked out at the moment. Try again later.",
     },
     {
       key: "payment",

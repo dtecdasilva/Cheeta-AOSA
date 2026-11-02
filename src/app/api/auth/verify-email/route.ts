@@ -17,7 +17,7 @@ const body = z.object({ token: z.string().min(1, "The verification link is incom
  * the address was already verified.
  */
 export const POST = handler({ auth: "public" }, async ({ req }) => {
-  rateLimit(req, "verify-email", 20, 15 * 60_000);
+  rateLimit(req, "verify-email", 300, 15 * 60_000);
   const { token } = await parseBody(req, body);
 
   const invalid = new BadRequestError("This verification link is invalid or has expired. Ask for a new one.");

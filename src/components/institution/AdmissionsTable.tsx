@@ -84,7 +84,8 @@ export default function AdmissionsTable({ initialStatus }: { initialStatus?: str
         </div>
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-[var(--color-ink-soft)]">
-            {items ? tr("Showing {count} of {total} admissions", { count: items.length, total }) : tr("Loading…")} · {counts.OFFERED ?? 0} offered, {counts.ACCEPTED ?? 0}{" "}{tr("taken up,")}{" "}{counts.REJECTED ?? 0} declined{counts.WITHDRAWN ? tr(", {WITHDRAWN} withdrawn", { WITHDRAWN: counts.WITHDRAWN }) : ""}
+            {items ? tr("Showing {count} of {total} admissions", { count: items.length, total }) : error ? "" : tr("Loading…")}
+            {items && <>{" · "}{tr("{offered} offered, {accepted} taken up, {declined} declined", { offered: counts.OFFERED ?? 0, accepted: counts.ACCEPTED ?? 0, declined: counts.REJECTED ?? 0 })}{counts.WITHDRAWN ? tr(", {WITHDRAWN} withdrawn", { WITHDRAWN: counts.WITHDRAWN }) : ""}</>}
           </p>
           <div className="flex flex-wrap items-center gap-3">
             {DELIBERATION_ENABLED && (

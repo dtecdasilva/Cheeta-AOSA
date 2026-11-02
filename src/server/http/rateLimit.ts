@@ -17,9 +17,15 @@ const KEY = Symbol.for("cheeta-aosa.rate-limit");
 const g = globalThis as unknown as { [KEY]?: Map<string, { count: number; resetAt: number }> };
 const buckets = (g[KEY] ??= new Map());
 
-export function rateLimit(req: NextRequest, name: string, limit: number, windowMs: number) {
+/**
+ * `subject` narrows the bucket to one account (an email address) on top of
+ * the caller's address. Many people in Cameroon share one public address
+ * (mobile networks, cybercafés, school labs), so a limit on the address
+ * alone would lock out strangers who never did anything wrong.
+ */
+export function rateLimit(req: NextRequest, name: string, limit: number, windowMs: number, subject?: string) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || "local";
-  const key = `${name}:${ip}`;
+  const key = subject ? `${name}:${ip}:${subject.trim().toLowerCase()}` : `${name}:${ip}`;
   const now = Date.now();
   const bucket = buckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
@@ -32,4 +38,28 @@ export function rateLimit(req: NextRequest, name: string, limit: number, windowM
     const minutes = Math.ceil((bucket.resetAt - now) / 60_000);
     throw new TooManyRequestsError(`Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`);
   }
+}
+
+/**
+ * Failure-only limit, for sign-in: `assertUnderFailureLimit` refuses once
+ * `limit` failures have been noted for this address and account in the
+ * window; `noteFailure` records one. Successful attempts are never counted.
+ */
+export function assertUnderFailureLimit(req: NextRequest, name: string, limit: number, subject: string) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || "local";
+  const bucket = buckets.get(`${name}:${ip}:${subject.trim().toLowerCase()}`);
+  const now = Date.now();
+  if (bucket && bucket.resetAt > now && bucket.count >= limit) {
+    const minutes = Math.ceil((bucket.resetAt - now) / 60_000);
+    throw new TooManyRequestsError(`Too many attempts. Try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`);
+  }
+}
+
+export function noteFailure(req: NextRequest, name: string, windowMs: number, subject: string) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("x-real-ip") || "local";
+  const key = `${name}:${ip}:${subject.trim().toLowerCase()}`;
+  const now = Date.now();
+  const bucket = buckets.get(key);
+  if (!bucket || bucket.resetAt <= now) buckets.set(key, { count: 1, resetAt: now + windowMs });
+  else bucket.count += 1;
 }

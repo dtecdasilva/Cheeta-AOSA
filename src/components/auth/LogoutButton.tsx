@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { KeyRound, LogOut } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useT } from "@/lib/i18n/client";
 
@@ -15,5 +15,19 @@ export function LogoutButton({ className = "" }: { className?: string }) {
       <LogOut className="h-4 w-4 shrink-0 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
       {tr("Sign out")}
     </button>
+  );
+}
+
+/** "Change password", shown with "Sign out" in every portal's menu. */
+export function ChangePasswordLink({ className = "" }: { className?: string }) {
+  const tr = useT();
+  return (
+    <a
+      href="/change-password"
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--color-ink)] transition-colors hover:bg-[var(--color-paper)] ${className}`}
+    >
+      <KeyRound className="h-4 w-4 shrink-0 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
+      {tr("Change password")}
+    </a>
   );
 }

@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { PublicUser } from "@/lib/auth/users";
 import { ROLE_LABELS } from "@/lib/auth/roles";
-import { LogoutButton } from "@/components/auth/LogoutButton";
+import { ChangePasswordLink, LogoutButton } from "@/components/auth/LogoutButton";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { Logo } from "@/components/brand/Logo";
 import { useUnreadCount } from "@/components/notifications/NotificationCentre";
@@ -154,6 +154,7 @@ export function AdminShell({ user, children }: { user: PublicUser; children: Rea
 
         <div className="border-t border-[var(--color-line)] px-3 py-3">
           <LanguageSwitch className="mb-2" />
+          <ChangePasswordLink />
           <LogoutButton />
         </div>
       </aside>

@@ -193,8 +193,11 @@ export function createApiCollection<T extends { id: string }>(name: string, seed
     try {
       const out: T[] = [];
       let total: number | undefined;
+      // Only Cheeta administration may read the administration list: everywhere
+      // else, go straight to the public one rather than be refused first.
+      const outsideAdmin = typeof window !== "undefined" && !window.location.pathname.startsWith("/admin");
       for (let page = 1; page <= 50; page++) {
-        const res = await fetch(`${remote.url}?page=${page}&pageSize=200`, { cache: "no-store" });
+        const res = outsideAdmin && remote.readFallback ? new Response(null, { status: 403 }) : await fetch(`${remote.url}?page=${page}&pageSize=200`, { cache: "no-store" });
         if ((res.status === 401 || res.status === 403) && remote.readFallback) {
           const other = await fetch(remote.readFallback, { cache: "no-store" });
           if (!other.ok) return;

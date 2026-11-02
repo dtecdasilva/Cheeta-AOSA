@@ -7,7 +7,7 @@ import { Topbar } from "@/components/Topbar";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ProcessProgress } from "@/components/ProcessProgress";
 import { FormError } from "@/components/Form";
-import { formatMoney } from "@/lib/currency/money";
+import { formatAmount } from "@/lib/currency/data";
 import { PROCESS_STEPS } from "@/lib/processFlow";
 import { useMyOverview } from "@/lib/student/overview";
 import { useT } from "@/lib/i18n/client";
@@ -32,7 +32,7 @@ export default function DashboardPage() {
 
   const stats = [
     { label: tr("Institutions selected"), value: String(institutions.length) },
-    { label: tr("Total fees due"), value: formatMoney(data.fees.outstanding, data.fees.currency) },
+    { label: tr("Total fees due"), value: formatAmount(data.fees.outstanding, data.fees.currency) },
     { label: tr("Current step"), value: tr("Step {order} of {total}", { order: currentStep.order, total: PROCESS_STEPS.length }) },
     { label: tr("Actions required"), value: String(actionsRequired.length) },
   ];

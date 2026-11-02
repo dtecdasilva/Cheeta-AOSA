@@ -30,6 +30,8 @@ export interface AuthUser {
   registrationNo?: string;
   /** ISO time the email address was proved, or null if it hasn't been yet. */
   emailVerifiedAt: string | null;
+  /** The password is still an emailed temporary code; a new one must be chosen before anything else. */
+  mustChangePassword: boolean;
   sessionVersion: number;
   failedLoginCount: number;
   lockedUntil: Date | null;
@@ -54,6 +56,7 @@ function selectUsers(db: Executor) {
       mobileNumber: applicantProfiles.mobileNumber,
       registrationNo: applicantProfiles.registrationNo,
       emailVerifiedAt: users.emailVerifiedAt,
+      mustChangePassword: users.mustChangePassword,
       sessionVersion: users.sessionVersion,
       failedLoginCount: users.failedLoginCount,
       lockedUntil: users.lockedUntil,
@@ -80,6 +83,7 @@ function toAuthUser(r: Row): AuthUser {
     mobileNumber: r.mobileNumber ?? r.phone ?? undefined,
     registrationNo: r.registrationNo ?? undefined,
     emailVerifiedAt: r.emailVerifiedAt ? r.emailVerifiedAt.toISOString() : null,
+    mustChangePassword: r.mustChangePassword,
     sessionVersion: r.sessionVersion,
     failedLoginCount: r.failedLoginCount,
     lockedUntil: r.lockedUntil,
@@ -120,7 +124,7 @@ export async function markEmailVerified(id: string): Promise<boolean> {
 export async function setUserPasswordHash(id: string, passwordHash: string): Promise<{ ok: boolean }> {
   const res = await getDb()
     .update(users)
-    .set({ passwordHash, sessionVersion: sql`${users.sessionVersion} + 1`, failedLoginCount: 0, lockedUntil: null, emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, now())` })
+    .set({ passwordHash, mustChangePassword: false, sessionVersion: sql`${users.sessionVersion} + 1`, failedLoginCount: 0, lockedUntil: null, emailVerifiedAt: sql`coalesce(${users.emailVerifiedAt}, now())` })
     .where(eq(users.id, id))
     .returning({ id: users.id });
   return { ok: res.length > 0 };
@@ -161,7 +165,7 @@ export async function createApplicantAccount(params: {
   const created = await getDb().transaction(async (tx) => {
     const inserted = await tx
       .insert(users)
-      .values({ id, email, passwordHash: hashPassword(temporaryCode), fullName: email.split("@")[0], role: "STUDENT", phone: params.mobileNumber })
+      .values({ id, email, passwordHash: hashPassword(temporaryCode), mustChangePassword: true, fullName: email.split("@")[0], role: "STUDENT", phone: params.mobileNumber })
       .onConflictDoNothing({ target: users.email })
       .returning({ id: users.id });
     if (!inserted.length) return false;
@@ -194,6 +198,7 @@ export function toPublicUser(user: AuthUser) {
     institutionType: user.institutionType ?? null,
     mobileNumber: user.mobileNumber ?? null,
     emailVerified: user.emailVerifiedAt !== null,
+    mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt,
   };
 }

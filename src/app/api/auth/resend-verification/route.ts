@@ -14,8 +14,9 @@ const body = z.object({ email: z.string().trim().min(1, "Enter your email addres
  * so it can't be used to find out which emails have accounts.
  */
 export const POST = handler({ auth: "public" }, async ({ req }) => {
-  rateLimit(req, "resend-verification", 5, 15 * 60_000);
+  rateLimit(req, "resend-verification", 100, 15 * 60_000);
   const { email } = await parseBody(req, body);
+  rateLimit(req, "resend-verification-account", 5, 15 * 60_000, email);
   const user = await findUserByEmail(email);
   if (!user || user.status !== "ACTIVE" || user.emailVerifiedAt) return ok({ ok: true });
   const delivery = await sendEmailVerification(user);

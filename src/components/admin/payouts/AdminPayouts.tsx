@@ -85,6 +85,8 @@ export function AdminPayouts() {
 
           {paying && (
             <RecordPayout
+              // A fresh form for each institution: nothing typed for one carries over to another.
+              key={paying.institutionId}
               balance={paying}
               onClose={() => setPaying(null)}
               onDone={(msg) => {
@@ -120,11 +122,15 @@ export function AdminPayouts() {
                     <Td className={`whitespace-nowrap text-right font-semibold tabular-nums ${b.owed > 0 ? "text-[var(--color-ink)]" : "text-[var(--color-ink-faint)]"}`}>{money(b.owed)}</Td>
                     <Td>{b.lastPaidOn ?? "—"}</Td>
                     <Td className="whitespace-nowrap text-right">
-                      <Link href={`/admin/payouts/${encodeURIComponent(b.institutionId)}`} className="mr-3 text-sm underline underline-offset-4">
+                      <Link href={`/admin/payouts/${encodeURIComponent(b.institutionId)}`} aria-label={tr("Statement for {institution}", { institution: b.institutionName })} className="mr-3 text-sm underline underline-offset-4">
                         {tr("Statement")}
                       </Link>
                       {b.owed > 0 && (
-                        <button type="button" onClick={() => setPaying(b)} className="text-sm font-medium text-[var(--color-brand-strong)] underline underline-offset-4">
+                        <button type="button" aria-label={tr("Record payout to {institution}", { institution: b.institutionName })} onClick={() => {
+                            setPaying(b);
+                            setNotice("");
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }} className="text-sm font-medium text-[var(--color-brand-strong)] underline underline-offset-4">
                           {tr("Record payout")}
                         </button>
                       )}

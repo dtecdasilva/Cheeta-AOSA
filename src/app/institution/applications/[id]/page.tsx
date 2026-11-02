@@ -11,7 +11,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   // any other id reads as not found, so one institution can't open another's.
   return (
     <main className={PAGE_MAIN_CLASS}>
-      <PageHeading title={tr("Application")} description={tr("Verify the payment and documents, then acknowledge or reject the application.")} />
+      <PageHeading title={tr("Application")} description={tr("Check the documents, then acknowledge or reject the application. The fee has already been approved by Cheeta.")} />
       <ApplicationReview id={id} />
     </main>
   );

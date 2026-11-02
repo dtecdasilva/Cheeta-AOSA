@@ -24,7 +24,7 @@ export default function ProgramList() {
         <Row
           key={p.id}
           title={tr(p.name)}
-          subtitle={[p.code, qualificationName(p.qualificationId), departmentName(p.departmentId), `${p.availableSpaces} space${p.availableSpaces === 1 ? "" : "s"}`].filter(Boolean).join(" · ")}
+          subtitle={[p.code, qualificationName(p.qualificationId), departmentName(p.departmentId), String(p.availableSpaces === 1 ? tr("1 space") : tr("{n} spaces", { n: p.availableSpaces }))].filter(Boolean).join(" · ")}
           meta={p.status === "ACTIVE" ? <Pill tone="success">{tr("Active")}</Pill> : <Pill tone="muted">{tr("Inactive")}</Pill>}
           actions={
             <>

@@ -183,7 +183,9 @@ export function PrintSubmit() {
             ? apps.every((a) => a.submission.mode === null)
               ? tr("Every application has been submitted.")
               : tr("Nothing is ready to submit yet. Clear the items marked above, then come back.")
-            : `${readyIds.length} application${readyIds.length === 1 ? " is" : tr("s are")} ready. Tick the institutions to submit to.`}
+            : readyIds.length === 1
+              ? tr("1 application is ready. Tick the institutions to submit to.")
+              : tr("{n} applications are ready. Tick the institutions to submit to.", { n: readyIds.length })}
         </p>
         <label className="mt-4 flex items-start gap-2.5 text-sm text-[var(--color-ink)]">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--color-brand)]" checked={declared} onChange={(e) => setDeclared(e.target.checked)} disabled={readyIds.length === 0 || submitting} />

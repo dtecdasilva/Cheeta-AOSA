@@ -133,7 +133,7 @@ export function TuitionList({ basePath, institutionId }: { basePath: string; ins
             value: formatCurrency(sum("awaiting")),
             detail: (
               <button type="button" onClick={() => setAttention("to-verify")} className="underline underline-offset-4">
-                {toVerify.length} {toVerify.length === 1 ? "student" : "students"}
+                {toVerify.length === 1 ? tr("1 student") : tr("{n} students", { n: toVerify.length })}
                 {overSla ? tr(", {overSla} over 3 days", { overSla }) : ""}
               </button>
             ),

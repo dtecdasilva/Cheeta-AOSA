@@ -188,7 +188,7 @@ function DecisionPanel({ app, reasons, onAcknowledge, onReject }: { app: ReviewA
     <Card>
       <p className="font-semibold text-base text-[var(--color-ink)]">{tr("Decision")}</p>
       <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">
-        {tr("Currently {toLowerCase}. Acknowledge it once the payment and every required document are verified, or reject it with a reason.", { toLowerCase: ADMIN_STATUS_LABELS[app.status].toLowerCase() })}
+        {tr("Currently {toLowerCase}. Acknowledge it once every required document is approved, or reject it with a reason.", { toLowerCase: ADMIN_STATUS_LABELS[app.status].toLowerCase() })}
       </p>
       {!actions.acknowledge.allowed && actions.acknowledge.reason && <p className="mt-2 text-sm text-[var(--color-warning-strong)]">{tr(actions.acknowledge.reason)}</p>}
       {mode === null ? (

@@ -38,7 +38,8 @@ const body = z.object({
  *   going (GET /api/auth/register/status) without being signed in.
  */
 export const POST = handler({ auth: "public" }, async ({ req }) => {
-  rateLimit(req, "register", 10, 60 * 60_000);
+  // Generous: a cybercafé or school lab registers many students from one address.
+  rateLimit(req, "register", 150, 60 * 60_000);
   const { email, institutionType, mobileNumber } = await parseBody(req, body);
 
   const checks = [

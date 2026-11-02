@@ -332,7 +332,7 @@ export function ProgramManager() {
           render: (p) => (
             <>
               <p className="text-[var(--color-ink)]">{l.qualificationName(p.qualificationId)}</p>
-              {muted(`${p.durationYears} ${p.durationYears === 1 ? "year" : "years"}`)}
+              {muted(String(p.durationYears === 1 ? tr("1 year") : tr("{n} years", { n: p.durationYears })))}
             </>
           ),
         },

@@ -31,6 +31,10 @@ export async function requireRole(allowed: Role[]): Promise<PublicUser> {
   if (!user) {
     redirect("/login");
   }
+  // Still on the emailed temporary code: choosing a password comes first.
+  if (user.mustChangePassword) {
+    redirect("/change-password");
+  }
   if (!allowed.includes(user.role)) {
     // Send them to their OWN portal rather than a dead end: they are
     // authenticated and have somewhere legitimate to be, they just don't

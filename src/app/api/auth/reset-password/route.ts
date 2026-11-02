@@ -18,7 +18,7 @@ const body = z.object({
 });
 
 export const POST = handler({ auth: "public" }, async ({ req }) => {
-  rateLimit(req, "reset-password", 10, 15 * 60_000);
+  rateLimit(req, "reset-password", 100, 15 * 60_000);
   const { token, password } = await parseBody(req, body);
   const { passwordMinLength } = await getSettings("system");
   if (password.length < passwordMinLength) {

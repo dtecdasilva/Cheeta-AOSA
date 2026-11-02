@@ -29,7 +29,7 @@ import { useEffect, useState } from "react";
 import type { PublicUser } from "@/lib/auth/users";
 import { ROLE_LABELS } from "@/lib/auth/roles";
 import { resolveInstitutionId } from "@/lib/auth/institution";
-import { LogoutButton } from "@/components/auth/LogoutButton";
+import { ChangePasswordLink, LogoutButton } from "@/components/auth/LogoutButton";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { Logo } from "@/components/brand/Logo";
 import { useUnreadCount } from "@/components/notifications/NotificationCentre";
@@ -168,6 +168,7 @@ export function InstitutionShell({ user, children }: { user: PublicUser; childre
 
         <div className="border-t border-[var(--color-line)] px-3 py-3">
           <LanguageSwitch className="mb-2" />
+          <ChangePasswordLink />
           <LogoutButton />
         </div>
       </aside>

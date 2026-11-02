@@ -160,7 +160,7 @@ export async function createStaff(user: PublicUser, input: unknown) {
     if (v.role === "INSTITUTION_ADMISSION_USER") await assertAdmissionUserRoom(tx, institutionId);
     const [inserted] = await tx
       .insert(users)
-      .values({ id, email: v.email, passwordHash: hashPassword(temporaryCode), fullName: v.fullName, role: v.role, phone: v.phone || null, institutionId })
+      .values({ id, email: v.email, passwordHash: hashPassword(temporaryCode), mustChangePassword: true, fullName: v.fullName, role: v.role, phone: v.phone || null, institutionId })
       .onConflictDoNothing({ target: users.email })
       .returning();
     if (!inserted) throw new ValidationError({ email: "Another account already uses this email." });

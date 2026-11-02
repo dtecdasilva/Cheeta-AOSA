@@ -46,11 +46,15 @@ export function Field({
   const generatedId = useId();
   const controlId = htmlFor ?? generatedId;
 
-  // Attach the id to the control when the caller hasn't set one itself.
-  const child =
-    React.isValidElement<{ id?: string; "aria-invalid"?: boolean }>(children) && !children.props.id
-      ? React.cloneElement(children, { id: controlId, "aria-invalid": error ? true : undefined })
-      : children;
+  // Attach the id to the control when the caller hasn't set one itself: the
+  // only child, or else the first input, select or text area among several
+  // (a control followed by its own error line, say).
+  type Ctl = { id?: string; "aria-invalid"?: boolean };
+  const items = React.Children.toArray(children);
+  const target = items.length === 1 ? 0 : items.findIndex((c) => React.isValidElement(c) && CONTROLS.has(c.type as never));
+  const child = items.map((c, i) =>
+    i === target && React.isValidElement<Ctl>(c) && !c.props.id ? React.cloneElement(c, { id: controlId, "aria-invalid": error ? true : undefined }) : c
+  );
 
   return (
     <div>
@@ -80,6 +84,9 @@ export function TextArea({ className = "", ...props }: React.ComponentProps<"tex
   return <textarea {...props} className={`${CONTROL_CLASS} ${className}`} />;
 }
 
+/** The controls a Field links its label to when it holds more than one child. */
+const CONTROLS = new Set<unknown>(["input", "select", "textarea", TextInput, SelectInput, TextArea]);
+
 export function PrimaryButton({
   children,
   className = "",
@@ -95,10 +102,12 @@ export function PrimaryButton({
 export function SecondaryButton({
   children,
   className = "",
+  type = "button",
   ...rest
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  // A plain button unless told otherwise: "Cancel" inside a form must not submit it.
   return (
-    <button {...rest} className={`${buttonClass("secondary")} ${className}`}>
+    <button type={type} {...rest} className={`${buttonClass("secondary")} ${className}`}>
       {children}
     </button>
   );

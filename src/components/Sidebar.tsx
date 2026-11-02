@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown, X } from "lucide-react";
 import { useUnreadCount } from "@/components/notifications/NotificationCentre";
-import { LogoutButton } from "@/components/auth/LogoutButton";
+import { ChangePasswordLink, LogoutButton } from "@/components/auth/LogoutButton";
 import { LanguageSwitch } from "@/components/LanguageSwitch";
 import { Logo } from "@/components/brand/Logo";
 import { STUDENT_NAV, STUDENT_NAV_UTILITY, type NavEntry } from "@/lib/studentNav";
@@ -154,6 +154,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
 
       <div className="border-t border-[var(--color-line)] px-3 py-3">
         <LanguageSwitch className="mb-2" />
+        <ChangePasswordLink />
         <LogoutButton />
       </div>
     </aside>

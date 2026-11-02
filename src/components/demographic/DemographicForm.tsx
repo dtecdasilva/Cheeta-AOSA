@@ -232,15 +232,15 @@ export function DemographicForm() {
       <section className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <h2 className="font-semibold text-base text-[var(--color-ink)]">{tr("Contact")}</h2>
         <div className="mt-4 grid gap-5 sm:grid-cols-2">
-          <Field label={tr("Email")} hint={tr("From your registration — cannot be changed here.")}>
+          <Field label={tr("Email")} htmlFor="account-email" hint={tr("From your registration — cannot be changed here.")}>
             <div className="relative">
-              <TextInput value={account.email} disabled className="pr-9" />
+              <TextInput id="account-email" value={account.email} disabled className="pr-9" />
               <Lock className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
             </div>
           </Field>
-          <Field label={tr("Telephone")} hint={tr("From your registration — cannot be changed here.")}>
+          <Field label={tr("Telephone")} htmlFor="account-telephone" hint={tr("From your registration — cannot be changed here.")}>
             <div className="relative">
-              <TextInput value={account.telephone} disabled className="pr-9" />
+              <TextInput id="account-telephone" value={account.telephone} disabled className="pr-9" />
               <Lock className="absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-ink-faint)]" strokeWidth={1.75} />
             </div>
           </Field>

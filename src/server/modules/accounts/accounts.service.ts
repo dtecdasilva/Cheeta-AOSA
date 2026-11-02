@@ -87,6 +87,7 @@ export async function inviteAccount(input: unknown) {
         id,
         email: v.email,
         passwordHash: hashPassword(temporaryCode),
+        mustChangePassword: true,
         fullName: v.fullName,
         role: v.role,
         phone: v.phone || null,

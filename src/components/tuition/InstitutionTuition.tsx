@@ -197,10 +197,10 @@ export function InstitutionTuitionAccount({ id, institutionId, basePath, staffNa
 
   // Approved money covers the instalments in order.
   const today = new Date().toISOString().slice(0, 10);
-  let pool = v.confirmed ?? 0;
-  const schedule = v.instalments.map((inst) => {
-    const covered = Math.min(pool, inst.amount);
-    pool -= covered;
+  // What is left of the approved money once the earlier instalments have taken their share.
+  const leftBefore = (i: number) => Math.max(0, (v.confirmed ?? 0) - v.instalments.slice(0, i).reduce((s, x) => s + x.amount, 0));
+  const schedule = v.instalments.map((inst, i) => {
+    const covered = Math.min(leftBefore(i), inst.amount);
     return { ...inst, covered, state: covered >= inst.amount ? ("covered" as const) : inst.dueDate < today ? ("overdue" as const) : covered > 0 ? ("part" as const) : ("due" as const) };
   });
   const tone = { covered: "success", part: "amber", overdue: "danger", due: "neutral" } as const;

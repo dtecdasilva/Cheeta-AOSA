@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { AuthShell } from "@/components/auth/AuthShell";
@@ -23,9 +24,9 @@ export default async function LoginPage() {
             {tr("Institution and administration accounts are provisioned by the platform directly — contact your institution or the Cheeta/AOSA administration team if you need one.")}
           </p>
 
-          <a href="/" className="mt-6 block text-center text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
+          <Link href="/" className="mt-6 block text-center text-sm text-[var(--color-ink-soft)] underline underline-offset-4">
             {tr("Back to home")}
-          </a>
+          </Link>
         </>
       }
     >
