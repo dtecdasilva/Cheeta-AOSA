@@ -21,6 +21,8 @@ export function InstitutionListShell({
   error,
   isEmpty,
   note,
+  filters,
+  noMatches,
   children,
 }: {
   title: string;
@@ -32,6 +34,10 @@ export function InstitutionListShell({
   error: string | null;
   isEmpty: boolean;
   note?: React.ReactNode;
+  /** A search and filter bar, shown above the rows once the institution has any records. */
+  filters?: React.ReactNode;
+  /** True when records exist but the search or filters hide all of them. */
+  noMatches?: boolean;
   children: React.ReactNode;
 }) {
   const tr = useT();
@@ -49,6 +55,7 @@ export function InstitutionListShell({
       />
       {tr(note)}
       {error && <FormError>{tr(error)}</FormError>}
+      {!loading && !isEmpty && filters}
       {loading ? (
         <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>
       ) : isEmpty ? (
@@ -62,6 +69,8 @@ export function InstitutionListShell({
             ) : undefined
           }
         />
+      ) : noMatches ? (
+        <EmptyState message={tr("No records match your search or filters.")} />
       ) : (
         <RowList>{children}</RowList>
       )}

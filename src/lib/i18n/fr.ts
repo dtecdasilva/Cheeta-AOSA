@@ -3730,4 +3730,11 @@ export const FR: Record<string, string> = {
  "Cheeta AOSA doesn't take payment by {toLowerCase} at the moment.": "Cheeta AOSA n'accepte pas le paiement par {toLowerCase} pour le moment.",
  "You have nothing left to pay.": "Vous n'avez plus rien à payer.",
  "{offered} offered, {accepted} taken up, {declined} declined": "{offered} offertes, {accepted} acceptées, {declined} refusées",
+ "Search by name, code or dean": "Rechercher par nom, code ou doyen",
+ "Search by name, code, head or faculty": "Rechercher par nom, code, chef ou faculté",
+ "Search by name, code, qualification or department": "Rechercher par nom, code, diplôme ou département",
+ "All faculties": "Toutes les facultés",
+ "All departments": "Tous les départements",
+ "All qualifications": "Tous les diplômes",
+ "No records match your search or filters.": "Aucun enregistrement ne correspond à votre recherche ou à vos filtres.",
 };

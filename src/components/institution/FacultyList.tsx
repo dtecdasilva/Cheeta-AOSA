@@ -1,9 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useInstitutionList } from "@/lib/institution/api";
 import type { Faculty } from "@/lib/institution/types";
 import { Pill, Row, RowAction } from "@/components/ui";
+import { FilterBar, FilterSelect, SearchField } from "@/components/admin/ui";
+import { matchesQuery, STATUS_FILTER_OPTIONS } from "@/lib/institution/filter";
 import { InstitutionListShell } from "./InstitutionListShell";
 import { useT } from "@/lib/i18n/client";
 import { useTownName } from "./LocationFields";
@@ -15,10 +18,23 @@ export default function FacultyList() {
   const { user } = useAuth();
   const canEdit = user?.role === "INSTITUTION_ADMIN";
   const { items, error, setStatus } = useInstitutionList<Faculty>("faculties");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const visible = (items ?? []).filter((f) => (!statusFilter || f.status === statusFilter) && matchesQuery(search, f.name, f.code, f.dean, townName(f.townId)));
+  const filtersActive = Boolean(search || statusFilter);
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("");
+  };
 
   return (
-    <InstitutionListShell title={tr("Faculties")} addHref="/institution/faculty/add" addLabel={tr("Add faculty")} emptyMessage={tr("No faculties yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0}>
-      {(items ?? []).map((f) => (
+    <InstitutionListShell title={tr("Faculties")} addHref="/institution/faculty/add" addLabel={tr("Add faculty")} emptyMessage={tr("No faculties yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0} noMatches={visible.length === 0} filters={
+        <FilterBar onClear={clearFilters} active={filtersActive}>
+          <SearchField value={search} onChange={setSearch} placeholder="Search by name, code or dean" />
+          <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
+        </FilterBar>
+      }>
+      {visible.map((f) => (
         <Row
           key={f.id}
           title={tr(f.name)}
