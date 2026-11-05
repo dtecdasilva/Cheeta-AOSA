@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Check, Search, X } from "lucide-react";
 import type { ApplicationStatus } from "@/lib/types";
@@ -222,40 +222,121 @@ export function ResultCount({ shown, total, noun }: { shown: number; total: numb
 // Pagination
 // ---------------------------------------------------------------------------
 
-export function usePaged<T>(items: T[], pageSize = 20) {
-  const [page, setPage] = useState(1);
-  const pages = Math.max(1, Math.ceil(items.length / pageSize));
-  // Back to the first page whenever the filtered set changes size.
-  useEffect(() => setPage(1), [items.length]);
-  const current = Math.min(page, pages);
-  const slice = useMemo(() => items.slice((current - 1) * pageSize, current * pageSize), [items, current, pageSize]);
-  return { slice, page: current, pages, setPage };
+/** The page sizes a person can choose from. */
+export const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+const PAGE_SIZE_KEY = "cheeta.pageSize";
+const PAGE_SIZE_EVENT = "cheeta:pageSize";
+
+// The chosen size lives in the browser's storage (so it survives visits) and in
+// memory (so it still applies where storage is blocked). Every mounted list
+// follows it, in this tab and in others.
+let chosenSize: number | null = null;
+
+function savedPageSize(): number | null {
+  if (chosenSize) return chosenSize;
+  try {
+    const stored = Number(window.localStorage.getItem(PAGE_SIZE_KEY));
+    return PAGE_SIZE_OPTIONS.includes(stored) ? stored : null;
+  } catch {
+    return null;
+  }
 }
 
-export function Pager({ page, pages, setPage }: { page: number; pages: number; setPage: (n: number) => void }) {
+function subscribePageSize(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener(PAGE_SIZE_EVENT, onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener(PAGE_SIZE_EVENT, onChange);
+  };
+}
+
+function rememberPageSize(size: number) {
+  chosenSize = size;
+  try {
+    window.localStorage.setItem(PAGE_SIZE_KEY, String(size));
+  } catch {
+    // Not kept for next time, but it still applies for as long as the page is open.
+  }
+  window.dispatchEvent(new Event(PAGE_SIZE_EVENT));
+}
+
+/**
+ * Pages a list held in the browser. `defaultSize` is what the screen starts
+ * with; once the person picks a size it is remembered and used by every list.
+ */
+export function usePaged<T>(items: T[], defaultSize = 20) {
+  const [page, setPage] = useState(1);
+  const pageSize = useSyncExternalStore(subscribePageSize, savedPageSize, () => null) ?? defaultSize;
+  const total = items.length;
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+
+  // Back to the first page whenever the filtered set changes size.
+  useEffect(() => setPage(1), [total]);
+
+  const setPageSize = (size: number) => {
+    setPage(1);
+    rememberPageSize(size);
+  };
+
+  const current = Math.min(page, pages);
+  const slice = useMemo(() => items.slice((current - 1) * pageSize, current * pageSize), [items, current, pageSize]);
+  const from = total === 0 ? 0 : (current - 1) * pageSize + 1;
+  const to = Math.min(current * pageSize, total);
+  return { slice, page: current, pages, setPage, pageSize, setPageSize, total, from, to };
+}
+
+type PagerProps = {
+  page: number;
+  pages: number;
+  setPage: (n: number) => void;
+  /** With these, the pager also shows the range and lets the person choose the page size. */
+  pageSize?: number;
+  setPageSize?: (n: number) => void;
+  total?: number;
+  from?: number;
+  to?: number;
+};
+
+export function Pager({ page, pages, setPage, pageSize, setPageSize, total = 0, from = 0, to = 0 }: PagerProps) {
   const tr = useT();
-  if (pages <= 1) return null;
+  const sizeable = pageSize !== undefined && setPageSize !== undefined;
+  // Nothing to page through, and no point offering a page size for a handful of rows.
+  if (sizeable ? total <= PAGE_SIZE_OPTIONS[0] : pages <= 1) return null;
+  const sizes = sizeable ? [...new Set([...PAGE_SIZE_OPTIONS, pageSize])].sort((a, b) => a - b) : [];
+  const link = "text-[var(--color-ink)] underline underline-offset-4 disabled:text-[var(--color-ink-faint)] disabled:no-underline";
   return (
-    <nav aria-label={tr("Pagination")} className="mt-3 flex items-center justify-between text-sm">
-      <button
-        type="button"
-        disabled={page <= 1}
-        onClick={() => setPage(page - 1)}
-        className="text-[var(--color-ink)] underline underline-offset-4 disabled:text-[var(--color-ink-faint)] disabled:no-underline"
-      >
-        {tr("Previous")}
-      </button>
-      <span className="text-[var(--color-ink-soft)]">
-        {tr("Page {page} of {pages}", { page, pages })}
-      </span>
-      <button
-        type="button"
-        disabled={page >= pages}
-        onClick={() => setPage(page + 1)}
-        className="text-[var(--color-ink)] underline underline-offset-4 disabled:text-[var(--color-ink-faint)] disabled:no-underline"
-      >
-        {tr("Next")}
-      </button>
+    <nav aria-label={tr("Pagination")} className="mt-3 flex flex-wrap items-center justify-between gap-x-6 gap-y-2 text-sm">
+      {sizeable && (
+        <p className="text-[var(--color-ink-soft)]" aria-live="polite">
+          {tr("Showing {from}–{to} of {total}", { from, to, total })}
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+        {sizeable && (
+          <label className="flex items-center gap-2 text-[var(--color-ink-soft)]">
+            {tr("Rows per page")}
+            <SelectInput value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))} className="w-auto! py-1">
+              {sizes.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </SelectInput>
+          </label>
+        )}
+        {pages > 1 && (
+          <div className="flex items-center gap-4">
+            <button type="button" disabled={page <= 1} onClick={() => setPage(page - 1)} className={link}>
+              {tr("Previous")}
+            </button>
+            <span className="text-[var(--color-ink-soft)]">{tr("Page {page} of {pages}", { page, pages })}</span>
+            <button type="button" disabled={page >= pages} onClick={() => setPage(page + 1)} className={link}>
+              {tr("Next")}
+            </button>
+          </div>
+        )}
+      </div>
     </nav>
   );
 }

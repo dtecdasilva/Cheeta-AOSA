@@ -66,7 +66,7 @@ export function TemplateList() {
         ),
     [templates, channel, language, category, status, search]
   );
-  const { slice, page, pages, setPage } = usePaged(filtered, 20);
+  const { slice, ...pager } = usePaged(filtered, 20);
 
   const perChannel = (c: Channel) => {
     const list = templates.filter((t) => t.channel === c);
@@ -208,7 +208,7 @@ export function TemplateList() {
           </tbody>
         </TableFrame>
       )}
-      <Pager page={page} pages={pages} setPage={setPage} />
+      <Pager {...pager} />
     </>
   );
 }

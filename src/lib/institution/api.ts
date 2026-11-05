@@ -50,14 +50,24 @@ export function useInstitutionList<T, X = Record<string, unknown>>(path: string,
 
   const reload = useCallback(async () => {
     try {
-      const res = await fetch(`/api/institution/${path}?pageSize=200${query ? `&${query}` : ""}`, { cache: "no-store" });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) return setError(body.error ?? "Could not load this list.");
-      const { data, meta: _meta, ...rest } = body as { data: T[]; meta?: unknown } & Record<string, unknown>;
-      void _meta;
-      setItems(data);
+      // The server answers 200 at a time; keep asking until it has sent them all.
+      const rows: T[] = [];
+      let rest: Record<string, unknown> = {};
+      let total: number | undefined;
+      for (let page = 1; page <= 50; page++) {
+        const res = await fetch(`/api/institution/${path}?page=${page}&pageSize=200${query ? `&${query}` : ""}`, { cache: "no-store" });
+        const body = await res.json().catch(() => ({}));
+        if (!res.ok) return setError(body.error ?? "Could not load this list.");
+        const { data, meta, ...others } = body as { data: T[]; meta?: { total?: number } } & Record<string, unknown>;
+        if (page === 1) rest = others;
+        rows.push(...data);
+        total = meta?.total;
+        if (!meta || data.length < 200 || (total !== undefined && rows.length >= total)) break;
+      }
+      setItems(rows);
       setExtra(rest as X);
-      setError(null);
+      // Never a silent cut: say so if the list is longer than this screen loads.
+      setError(total !== undefined && total > rows.length ? `Only the first ${rows.length.toLocaleString()} of ${total.toLocaleString()} records are shown here.` : null);
     } catch {
       setError("Could not load this list. Check your connection.");
     }

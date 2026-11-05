@@ -3737,4 +3737,6 @@ export const FR: Record<string, string> = {
  "All departments": "Tous les départements",
  "All qualifications": "Tous les diplômes",
  "No records match your search or filters.": "Aucun enregistrement ne correspond à votre recherche ou à vos filtres.",
+ "Rows per page": "Lignes par page",
+ "Showing {from}–{to} of {total}": "Affichage de {from} à {to} sur {total}",
 };

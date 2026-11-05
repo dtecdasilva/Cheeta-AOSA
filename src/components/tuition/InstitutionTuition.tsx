@@ -56,7 +56,7 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
     )
     .sort((x, y) => Number(x.masked) - Number(y.masked) || x.displayName.localeCompare(y.displayName));
 
-  const { slice, page, pages, setPage } = usePaged(filtered, 25);
+  const { slice, ...pager } = usePaged(filtered, 25);
   const identified = views.filter((v) => !v.masked);
   const sum = (k: "confirmed" | "outstanding") => identified.reduce((s, v) => s + (v[k] ?? 0), 0);
   const awaiting = views.filter((v) => v.masked).length;
@@ -153,7 +153,7 @@ export function InstitutionTuitionList({ institutionId, basePath }: { institutio
           </tbody>
         </TableFrame>
       )}
-      <Pager page={page} pages={pages} setPage={setPage} />
+      <Pager {...pager} />
     </>
   );
 }

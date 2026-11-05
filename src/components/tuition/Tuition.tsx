@@ -105,7 +105,7 @@ export function TuitionList({ basePath, institutionId }: { basePath: string; ins
     // Most urgent first: longest-waiting payment, then biggest balance.
     .sort((x, y) => (x.f.oldestPendingAt ?? "9").localeCompare(y.f.oldestPendingAt ?? "9") || y.f.outstanding - x.f.outstanding);
 
-  const { slice, page, pages, setPage } = usePaged(filtered, 20);
+  const { slice, ...pager } = usePaged(filtered, 20);
   const sum = (k: "tuition" | "verified" | "awaiting" | "outstanding") => withFigures.reduce((s, x) => s + x.f[k], 0);
   const toVerify = withFigures.filter((x) => x.f.pendingCount > 0);
   const overSla = toVerify.filter((x) => x.f.oldestPendingAt && daysSince(x.f.oldestPendingAt) > 3).length;
@@ -227,7 +227,7 @@ export function TuitionList({ basePath, institutionId }: { basePath: string; ins
           </tbody>
         </TableFrame>
       )}
-      <Pager page={page} pages={pages} setPage={setPage} />
+      <Pager {...pager} />
     </>
   );
 }

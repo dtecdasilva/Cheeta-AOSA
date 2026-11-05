@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useInstitutionList, useOptions } from "@/lib/institution/api";
 import type { Department, Faculty, Program } from "@/lib/institution/types";
 import { Pill, Row, RowAction } from "@/components/ui";
-import { FilterBar, FilterSelect, SearchField } from "@/components/admin/ui";
+import { FilterBar, FilterSelect, Pager, ResultCount, SearchField, usePaged } from "@/components/admin/ui";
 import { matchesQuery, STATUS_FILTER_OPTIONS } from "@/lib/institution/filter";
 import { InstitutionListShell } from "./InstitutionListShell";
 import { useT } from "@/lib/i18n/client";
@@ -45,9 +45,10 @@ export default function ProgramList() {
     setQualificationFilter("");
     setStatusFilter("");
   };
+  const { slice, ...pager } = usePaged(visible, 20);
 
   return (
-    <InstitutionListShell title={tr("Study programs")} addHref="/institution/programs/add" addLabel={tr("Add program")} emptyMessage={tr("No study programs yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0} noMatches={visible.length === 0} filters={
+    <InstitutionListShell title={tr("Study programs")} addHref="/institution/programs/add" addLabel={tr("Add program")} emptyMessage={tr("No study programs yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0} noMatches={visible.length === 0} summary={<ResultCount shown={visible.length} total={items?.length ?? 0} noun={tr(items?.length === 1 ? "program" : "programs")} />} footer={<Pager {...pager} />} filters={
         <FilterBar onClear={clearFilters} active={filtersActive}>
           <SearchField value={search} onChange={setSearch} placeholder="Search by name, code, qualification or department" />
           <FilterSelect
@@ -65,7 +66,7 @@ export default function ProgramList() {
           <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
         </FilterBar>
       }>
-      {visible.map((p) => (
+      {slice.map((p) => (
         <Row
           key={p.id}
           title={tr(p.name)}

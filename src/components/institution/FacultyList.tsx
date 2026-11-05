@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useInstitutionList } from "@/lib/institution/api";
 import type { Faculty } from "@/lib/institution/types";
 import { Pill, Row, RowAction } from "@/components/ui";
-import { FilterBar, FilterSelect, SearchField } from "@/components/admin/ui";
+import { FilterBar, FilterSelect, Pager, ResultCount, SearchField, usePaged } from "@/components/admin/ui";
 import { matchesQuery, STATUS_FILTER_OPTIONS } from "@/lib/institution/filter";
 import { InstitutionListShell } from "./InstitutionListShell";
 import { useT } from "@/lib/i18n/client";
@@ -26,15 +26,16 @@ export default function FacultyList() {
     setSearch("");
     setStatusFilter("");
   };
+  const { slice, ...pager } = usePaged(visible, 20);
 
   return (
-    <InstitutionListShell title={tr("Faculties")} addHref="/institution/faculty/add" addLabel={tr("Add faculty")} emptyMessage={tr("No faculties yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0} noMatches={visible.length === 0} filters={
+    <InstitutionListShell title={tr("Faculties")} addHref="/institution/faculty/add" addLabel={tr("Add faculty")} emptyMessage={tr("No faculties yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0} noMatches={visible.length === 0} summary={<ResultCount shown={visible.length} total={items?.length ?? 0} noun={tr(items?.length === 1 ? "faculty" : "faculties")} />} footer={<Pager {...pager} />} filters={
         <FilterBar onClear={clearFilters} active={filtersActive}>
           <SearchField value={search} onChange={setSearch} placeholder="Search by name, code or dean" />
           <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
         </FilterBar>
       }>
-      {visible.map((f) => (
+      {slice.map((f) => (
         <Row
           key={f.id}
           title={tr(f.name)}

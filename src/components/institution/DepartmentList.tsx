@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useInstitutionList } from "@/lib/institution/api";
 import type { Department, Faculty } from "@/lib/institution/types";
 import { Pill, Row, RowAction } from "@/components/ui";
-import { FilterBar, FilterSelect, SearchField } from "@/components/admin/ui";
+import { FilterBar, FilterSelect, Pager, ResultCount, SearchField, usePaged } from "@/components/admin/ui";
 import { matchesQuery, STATUS_FILTER_OPTIONS } from "@/lib/institution/filter";
 import { InstitutionListShell } from "./InstitutionListShell";
 import { useT } from "@/lib/i18n/client";
@@ -32,16 +32,17 @@ export default function DepartmentList() {
     setFacultyFilter("");
     setStatusFilter("");
   };
+  const { slice, ...pager } = usePaged(visible, 20);
 
   return (
-    <InstitutionListShell title={tr("Departments")} addHref="/institution/departments/add" addLabel={tr("Add department")} emptyMessage={tr("No departments yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0} noMatches={visible.length === 0} filters={
+    <InstitutionListShell title={tr("Departments")} addHref="/institution/departments/add" addLabel={tr("Add department")} emptyMessage={tr("No departments yet.")} canEdit={canEdit} loading={!items && !error} error={error} isEmpty={items?.length === 0} noMatches={visible.length === 0} summary={<ResultCount shown={visible.length} total={items?.length ?? 0} noun={tr(items?.length === 1 ? "department" : "departments")} />} footer={<Pager {...pager} />} filters={
         <FilterBar onClear={clearFilters} active={filtersActive}>
           <SearchField value={search} onChange={setSearch} placeholder="Search by name, code, head or faculty" />
           <FilterSelect label="Faculty / School" value={facultyFilter} onChange={setFacultyFilter} allLabel="All faculties" options={(faculties ?? []).map((f) => ({ value: f.id, label: f.name }))} />
           <FilterSelect label="Status" value={statusFilter} onChange={setStatusFilter} options={STATUS_FILTER_OPTIONS} />
         </FilterBar>
       }>
-      {visible.map((d) => (
+      {slice.map((d) => (
         <Row
           key={d.id}
           title={tr(d.name)}

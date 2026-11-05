@@ -23,6 +23,8 @@ export function InstitutionListShell({
   note,
   filters,
   noMatches,
+  summary,
+  footer,
   children,
 }: {
   title: string;
@@ -38,6 +40,10 @@ export function InstitutionListShell({
   filters?: React.ReactNode;
   /** True when records exist but the search or filters hide all of them. */
   noMatches?: boolean;
+  /** How many records there are, shown above the rows. */
+  summary?: React.ReactNode;
+  /** The pager, shown under the rows. */
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const tr = useT();
@@ -56,6 +62,7 @@ export function InstitutionListShell({
       {tr(note)}
       {error && <FormError>{tr(error)}</FormError>}
       {!loading && !isEmpty && filters}
+      {!loading && !isEmpty && summary}
       {loading ? (
         <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>
       ) : isEmpty ? (
@@ -72,7 +79,10 @@ export function InstitutionListShell({
       ) : noMatches ? (
         <EmptyState message={tr("No records match your search or filters.")} />
       ) : (
-        <RowList>{children}</RowList>
+        <>
+          <RowList>{children}</RowList>
+          {footer}
+        </>
       )}
     </div>
   );
