@@ -94,6 +94,12 @@ export interface RecordManagerProps<T extends Managed> {
   intro?: React.ReactNode;
   /** Content below the list. */
   children?: React.ReactNode;
+  /**
+   * Turns a record into the starting point of a new one: adds a "Duplicate" action to each row, which opens the Add
+   * form filled in from the copy this returns (clear anything that must be unique, such as a code). It is always
+   * saved as a new record, never over the original.
+   */
+  duplicate?: (item: T) => T;
   /** Records are kept elsewhere (an institution's own structure): no Add, and a record can be viewed and switched on or off, not edited. */
   statusOnly?: boolean;
 }
@@ -127,7 +133,7 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [status, setStatus] = useState("");
-  const [editing, setEditing] = useState<{ id: string | null } | null>(null);
+  const [editing, setEditing] = useState<{ id: string | null; copyOf?: T } | null>(null);
   const [notice, setNotice] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const storeError = store.useError();
@@ -197,11 +203,16 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
       {props.statusOnly && editingItem && <RecordDetails fields={props.fields} item={editingItem} onClose={() => setEditing(null)} />}
       {!props.statusOnly && editing && (editing.id === null || editingItem) && (
         <RecordForm
-          key={editing.id ?? "new"}
+          key={editing.id ?? (editing.copyOf ? "copy" : "new")}
           {...props}
           all={items}
           initial={editingItem}
-          onCancel={() => setEditing(null)}
+          template={editing.copyOf}
+          onCancel={() => {
+            // The "copying…" message belongs to the form being closed.
+            if (editing.copyOf) setNotice("");
+            setEditing(null);
+          }}
           onSaved={(saved, isNew) => {
             setEditing(null);
             setNotice(`${props.nameOf(saved)} ${isNew ? "added" : "saved"}.`);
@@ -279,6 +290,19 @@ export function RecordManager<T extends Managed>(props: RecordManagerProps<T>) {
                         >
                           {props.statusOnly ? tr("View") : tr("Edit")}
                         </button>
+                        {props.duplicate && !props.statusOnly && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditing({ id: null, copyOf: props.duplicate!(item) });
+                              setNotice(tr("Copying {name}. Give it its own code and change anything that differs, then save.", { name: props.nameOf(item) }));
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
+                            className="text-sm text-[var(--color-ink)] underline underline-offset-4"
+                          >
+                            {tr("Duplicate")}
+                          </button>
+                        )}
                         {blocker ? (
                           <span className="text-xs text-[var(--color-ink-faint)]" title={tr(blocker)}>
                             {tr("In use")}
@@ -374,11 +398,13 @@ function RecordForm<T extends Managed>({
   nameOf,
   all,
   initial,
+  template,
   onCancel,
   onSaved,
-}: RecordManagerProps<T> & { all: T[]; initial?: T; onCancel: () => void; onSaved: (item: T, isNew: boolean) => void }) {
+}: RecordManagerProps<T> & { all: T[]; initial?: T; template?: T; onCancel: () => void; onSaved: (item: T, isNew: boolean) => void }) {
   const tr = useT();
-  const base = useMemo(() => initial ?? blank(), [initial, blank]);
+  // A copy starts from `template` but is a new record: its id is blank, so saving adds it rather than updating the original.
+  const base = useMemo(() => initial ?? (template ? { ...template, id: "" } : blank()), [initial, template, blank]);
   const [values, setValues] = useState<Values>(() => toValues(base, fields));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const draft = fromValues(base, values, fields);
@@ -437,7 +463,7 @@ function RecordForm<T extends Managed>({
   return (
     <Card className="mb-6">
       <form onSubmit={save} noValidate>
-        <p className="mb-4 font-semibold tracking-tight text-lg text-[var(--color-ink)]">{initial ? tr("Edit {value}", { value: nameOf(initial) }) : tr("Add {singular}", { singular })}</p>
+        <p className="mb-4 font-semibold tracking-tight text-lg text-[var(--color-ink)]">{initial ? tr("Edit {value}", { value: nameOf(initial) }) : template ? tr("Duplicate {singular}", { singular }) : tr("Add {singular}", { singular })}</p>
         <div className="grid gap-4 sm:grid-cols-2">
           {visible.map((f) => {
             const locked = !!initial && f.lockedOnEdit;

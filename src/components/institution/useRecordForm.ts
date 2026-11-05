@@ -42,5 +42,5 @@ export function useRecordForm<T extends object>(path: string, listHref: string, 
     router.refresh();
   }
 
-  return { form, set, errors, formError, saving, save, back: () => router.back() };
+  return { form, set, errors, setErrors, formError, saving, save, back: () => router.back() };
 }

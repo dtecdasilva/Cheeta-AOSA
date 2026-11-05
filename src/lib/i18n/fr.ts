@@ -3739,4 +3739,10 @@ export const FR: Record<string, string> = {
  "No records match your search or filters.": "Aucun enregistrement ne correspond à votre recherche ou à vos filtres.",
  "Rows per page": "Lignes par page",
  "Showing {from}–{to} of {total}": "Affichage de {from} à {to} sur {total}",
+ "Duplicate {singular}": "Dupliquer : {singular}",
+ "Duplicate study program": "Dupliquer une filière",
+ "Start from a copy of an existing program, give it its own code and change what differs.": "Partez d’une copie d’une filière existante, donnez-lui son propre code et modifiez ce qui diffère.",
+ "Duplicating {name} ({code}). Give the new program its own code and change anything that differs, then save.": "Duplication de {name} ({code}). Donnez à la nouvelle filière son propre code et modifiez ce qui diffère, puis enregistrez.",
+ "Give the new program its own code; {code} already belongs to {name}.": "Donnez à la nouvelle filière son propre code ; {code} appartient déjà à {name}.",
+ "Copying {name}. Give it its own code and change anything that differs, then save.": "Copie de {name}. Donnez-lui son propre code et modifiez ce qui diffère, puis enregistrez.",
 };

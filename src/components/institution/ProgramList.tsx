@@ -76,6 +76,7 @@ export default function ProgramList() {
             <>
               <RowAction href={`/institution/programs/${p.id}`}>{tr("View")}</RowAction>
               {canEdit && <RowAction href={`/institution/programs/${p.id}/edit`}>{tr("Edit")}</RowAction>}
+              {canEdit && <RowAction href={`/institution/programs/add?from=${encodeURIComponent(p.id)}`}>{tr("Duplicate")}</RowAction>}
               {canEdit && (
                 <RowAction tone="muted" onClick={() => setStatus(p.id, p.status === "ACTIVE" ? "INACTIVE" : "ACTIVE")}>
                   {p.status === "ACTIVE" ? tr("Deactivate") : tr("Activate")}

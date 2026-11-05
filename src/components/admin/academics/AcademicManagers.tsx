@@ -264,6 +264,7 @@ export function ProgramManager() {
         { key: "inst", label: tr("Institution"), options: l.institutionOptions, get: (p) => p.institutionId },
         { key: "qual", label: tr("Qualification"), options: l.qualificationOptions, get: (p) => p.qualificationId },
       ]}
+      duplicate={(p) => ({ ...p, id: "", status: "ACTIVE", updatedAt: "" })}
       stats={(items) => {
         const active = items.filter((p) => p.status === "ACTIVE");
         return [

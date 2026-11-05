@@ -12,25 +12,30 @@ import { useT } from "@/lib/i18n/client";
  * of a faculty and leads to a qualification; the server checks that the
  * department really is in the faculty chosen. Saved through
  * /api/institution/programs.
+ *
+ * `duplicateOf` starts a NEW program from a copy of an existing one: every
+ * field is carried over, but it is saved as a new record, so it needs a
+ * code of its own.
  */
-export default function ProgramForm({ initial }: { initial?: Program }) {
+export default function ProgramForm({ initial, duplicateOf }: { initial?: Program; duplicateOf?: Program }) {
   const tr = useT();
   const faculties = useOptions<Faculty>("/api/institution/faculties?pageSize=200");
   const departments = useOptions<Department>("/api/institution/departments?pageSize=200");
   const qualifications = useOptions<{ id: string; label: string; status?: string }>("/api/reference/parameters?category=qualification-types");
-  const { form, set, errors, formError, saving, save, back } = useRecordForm(
+  const source = initial ?? duplicateOf;
+  const { form, set, errors, setErrors, formError, saving, save, back } = useRecordForm(
     "programs",
     "/institution/programs",
     {
-      code: initial?.code ?? "",
-      name: initial?.name ?? "",
-      facultyId: initial?.facultyId ?? "",
-      departmentId: initial?.departmentId ?? "",
-      qualificationId: initial?.qualificationId ?? "",
-      durationYears: String(initial?.durationYears ?? 3),
-      studyMode: (initial?.studyMode ?? "FULL_TIME") as StudyMode,
-      language: (initial?.language ?? "EN") as TeachingLanguage,
-      availableSpaces: String(initial?.availableSpaces ?? 0),
+      code: source?.code ?? "",
+      name: source?.name ?? "",
+      facultyId: source?.facultyId ?? "",
+      departmentId: source?.departmentId ?? "",
+      qualificationId: source?.qualificationId ?? "",
+      durationYears: String(source?.durationYears ?? 3),
+      studyMode: (source?.studyMode ?? "FULL_TIME") as StudyMode,
+      language: (source?.language ?? "EN") as TeachingLanguage,
+      availableSpaces: String(source?.availableSpaces ?? 0),
     },
     initial?.id
   );
@@ -48,6 +53,11 @@ export default function ProgramForm({ initial }: { initial?: Program }) {
 
   return (
     <div className="max-w-2xl space-y-4">
+      {duplicateOf && (
+        <p role="status" className="rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-ink-soft)]">
+          {tr("Duplicating {name} ({code}). Give the new program its own code and change anything that differs, then save.", { name: tr(duplicateOf.name), code: duplicateOf.code })}
+        </p>
+      )}
       <Field label={tr("Program code")} required error={errors.code} hint={tr("Unique within your institution, e.g. BSC-CS.")}>
         <TextInput value={form.code} onChange={(e) => set("code", e.target.value.toUpperCase())} />
       </Field>
@@ -130,12 +140,17 @@ export default function ProgramForm({ initial }: { initial?: Program }) {
       <div className="flex items-center gap-2">
         <PrimaryButton
           disabled={saving}
-          onClick={() =>
-            save(
+          onClick={() => {
+            // The copy is a new program, so it can't keep the original's code. (The server checks every other clash.)
+            if (duplicateOf && form.code.trim().toUpperCase() === duplicateOf.code.toUpperCase()) {
+              setErrors({ code: tr("Give the new program its own code; {code} already belongs to {name}.", { code: duplicateOf.code, name: tr(duplicateOf.name) }) });
+              return;
+            }
+            void save(
               { code: "Enter a program code.", name: tr("Enter the program's name."), facultyId: "Choose a faculty.", departmentId: "Choose a department.", qualificationId: "Choose the qualification it leads to.", durationYears: "Enter the duration.", availableSpaces: "Enter the number of spaces, or 0." },
               { ...form, durationYears: Number(form.durationYears), availableSpaces: Number(form.availableSpaces) }
-            )
-          }
+            );
+          }}
         >
           {saving ? tr("Saving…") : tr("Save")}
         </PrimaryButton>

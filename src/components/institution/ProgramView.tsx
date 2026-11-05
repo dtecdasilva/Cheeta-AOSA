@@ -33,7 +33,12 @@ export default async function ProgramView({
           ]}
         />
       </Card>
-      {canEdit && <RowAction href={`/institution/programs/${program.id}/edit`}>{tr("Edit")}</RowAction>}
+      {canEdit && (
+        <div className="flex gap-4">
+          <RowAction href={`/institution/programs/${program.id}/edit`}>{tr("Edit")}</RowAction>
+          <RowAction href={`/institution/programs/add?from=${encodeURIComponent(program.id)}`}>{tr("Duplicate")}</RowAction>
+        </div>
+      )}
     </div>
   );
 }
