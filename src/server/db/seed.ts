@@ -141,7 +141,16 @@ async function seedInstitutions(db: Executor) {
   await insertChunks(
     db,
     t.institutions,
-    institutionStore.getSeed!().map((i) => ({ ...i, quarterId: i.quarterId || null, createdAt: new Date(i.createdAt), updatedAt: new Date(i.updatedAt) }))
+    institutionStore.getSeed!().map((i) => ({
+      ...i,
+      quarterId: i.quarterId || null,
+      // The store holds "none" as an empty string; the database holds it as null (a date and a file reference can't be "").
+      logoFileId: i.logoFileId || null,
+      applicationsOpenAt: i.applicationsOpenAt ? new Date(i.applicationsOpenAt) : null,
+      applicationsCloseAt: i.applicationsCloseAt ? new Date(i.applicationsCloseAt) : null,
+      createdAt: new Date(i.createdAt),
+      updatedAt: new Date(i.updatedAt),
+    }))
   );
   await insertChunks(db, t.faculties, facultyStore.getSeed!().map((f) => ({ ...f, updatedAt: new Date(f.updatedAt) })));
   await insertChunks(db, t.departments, departmentStore.getSeed!().map((d) => ({ ...d, updatedAt: new Date(d.updatedAt) })));
