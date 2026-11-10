@@ -1,9 +1,12 @@
 "use client";
 
-import { MapPin, Check } from "lucide-react";
+import { useState } from "react";
+import { MapPin, Check, Info } from "lucide-react";
 import type { InstitutionListing } from "@/lib/institutionDiscovery/data";
 import { useMoneyFormat } from "@/lib/currency/useCurrencies";
 import { useT } from "@/lib/i18n/client";
+import { InstitutionAbout } from "./InstitutionAbout";
+import { InstitutionLogo } from "./InstitutionLogo";
 
 export function InstitutionCard({
   institution,
@@ -22,6 +25,7 @@ export function InstitutionCard({
   const tr = useT();
   const format = useMoneyFormat();
   const { programCount, availableSpaces: spaces } = institution;
+  const [about, setAbout] = useState(false);
 
   return (
     <div
@@ -30,13 +34,15 @@ export function InstitutionCard({
       }`}
     >
       <div className="flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-paper)] font-semibold tracking-tight text-lg text-[var(--color-ink)]">
-          {tr(institution.logoInitial)}
-        </div>
+        <InstitutionLogo url={institution.logoUrl} initial={institution.logoInitial} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-[var(--color-ink)]">{tr(institution.name)}</p>
           <p className="text-xs text-[var(--color-ink-faint)]">{tr(institution.type)}</p>
+          {institution.motto && <p className="mt-0.5 truncate text-xs italic text-[var(--color-ink-soft)]">{institution.motto}</p>}
         </div>
+        <button type="button" onClick={() => setAbout(true)} aria-label={tr("About {name}", { name: tr(institution.name) })} title={tr("About this institution")} className="-mr-1 -mt-1 shrink-0 rounded-lg p-1.5 text-[var(--color-ink-soft)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]">
+          <Info className="h-4 w-4" strokeWidth={1.75} />
+        </button>
         {selected && <Check className="h-4 w-4 shrink-0 text-[var(--color-brand-strong)]" strokeWidth={2.5} />}
       </div>
 
@@ -83,6 +89,15 @@ export function InstitutionCard({
           </button>
         )}
       </div>
+      <InstitutionAbout
+        institution={institution}
+        open={about}
+        onClose={() => setAbout(false)}
+        onViewDetails={() => {
+          setAbout(false);
+          onViewDetails();
+        }}
+      />
     </div>
   );
 }

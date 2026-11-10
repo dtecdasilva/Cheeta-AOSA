@@ -2,7 +2,7 @@ import "server-only";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import type { PublicUser } from "@/lib/auth/users";
-import { windowState, type ApplicationWindow } from "@/lib/institution/applicationWindow";
+import { windowProblems, windowState, type ApplicationWindow } from "@/lib/institution/applicationWindow";
 import { getDb, type Executor } from "@/server/db/client";
 import { institutions } from "@/server/db/schema";
 import { audit } from "@/server/audit/audit";
@@ -38,10 +38,7 @@ const schema = z
     message: text(300).default(""),
   })
   .superRefine((v, ctx) => {
-    if (v.mode === "SCHEDULED" && !v.opensAt) ctx.addIssue({ code: "custom", path: ["opensAt"], message: "Choose when applications open." });
-    if (v.mode === "SCHEDULED" && !v.closesAt) ctx.addIssue({ code: "custom", path: ["closesAt"], message: "Choose when applications close." });
-    if (v.opensAt && v.closesAt && v.closesAt <= v.opensAt) ctx.addIssue({ code: "custom", path: ["closesAt"], message: "Closing must come after opening." });
-    if (v.mode === "OPEN" && v.closesAt && new Date(v.closesAt) <= new Date()) ctx.addIssue({ code: "custom", path: ["closesAt"], message: "The closing date has passed. Choose a later one, or close applications now." });
+    for (const [field, message] of Object.entries(windowProblems(v))) ctx.addIssue({ code: "custom", path: [field], message });
   });
 
 function targetOf(user: PublicUser, institutionId?: string): string {

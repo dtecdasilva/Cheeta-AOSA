@@ -3,6 +3,9 @@ import type { StoredFile } from "@/server/storage/files.service";
 
 /** A stored file as the response: shown in the browser (PDFs and images) or, with `download`, saved. */
 export function fileResponse(file: StoredFile, stream: ReadableStream<Uint8Array>, opts: { download?: boolean } = {}) {
+  // A logo's content never changes (a new logo is a new file with a new address), and it is the same for everyone who
+  // may see it, so the browser may keep it for a while instead of fetching it for every list it appears in.
+  const cache = file.purpose === "institution-logo" ? "private, max-age=86400, immutable" : "private, no-store";
   const inline = !opts.download && (file.mimeType === "application/pdf" || file.mimeType.startsWith("image/"));
   return new NextResponse(stream, {
     headers: {
@@ -11,8 +14,8 @@ export function fileResponse(file: StoredFile, stream: ReadableStream<Uint8Array
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.originalName)}`,
       // Served as exactly the type it was stored as, never guessed by the browser.
       "X-Content-Type-Options": "nosniff",
-      // Not kept by the browser or anything between: the next request is checked again.
-      "Cache-Control": "private, no-store",
+      // Not kept by the browser or anything between: the next request is checked again. (A logo is the exception, above.)
+      "Cache-Control": cache,
     },
   });
 }

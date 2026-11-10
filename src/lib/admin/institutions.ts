@@ -26,6 +26,17 @@ export interface AdminInstitution {
   phone: string;
   email: string;
   website: string;
+  /** The id of the logo file (uploaded first); empty for none. Shown to applicants. */
+  logoFileId: string;
+  /** A short motto, and a brief description (at most 250 words). */
+  motto: string;
+  description: string;
+  /** When it accepts applications; the dates are ISO instants, or empty. */
+  applicationsMode: "OPEN" | "CLOSED" | "SCHEDULED";
+  applicationsOpenAt: string;
+  applicationsCloseAt: string;
+  /** Shown to applicants while applications are closed. */
+  applicationsMessage: string;
   status: ParamStatus;
   /**
    * This institution's own web fee, in XAF, charged on every application
@@ -89,6 +100,13 @@ function seedInstitutions(): AdminInstitution[] {
       phone,
       email: `admissions@${domain}`,
       website: `https://www.${domain}`,
+      logoFileId: "",
+      motto: "",
+      description: "",
+      applicationsMode: "OPEN",
+      applicationsOpenAt: "",
+      applicationsCloseAt: "",
+      applicationsMessage: "",
       status,
       webFee,
       createdAt: `${created}T09:00:00.000Z`,
@@ -123,6 +141,13 @@ export const institutionStore = createApiCollection<AdminInstitution>("instituti
     phone: str(r.phone),
     email: str(r.email),
     website: str(r.website),
+    logoFileId: str(r.logoFileId),
+    motto: str(r.motto),
+    description: str(r.description),
+    applicationsMode: r.applicationsMode === "CLOSED" || r.applicationsMode === "SCHEDULED" ? r.applicationsMode : "OPEN",
+    applicationsOpenAt: str(r.applicationsOpenAt),
+    applicationsCloseAt: str(r.applicationsCloseAt),
+    applicationsMessage: str(r.applicationsMessage),
     status: r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     webFee: typeof r.webFee === "number" ? r.webFee : null,
     createdAt: str(r.createdAt),

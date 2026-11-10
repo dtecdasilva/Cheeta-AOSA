@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { boolean, index, integer, pgTable, primaryKey, real, text, uniqueIndex, date, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { PAYMENT_METHOD_TYPES } from "../../../lib/institution/paymentMethods";
 import { id, recordStatus, timestamps, ts } from "./_shared";
+import { files } from "./files";
 import { users } from "./identity";
 import { parameters } from "./reference";
 
@@ -39,6 +40,12 @@ export const institutions = pgTable(
     phone: text("phone").notNull(),
     email: text("email").notNull(),
     website: text("website").notNull().default(""),
+    /** The institution's logo: a stored file (purpose "institution-logo"), shown to applicants. */
+    logoFileId: text("logo_file_id").references((): AnyPgColumn => files.id),
+    /** A short motto, shown with the logo. */
+    motto: text("motto").notNull().default(""),
+    /** A brief description of the institution, at most 250 words (checked when saved). */
+    description: text("description").notNull().default(""),
     /** Platform web fee charged per application, in XAF. */
     /**
      * This institution's own web fee, in XAF. Null means it uses the

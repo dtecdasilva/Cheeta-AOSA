@@ -51,9 +51,17 @@ export interface InstitutionListing {
   /** Town and region, e.g. "Yaoundé, Centre". */
   location: string;
   logoInitial: string;
+  /** The institution's logo, or null when it hasn't uploaded one (show `logoInitial` instead). */
+  logoUrl: string | null;
+  /** Its motto, and a brief description of it (at most 250 words); empty when not given. */
+  motto: string;
+  description: string;
   website: string;
   /** How many programs an applicant may rank here (from the institution type). */
   maxProgramChoices: number;
+  /** How many faculties/schools and departments it offers programs through (active ones), and the programs themselves. */
+  facultyCount: number;
+  departmentCount: number;
   programCount: number;
   availableSpaces: number;
   /**

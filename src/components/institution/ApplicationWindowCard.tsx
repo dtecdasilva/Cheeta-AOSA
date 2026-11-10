@@ -4,16 +4,8 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui";
 import { Field, FormError, PrimaryButton, SecondaryButton, SelectInput, TextInput } from "@/components/Form";
 import { ToneBadge } from "@/components/admin/ui";
-import type { WindowMode, WindowState } from "@/lib/institution/applicationWindow";
+import { fromLocalInput as fromLocal, toLocalInput as toLocal, type WindowMode, type WindowState } from "@/lib/institution/applicationWindow";
 import { useT } from "@/lib/i18n/client";
-
-/** "2026-11-30T23:59" in the browser's time, from an ISO instant, for a datetime-local input. */
-const toLocal = (iso: string | null) => {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
-};
-const fromLocal = (v: string) => (v ? new Date(v).toISOString() : null);
 
 /**
  * Whether the institution is accepting applications, and (for its

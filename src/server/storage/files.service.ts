@@ -7,7 +7,7 @@ import { formatFileSize, normaliseFileType } from "@/lib/institution/uploadRequi
 import type { ApplicationStatus } from "@/lib/types";
 import { env } from "@/server/config/env";
 import { getDb, type Executor } from "@/server/db/client";
-import { admissions, applicantProfiles, applicationDocuments, applicationInstitutions, applications, disabilityMedia, feePayments, files } from "@/server/db/schema";
+import { admissions, applicantProfiles, applicationDocuments, applicationInstitutions, applications, disabilityMedia, feePayments, files, institutions } from "@/server/db/schema";
 import { newId } from "@/server/db/ids";
 import { audit } from "@/server/audit/audit";
 import { hasPermission } from "@/server/auth/access";
@@ -31,7 +31,7 @@ import { getStorage, storageFor } from "./driver";
  * ends the moment the reason for it does.
  */
 
-export type FilePurpose = "application-document" | "payment-receipt" | "medical-certificate" | "admission-letter" | "disability-media" | "applicant-photo" | "other";
+export type FilePurpose = "application-document" | "payment-receipt" | "medical-certificate" | "admission-letter" | "disability-media" | "applicant-photo" | "institution-logo" | "other";
 
 const PURPOSES: Record<FilePurpose, { types: string[]; maxMb?: number }> = {
   "application-document": { types: ["pdf", "jpg", "jpeg", "png"] },
@@ -42,6 +42,8 @@ const PURPOSES: Record<FilePurpose, { types: string[]; maxMb?: number }> = {
   "disability-media": { types: ["jpg", "jpeg", "png", "mp4", "mov", "webm"], maxMb: 25 },
   // A passport-style photo of the applicant, shown on their application.
   "applicant-photo": { types: ["jpg", "jpeg", "png"], maxMb: 2 },
+  // An institution's logo, shown to applicants beside its name.
+  "institution-logo": { types: ["jpg", "jpeg", "png"], maxMb: 1 },
   other: { types: ["pdf", "jpg", "jpeg", "png"] },
 };
 
@@ -152,7 +154,7 @@ export async function getFile(db: Executor, id: string): Promise<StoredFile> {
 // ---------------------------------------------------------------------------
 
 /** Why an account may open a file: it is theirs, it belongs to an application to their institution, or they are Cheeta administration. */
-export type FileAccess = "owner" | "institution" | "administration";
+export type FileAccess = "owner" | "institution" | "administration" | "public";
 
 const isInstitutionStaff = (user: PublicUser) => user.role === "INSTITUTION_ADMIN" || user.role === "INSTITUTION_ADMISSION_USER";
 
@@ -177,6 +179,9 @@ const isInstitutionStaff = (user: PublicUser) => user.role === "INSTITUTION_ADMI
  *
  * A payment receipt: the applicant who uploaded it, and Cheeta
  * administration, who verify payments. Never an institution.
+ *
+ * An institution logo: any signed-in account, while it is some institution's
+ * current logo (see below).
  *
  * Any other file: its owner, Cheeta administration, and staff of the
  * institution it was uploaded for (admission letters and the like).
@@ -208,6 +213,15 @@ export async function fileAccess(db: Executor, user: PublicUser, file: StoredFil
     if (!approved) return null;
     // Opening an applicant's documents is part of "Student Payments & Uploads".
     return (await hasPermission(db, user, "PAYMENTS_UPLOADS")) ? "institution" : null;
+  }
+
+  if (file.purpose === "institution-logo") {
+    // A logo is public information once it belongs to an institution: any signed-in account may see it (applicants
+    // browsing, staff, administration). One that was replaced, or never saved, belongs to no institution and opens only
+    // for the administrator who uploaded it.
+    const [inst] = await db.select({ id: institutions.id }).from(institutions).where(eq(institutions.logoFileId, file.id)).limit(1);
+    if (inst) return "public";
+    return file.ownerUserId === user.id ? "owner" : null;
   }
 
   if (file.purpose === "admission-letter") {
@@ -325,7 +339,8 @@ export async function openFileFor(user: PublicUser, id: string) {
   }
   const stream = await storageFor(file.storageDriver)?.get(file.storageKey);
   if (!stream) throw new NotFoundError("File content");
-  if (access !== "owner") await audit(db, { action: "download", entityType: "file", entityId: file.id, institutionId: file.institutionId, meta: { purpose: file.purpose, as: access } });
+  // Reading a logo is as ordinary as seeing a name on a list: not worth an audit entry each time.
+  if (access !== "owner" && access !== "public") await audit(db, { action: "download", entityType: "file", entityId: file.id, institutionId: file.institutionId, meta: { purpose: file.purpose, as: access } });
   return { file, stream };
 }
 

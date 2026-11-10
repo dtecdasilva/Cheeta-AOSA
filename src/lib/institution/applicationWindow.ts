@@ -28,6 +28,35 @@ export interface WindowState extends ApplicationWindow {
   reason: string | null;
 }
 
+/** "2026-11-30T23:59" in the browser's time, from an ISO instant, for a datetime-local input. */
+export const toLocalInput = (iso: string | null | undefined) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+};
+
+/** The ISO instant a datetime-local input's value stands for; null when it is empty. */
+export const fromLocalInput = (v: string) => (v ? new Date(v).toISOString() : null);
+
+/**
+ * What is wrong with a window's dates, by field; empty when it is fine. The
+ * server applies this on every save and the forms show the same messages.
+ */
+export function windowProblems(w: Pick<ApplicationWindow, "mode" | "opensAt" | "closesAt">, now = new Date()): Partial<Record<"opensAt" | "closesAt", string>> {
+  const problems: Partial<Record<"opensAt" | "closesAt", string>> = {};
+  const opens = w.opensAt ? new Date(w.opensAt).getTime() : null;
+  const closes = w.closesAt ? new Date(w.closesAt).getTime() : null;
+  if (w.mode === "SCHEDULED" && opens === null) problems.opensAt = "Choose when applications open.";
+  if (w.mode === "SCHEDULED" && closes === null) problems.closesAt = "Choose when applications close.";
+  if (opens !== null && closes !== null && closes <= opens) problems.closesAt = "Closing must come after opening.";
+  if (w.mode === "OPEN" && closes !== null && closes <= now.getTime()) problems.closesAt = "The closing date has passed. Choose a later one, or close applications now.";
+  return problems;
+}
+
+/** "1 Mar 2027, 08:00", in Cameroon's time, for the opening and closing moments an institution sets. */
+export const formatWindowDateTime = (iso: string) =>
+  new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Douala" }).format(new Date(iso));
+
 const fmt = (iso: string) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Douala" }).format(new Date(iso));
 
 export function windowState(w: ApplicationWindow, name = "This institution", now = new Date()): WindowState {

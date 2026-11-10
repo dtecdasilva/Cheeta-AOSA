@@ -10,6 +10,9 @@ import { selectableParams, useParameters, type ParamItem } from "@/lib/admin/par
 import { useHydrated } from "@/lib/admin/store";
 import { LocationSelect, type LocationValue } from "@/components/location/LocationSelect";
 import { useT } from "@/lib/i18n/client";
+import { LogoUpload } from "./LogoUpload";
+import { DESCRIPTION_MAX_CHARS, DESCRIPTION_MAX_WORDS, MOTTO_MAX_CHARS, descriptionProblem, wordCount } from "@/lib/institution/profile";
+import { fromLocalInput, toLocalInput, windowProblems } from "@/lib/institution/applicationWindow";
 
 type Draft = Omit<AdminInstitution, "id" | "createdAt" | "updatedAt" | "webFee"> & { webFee: string };
 type Errors = Partial<Record<keyof Draft, string>>;
@@ -28,6 +31,13 @@ const EMPTY: Draft = {
   phone: "",
   email: "",
   website: "",
+  logoFileId: "",
+  motto: "",
+  description: "",
+  applicationsMode: "OPEN",
+  applicationsOpenAt: "",
+  applicationsCloseAt: "",
+  applicationsMessage: "",
   status: "ACTIVE",
   webFee: "",
 };
@@ -100,6 +110,14 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
       const fee = Number(form.webFee);
       if (!Number.isFinite(fee) || fee < 0) e.webFee = tr("Enter an amount of 0 or more.");
     }
+    if (descriptionProblem(form.description)) e.description = tr("Keep the description to {max} words or fewer (it is {words}).", { max: DESCRIPTION_MAX_WORDS, words: wordCount(form.description) });
+    // The application dates, when they are being set or changed (an old closing date must not block saving other changes).
+    const windowChanged = !initial || form.applicationsMode !== initial.applicationsMode || form.applicationsOpenAt !== initial.applicationsOpenAt || form.applicationsCloseAt !== initial.applicationsCloseAt;
+    if (windowChanged) {
+      const problems = windowProblems({ mode: form.applicationsMode, opensAt: form.applicationsOpenAt || null, closesAt: form.applicationsCloseAt || null });
+      if (problems.opensAt) e.applicationsOpenAt = tr(problems.opensAt);
+      if (problems.closesAt) e.applicationsCloseAt = tr(problems.closesAt);
+    }
     const code = form.accreditationCode.trim().toLowerCase();
     if (code && institutionStore.getAll().some((i) => i.id !== initial?.id && i.accreditationCode.trim().toLowerCase() === code)) {
       e.accreditationCode = tr("Another institution already uses this accreditation code.");
@@ -121,6 +139,9 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
       accreditationCode: form.accreditationCode.trim(),
       email: form.email.trim(),
       website: form.website.trim(),
+      motto: form.motto.trim(),
+      description: form.description.trim(),
+      applicationsMessage: form.applicationsMessage.trim(),
       // Left empty, the institution uses the platform web fee.
       webFee: form.webFee.trim() ? Math.round(Number(form.webFee)) : null,
     };
@@ -168,6 +189,23 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
         </div>
       </Section>
 
+      <Section title={tr("Profile")}>
+        <div className="space-y-5">
+          <Field label={tr("Logo")} error={errors.logoFileId} hint={tr("PNG or JPG, up to 1 MB. A square image works best. Applicants see it beside the institution's name.")}>
+            <LogoUpload value={form.logoFileId} onChange={(id) => set("logoFileId", id)} />
+          </Field>
+          <Field label={tr("Motto")} error={errors.motto}>
+            <TextInput value={form.motto} maxLength={MOTTO_MAX_CHARS} onChange={(e) => set("motto", e.target.value)} placeholder={tr("e.g. Knowledge, Discipline, Service")} />
+          </Field>
+          <Field label={tr("About the institution")} error={errors.description} hint={tr("A brief description for applicants: what it is, what it is known for.")}>
+            <TextArea rows={6} maxLength={DESCRIPTION_MAX_CHARS} value={form.description} onChange={(e) => set("description", e.target.value)} />
+            <p className={`mt-1 text-xs ${wordCount(form.description) > DESCRIPTION_MAX_WORDS ? "font-medium text-[var(--color-danger)]" : "text-[var(--color-ink-faint)]"}`} aria-live="polite">
+              {tr("{words} of {max} words", { words: wordCount(form.description), max: DESCRIPTION_MAX_WORDS })}
+            </p>
+          </Field>
+        </div>
+      </Section>
+
       <Section title={tr("Address and location")}>
         <div className="grid gap-5 sm:grid-cols-2">
           <div className="sm:col-span-2">
@@ -202,6 +240,33 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
           <Field label={tr("Website")} error={errors.website}>
             <TextInput type="url" value={form.website} onChange={(e) => set("website", e.target.value)} placeholder={tr("https://")} />
           </Field>
+        </div>
+      </Section>
+
+      <Section title={tr("Applications")}>
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label={tr("Applications")}>
+            <SelectInput value={form.applicationsMode} onChange={(e) => set("applicationsMode", e.target.value as Draft["applicationsMode"])}>
+              <option value="OPEN">{tr("Open now")}</option>
+              <option value="SCHEDULED">{tr("Open between two dates")}</option>
+              <option value="CLOSED">{tr("Closed")}</option>
+            </SelectInput>
+          </Field>
+          {form.applicationsMode === "SCHEDULED" && (
+            <Field label={tr("Opens")} required error={errors.applicationsOpenAt}>
+              <TextInput type="datetime-local" value={toLocalInput(form.applicationsOpenAt)} onChange={(e) => set("applicationsOpenAt", fromLocalInput(e.target.value) ?? "")} />
+            </Field>
+          )}
+          {form.applicationsMode !== "CLOSED" && (
+            <Field label={form.applicationsMode === "OPEN" ? tr("Closes (optional)") : tr("Closes")} required={form.applicationsMode === "SCHEDULED"} error={errors.applicationsCloseAt}>
+              <TextInput type="datetime-local" value={toLocalInput(form.applicationsCloseAt)} onChange={(e) => set("applicationsCloseAt", fromLocalInput(e.target.value) ?? "")} />
+            </Field>
+          )}
+          <div className="sm:col-span-2">
+            <Field label={tr("Message to applicants while closed (optional)")} error={errors.applicationsMessage}>
+              <TextInput value={form.applicationsMessage} maxLength={300} onChange={(e) => set("applicationsMessage", e.target.value)} placeholder={tr("e.g. Applications for the 2027 intake open in March.")} />
+            </Field>
+          </div>
         </div>
       </Section>
 

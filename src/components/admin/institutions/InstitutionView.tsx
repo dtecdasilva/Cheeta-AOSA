@@ -10,6 +10,8 @@ import { institutionStore } from "@/lib/admin/institutions";
 import { useHydrated } from "@/lib/admin/store";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
+import { InstitutionLogo } from "@/components/institutions/InstitutionLogo";
+import { formatWindowDateTime, windowState } from "@/lib/institution/applicationWindow";
 
 export function InstitutionView({ id }: { id: string }) {
   const tr = useT();
@@ -40,6 +42,7 @@ export function InstitutionView({ id }: { id: string }) {
   const recent = [...apps].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 8);
   const body = data.paramById.get(inst.accreditationBodyId);
   const active = inst.status === "ACTIVE";
+  const applicationsNow = windowState({ mode: inst.applicationsMode, opensAt: inst.applicationsOpenAt || null, closesAt: inst.applicationsCloseAt || null, message: inst.applicationsMessage }, inst.name);
 
   return (
     <>
@@ -87,6 +90,27 @@ export function InstitutionView({ id }: { id: string }) {
               { label: tr("Accreditation code"), value: inst.accreditationCode },
               { label: tr("Status"), value: active ? tr("Active") : tr("Inactive") },
               { label: tr("Web fee"), value: inst.webFee === null ? tr("Platform web fee") : formatCurrency(inst.webFee) },
+            ]}
+          />
+        </Card>
+        <Card padded={false}>
+          <CardHeader title={tr("Profile")} />
+          <div className="flex items-start gap-4 px-5 py-4">
+            <InstitutionLogo url={inst.logoFileId ? `/api/files/${encodeURIComponent(inst.logoFileId)}` : null} initial={inst.name.trim().charAt(0).toUpperCase()} size="lg" />
+            <div className="min-w-0 space-y-2 text-sm">
+              {inst.motto ? <p className="italic text-[var(--color-ink)]">“{inst.motto}”</p> : <p className="text-[var(--color-ink-faint)]">{tr("No motto yet.")}</p>}
+              {inst.description ? <p className="whitespace-pre-line text-[var(--color-ink-soft)]">{inst.description}</p> : <p className="text-[var(--color-ink-faint)]">{tr("No description yet.")}</p>}
+            </div>
+          </div>
+        </Card>
+        <Card padded={false}>
+          <CardHeader title={tr("Applications")} />
+          <DescriptionList
+            items={[
+              { label: tr("Status"), value: <span className={applicationsNow.open ? "text-[var(--color-success-strong)]" : undefined}>{tr(applicationsNow.label)}</span> },
+              { label: tr("Opens"), value: inst.applicationsMode === "SCHEDULED" && inst.applicationsOpenAt ? formatWindowDateTime(inst.applicationsOpenAt) : "—" },
+              { label: tr("Closes"), value: inst.applicationsMode !== "CLOSED" && inst.applicationsCloseAt ? formatWindowDateTime(inst.applicationsCloseAt) : "—" },
+              ...(inst.applicationsMessage ? [{ label: tr("Message to applicants"), value: inst.applicationsMessage }] : []),
             ]}
           />
         </Card>

@@ -64,6 +64,13 @@
       "when": 1793660856517,
       "tag": "0008_password_change",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794226855329,
+      "tag": "0009_institution_profile",
+      "breakpoints": true
     }
   ]
 }

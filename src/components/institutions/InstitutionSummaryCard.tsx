@@ -8,6 +8,7 @@ import type { FeeLine } from "@/lib/fees/types";
 import type { InstitutionListing } from "@/lib/institutionDiscovery/data";
 import { formatDate } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
+import { InstitutionLogo } from "./InstitutionLogo";
 
 /**
  * One institution on the applicant's application: its status, the
@@ -42,7 +43,7 @@ export default function InstitutionSummaryCard({
     <div className="mb-4 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-brand-soft)] font-semibold text-[var(--color-brand-strong)]">{institution.name.trim().charAt(0).toUpperCase()}</div>
+          <InstitutionLogo url={listing?.logoUrl ?? null} initial={institution.name.trim().charAt(0).toUpperCase()} />
           <div>
             <div className="text-sm font-semibold">{tr(institution.name)}</div>
             <div className="text-xs text-[var(--color-ink-soft)]">

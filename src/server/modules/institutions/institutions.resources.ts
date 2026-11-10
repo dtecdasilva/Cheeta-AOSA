@@ -4,9 +4,11 @@ import { and, asc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { BASE_CURRENCY } from "@/lib/admin/reference";
 import { FEE_CATEGORIES, FEE_TYPES } from "@/lib/institution/fees";
 import { CUSTOM_DOCUMENT_TYPE, UPLOAD_FILE_TYPES, documentTypeMaxKb, normaliseFileType, supportedFileTypes, validateRequirementLimits, type DocumentTypeOption } from "@/lib/institution/uploadRequirements";
+import { DESCRIPTION_MAX_CHARS, MOTTO_MAX_CHARS, descriptionProblem } from "@/lib/institution/profile";
+import { windowProblems } from "@/lib/institution/applicationWindow";
 import { PAYMENT_METHOD_DETAIL_FIELDS, PAYMENT_METHOD_TYPES, unusedDetailFields, validatePaymentMethodDetails, type PaymentMethodType } from "@/lib/institution/paymentMethods";
 import type { Executor } from "@/server/db/client";
-import { applicationDocuments, currencies, departments, faculties, feeConfigs, feePayments, institutionPaymentMethods, institutions, parameters, programs, tuitionPayments, uploadRequirements } from "@/server/db/schema";
+import { applicationDocuments, currencies, departments, faculties, feeConfigs, files, feePayments, institutionPaymentMethods, institutions, parameters, programs, tuitionPayments, uploadRequirements } from "@/server/db/schema";
 import { env } from "@/server/config/env";
 import { ConflictError, ValidationError } from "@/server/http/errors";
 import { getRequestContext } from "@/server/logging/context";
@@ -34,6 +36,12 @@ const optionalParam = z
   .nullable()
   .optional()
   .transform((v) => v || null);
+
+/** A date and time (ISO, with its offset) that may be left empty: stored as a date, or null. */
+const optionalDate = z
+  .union([z.iso.datetime({ offset: true, error: "Enter a date and time." }), z.literal(""), z.null()])
+  .optional()
+  .transform((v) => (v ? new Date(v) : null));
 
 /** Region and town, if given, are a region and a town in it. */
 async function checkPlace(db: Executor, next: Row) {
@@ -68,6 +76,18 @@ export const institutionResource: ResourceDef<z.ZodObject> = {
     website: text(200).default(""),
     // The institution's own web fee; null (or left out) uses the platform web fee.
     webFee: z.number({ error: "Enter a whole number." }).int().min(0).max(1_000_000).nullable().default(null),
+    // What the institution says about itself to applicants. The logo is a file uploaded first
+    // (POST /api/admin/institution-logos); this is its id, or empty for none.
+    logoFileId: optionalParam,
+    motto: text(MOTTO_MAX_CHARS).default(""),
+    description: text(DESCRIPTION_MAX_CHARS)
+      .refine((v) => descriptionProblem(v) === null, { error: (issue) => descriptionProblem(String(issue.input ?? "")) ?? "The description is too long." })
+      .default(""),
+    // When it accepts applications (the same rules as the institution's own Application window).
+    applicationsMode: z.enum(["OPEN", "CLOSED", "SCHEDULED"], { error: "Choose open, closed or scheduled." }).default("OPEN"),
+    applicationsOpenAt: optionalDate,
+    applicationsCloseAt: optionalDate,
+    applicationsMessage: text(300).default(""),
   }),
   searchColumns: [institutions.name, institutions.accreditationCode, institutions.contactName, institutions.email],
   filters: { typeId: institutions.typeId, regionId: institutions.regionId, accreditationBodyId: institutions.accreditationBodyId },
@@ -75,7 +95,13 @@ export const institutionResource: ResourceDef<z.ZodObject> = {
   statusColumn: institutions.status,
   institutionColumn: institutions.id,
   unique: { institutions_accreditation_code_unique: "Another institution already uses this accreditation code." },
-  async check(db, next) {
+  prepare(next) {
+    // Same as the institution's own Application window: a schedule keeps both dates, "open" keeps only a closing date, "closed" none.
+    if (next.applicationsMode !== "SCHEDULED") next.applicationsOpenAt = null;
+    if (next.applicationsMode === "CLOSED") next.applicationsCloseAt = null;
+    return next;
+  },
+  async check(db, next, existing) {
     await assertParam(db, "typeId", next.typeId, "institution-types");
     await assertParam(db, "accreditationBodyId", next.accreditationBodyId, "accreditation-bodies");
     await assertParam(db, "regionId", next.regionId, "regions");
@@ -83,6 +109,29 @@ export const institutionResource: ResourceDef<z.ZodObject> = {
     await assertParam(db, "quarterId", next.quarterId, "quarters");
     await assertParamParent(db, "townId", next.townId, next.regionId, "This town isn't in the region chosen.");
     await assertParamParent(db, "quarterId", next.quarterId, next.townId, "This quarter isn't in the town chosen.");
+
+    // The logo: a logo file that no other institution uses. Checked when it is set or changed, not on every save.
+    if (next.logoFileId && next.logoFileId !== existing?.logoFileId) {
+      const [file] = await db.select({ purpose: files.purpose }).from(files).where(and(eq(files.id, String(next.logoFileId)), isNull(files.deletedAt))).limit(1);
+      if (!file || file.purpose !== "institution-logo") throw new ValidationError({ logoFileId: "Upload the logo again." });
+      const [used] = await db
+        .select({ id: institutions.id })
+        .from(institutions)
+        .where(and(eq(institutions.logoFileId, String(next.logoFileId)), ne(institutions.id, String(next.id ?? ""))))
+        .limit(1);
+      if (used) throw new ValidationError({ logoFileId: "This logo is already used by another institution." });
+    }
+
+    // The application dates, when they are being set or changed. (A window that has since passed is not an
+    // error on its own: switching an institution off, say, must not be blocked by an old closing date.)
+    const time = (v: unknown) => (v instanceof Date ? v.getTime() : null);
+    const windowChanged =
+      !existing || next.applicationsMode !== existing.applicationsMode || time(next.applicationsOpenAt) !== time(existing.applicationsOpenAt) || time(next.applicationsCloseAt) !== time(existing.applicationsCloseAt);
+    if (windowChanged) {
+      const iso = (v: unknown) => (v instanceof Date ? v.toISOString() : null);
+      const problems = windowProblems({ mode: next.applicationsMode as "OPEN" | "CLOSED" | "SCHEDULED", opensAt: iso(next.applicationsOpenAt), closesAt: iso(next.applicationsCloseAt) });
+      if (problems.opensAt || problems.closesAt) throw new ValidationError({ ...(problems.opensAt && { applicationsOpenAt: problems.opensAt }), ...(problems.closesAt && { applicationsCloseAt: problems.closesAt }) });
+    }
   },
 };
 

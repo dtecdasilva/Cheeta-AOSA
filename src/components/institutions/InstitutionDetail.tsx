@@ -4,6 +4,7 @@ import { ArrowLeft, MapPin, Globe, Mail, Phone } from "lucide-react";
 import type { InstitutionDetails } from "@/lib/institutionDiscovery/data";
 import { useMoneyFormat } from "@/lib/currency/useCurrencies";
 import { useT } from "@/lib/i18n/client";
+import { InstitutionLogo } from "./InstitutionLogo";
 
 export function InstitutionDetail({
   institution,
@@ -45,12 +46,11 @@ export function InstitutionDetail({
       <div className="rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-5 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-[var(--color-line-strong)] bg-[var(--color-paper)] font-bold tracking-tight text-2xl text-[var(--color-ink)]">
-              {tr(institution.logoInitial)}
-            </div>
+            <InstitutionLogo url={institution.logoUrl} initial={institution.logoInitial} size="md" />
             <div>
               <p className="font-semibold tracking-tight text-xl text-[var(--color-ink)]">{tr(institution.name)}</p>
               <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{tr(institution.type)}</p>
+              {institution.motto && <p className="mt-1 text-sm italic text-[var(--color-ink)]">“{institution.motto}”</p>}
               <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[var(--color-ink-faint)]">
                 <span className="flex items-center gap-1">
                   <MapPin className="h-3 w-3" strokeWidth={1.75} />
@@ -102,6 +102,8 @@ export function InstitutionDetail({
             )}
           </div>
         )}
+
+        {institution.description && <p className="mt-4 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-[var(--color-ink-soft)]">{institution.description}</p>}
 
         {institution.accreditation && <p className="mt-4 max-w-2xl text-sm text-[var(--color-ink-soft)]">{tr("Accredited by {accreditation}.", { accreditation: institution.accreditation })}</p>}
 

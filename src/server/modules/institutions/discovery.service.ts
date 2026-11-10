@@ -9,6 +9,7 @@ import { assessFee } from "@/server/modules/fees/calculation";
 import { platformMaxUploadKb } from "./institutions.resources";
 import { currentAcademicYear } from "@/server/modules/applications/applications.queries";
 import { getSettings } from "@/server/modules/settings/settings.service";
+import { fileUrl } from "@/server/storage/files.service";
 
 type Intake = { open: true } | { open: false; label: string; reason: string };
 
@@ -54,7 +55,7 @@ function maxChoices(attrs: Record<string, unknown> | undefined): number {
   return Number.isFinite(n) && n > 0 ? Math.min(n, 3) : 3;
 }
 
-async function listing(db: Executor, row: InstitutionRow, labels: Awaited<ReturnType<typeof labelsOf>>, offered: { availableSpaces: number }[], intake: Intake): Promise<InstitutionListing> {
+async function listing(db: Executor, row: InstitutionRow, labels: Awaited<ReturnType<typeof labelsOf>>, offered: { availableSpaces: number; facultyId: string; departmentId: string }[], intake: Intake): Promise<InstitutionListing> {
   const fee = await assessFee(db, { id: row.id, webFee: row.webFee });
   const type = labels.get(row.typeId);
   const own = stateOf(row);
@@ -65,8 +66,13 @@ async function listing(db: Executor, row: InstitutionRow, labels: Awaited<Return
     type: type?.label ?? "",
     location: [labels.get(row.townId)?.label, labels.get(row.regionId)?.label].filter(Boolean).join(", "),
     logoInitial: row.name.trim().charAt(0).toUpperCase(),
+    logoUrl: row.logoFileId ? fileUrl({ id: row.logoFileId }) : null,
+    motto: row.motto,
+    description: row.description,
     website: row.website,
     maxProgramChoices: maxChoices(type?.attrs),
+    facultyCount: new Set(offered.map((p) => p.facultyId)).size,
+    departmentCount: new Set(offered.map((p) => p.departmentId)).size,
     programCount: offered.length,
     availableSpaces: offered.reduce((sum, p) => sum + p.availableSpaces, 0),
     applicationFee: fee.priced ? fee.applicationFee : null,
