@@ -63,6 +63,14 @@ async function seedReference(db: Executor) {
   const byId = new Map(items.map((p) => [p.id, p]));
   const depth = (p: ParamItem): number => (p.parentId && byId.has(p.parentId) ? 1 + depth(byId.get(p.parentId)!) : 0);
   const ordered = [...items].sort((a, b) => depth(a) - depth(b));
+
+  // Countries first: a region and an accrediting body point at their country.
+  await insertChunks(
+    db,
+    t.countries,
+    countryStore.getSeed!().map((c) => ({ id: c.id, name: c.name, iso2: c.iso2, iso3: c.iso3, sortOrder: c.sortOrder, dialCode: c.dialCode, region: c.region, currencyCode: c.currencyCode, nationality: c.nationality, residence: c.residence, status: c.status }))
+  );
+
   await insertChunks(
     db,
     t.parameters,
@@ -75,17 +83,13 @@ async function seedReference(db: Executor) {
       status: p.status,
       sortOrder: p.order,
       parentId: p.parentId ?? null,
+      countryId: p.countryId ?? null,
       attrs: p.attrs,
       createdAt: new Date(p.createdAt),
       updatedAt: new Date(p.updatedAt),
     }))
   );
 
-  await insertChunks(
-    db,
-    t.countries,
-    countryStore.getSeed!().map((c) => ({ id: c.id, name: c.name, iso2: c.iso2, iso3: c.iso3, sortOrder: c.sortOrder, dialCode: c.dialCode, region: c.region, currencyCode: c.currencyCode, nationality: c.nationality, residence: c.residence, status: c.status }))
-  );
   await insertChunks(
     db,
     t.currencies,

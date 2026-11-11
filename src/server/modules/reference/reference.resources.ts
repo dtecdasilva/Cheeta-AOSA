@@ -7,7 +7,7 @@ import { countries, currencies, demographicProfiles, educationRecords, exchangeR
 import { ConflictError, ValidationError } from "@/server/http/errors";
 import { parseWith, requiredText, text } from "@/server/http/validate";
 import type { ResourceDef } from "@/server/modules/resource";
-import { assertParam } from "@/server/modules/checks";
+import { assertBelongs, assertParam } from "@/server/modules/checks";
 
 /**
  * Parameter lists, countries and currencies, as resources.
@@ -67,6 +67,8 @@ export const parameterResource: ResourceDef<z.ZodObject> = {
     description: text(1000).default(""),
     sortOrder: z.number().int().min(0).max(100_000).default(0),
     parentId: text(200).nullable().optional(),
+    // The country of a region or an accrediting body (see CategoryDef.country); empty for the other lists.
+    countryId: text(200).nullable().optional(),
     attrs: z.record(z.string(), z.unknown()).default({}),
     status: z.enum(["ACTIVE", "INACTIVE"]).default("ACTIVE"),
   }),
@@ -76,11 +78,12 @@ export const parameterResource: ResourceDef<z.ZodObject> = {
     description: text(1000).optional(),
     sortOrder: z.number().int().min(0).max(100_000).optional(),
     parentId: text(200).nullable().optional(),
+    countryId: text(200).nullable().optional(),
     attrs: z.record(z.string(), z.unknown()).optional(),
     status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
   }),
   searchColumns: [parameters.code, parameters.label, parameters.description],
-  filters: { category: parameters.category, parentId: parameters.parentId },
+  filters: { category: parameters.category, parentId: parameters.parentId, countryId: parameters.countryId },
   orderBy: [parameters.category, parameters.sortOrder, parameters.label],
   statusColumn: parameters.status,
   unique: { parameters_category_code_unique: "This code is already used in this list." },
@@ -95,13 +98,25 @@ export const parameterResource: ResourceDef<z.ZodObject> = {
       throw err;
     }
   },
-  async check(db, next) {
+  async check(db, next, existing) {
     const def = CATEGORY_DEFS.find((d) => d.key === next.category)!;
     if (def.parent) {
       if (!next.parentId) throw new ValidationError({ parentId: `Choose the ${def.parent.label.toLowerCase()}.` });
       await assertParam(db, "parentId", next.parentId, def.parent.category);
     } else if (next.parentId) {
       throw new ValidationError({ parentId: "This list doesn't have a parent." });
+    }
+
+    if (def.country) {
+      if (next.countryId) {
+        await assertBelongs(db, countries, "countryId", next.countryId, [], "Choose a country from the list.");
+      } else if (!existing || existing.countryId) {
+        // Required when adding one, and a country can't be taken away. An item from before countries existed, which
+        // has none, can still be switched on or off; it gets its country the next time it is edited.
+        throw new ValidationError({ countryId: "Choose the country." });
+      }
+    } else if (next.countryId) {
+      throw new ValidationError({ countryId: "This list isn't linked to a country." });
     }
   },
 };
@@ -163,6 +178,13 @@ export const countryResource: ResourceDef<z.ZodObject> = {
     ]);
     const used = demo.n + edu.n;
     if (used) throw new ConflictError(`${name} is used on ${used} applicant record${used === 1 ? "" : "s"}, so it can't be deleted. Deactivate it instead.`);
+
+    // Regions and accrediting bodies belong to a country too.
+    const linked = await db.select({ category: parameters.category, n: count() }).from(parameters).where(eq(parameters.countryId, String(row.id))).groupBy(parameters.category);
+    const regions = linked.find((c) => c.category === "regions")?.n ?? 0;
+    const bodies = linked.find((c) => c.category === "accreditation-bodies")?.n ?? 0;
+    const parts = [regions && `${regions} region${regions === 1 ? "" : "s"}`, bodies && `${bodies} accrediting bod${bodies === 1 ? "y" : "ies"}`].filter(Boolean).join(" and ");
+    if (parts) throw new ConflictError(`${name} is the country of ${parts}, so it can't be deleted. Move those to another country, or deactivate ${name} instead.`);
   },
 };
 

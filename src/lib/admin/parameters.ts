@@ -53,6 +53,8 @@ export interface ParamItem {
   order: number;
   /** For hierarchical categories: a town's region, a quarter's town. */
   parentId?: string;
+  /** For the lists whose items belong to a country (regions, accrediting bodies): the country's id. */
+  countryId?: string;
   attrs: Record<string, ParamValue>;
   createdAt: string;
   updatedAt: string;
@@ -75,6 +77,8 @@ export interface CategoryDef {
   codeHint?: string;
   labelLabel: string;
   parent?: { category: ParamCategory; label: string };
+  /** Each item of this list belongs to a country (the id of a row on the Countries list), chosen when it is added. */
+  country?: boolean;
   fields: FieldDef[];
   /** attrs keys shown as table columns. */
   columns: string[];
@@ -121,21 +125,23 @@ export const CATEGORY_DEFS: CategoryDef[] = [
     group: "institution",
     title: "Accrediting bodies",
     singular: "accrediting body",
-    description: "Ministries and agencies that accredit institutions.",
+    description: "Ministries and agencies that accredit institutions, each belonging to a country.",
     codeLabel: "Abbreviation",
     labelLabel: "Full name",
+    country: true,
     fields: [],
     columns: [],
-    usedIn: "The “Accredited by” field on institution forms.",
+    usedIn: "The “Accredited by” field on institution forms, where they are grouped by country.",
   },
   {
     key: "regions",
     group: "location",
     title: "Regions",
     singular: "region",
-    description: "Administrative regions. Towns belong to a region.",
+    description: "Administrative regions, each in a country. Towns belong to a region.",
     codeLabel: "Code",
     labelLabel: "Region name",
+    country: true,
     fields: [],
     columns: [],
     usedIn: "Institution and student forms, and region filters across the portal.",
@@ -554,6 +560,8 @@ function seedParameters(): ParamItem[] {
       status: opts.inactive ? "INACTIVE" : "ACTIVE",
       order: counters[category]!,
       parentId: opts.parent,
+      // The seeded regions and accrediting bodies are Cameroon's.
+      countryId: getCategoryDef(category)?.country ? "country-cm" : undefined,
       attrs: opts.attrs ?? {},
       createdAt: SEED_AT,
       updatedAt: SEED_AT,
@@ -806,6 +814,7 @@ export const parameterStore = createApiCollection<ParamItem>("parameters", seedP
     status: r.status === "INACTIVE" ? "INACTIVE" : "ACTIVE",
     order: typeof r.sortOrder === "number" ? r.sortOrder : 0,
     parentId: typeof r.parentId === "string" && r.parentId ? r.parentId : undefined,
+    countryId: typeof r.countryId === "string" && r.countryId ? r.countryId : undefined,
     attrs: (r.attrs ?? {}) as Record<string, ParamValue>,
     createdAt: String(r.createdAt ?? ""),
     updatedAt: String(r.updatedAt ?? ""),
@@ -819,6 +828,7 @@ export const parameterStore = createApiCollection<ParamItem>("parameters", seedP
     if (p.description !== undefined) out.description = p.description;
     if (p.order !== undefined) out.sortOrder = p.order;
     if ("parentId" in p) out.parentId = p.parentId ?? null;
+    if ("countryId" in p) out.countryId = p.countryId ?? null;
     if (p.attrs !== undefined) out.attrs = p.attrs;
     if (p.status !== undefined) out.status = p.status;
     return out;

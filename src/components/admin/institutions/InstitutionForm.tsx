@@ -8,6 +8,7 @@ import { Field, FormError, PrimaryButton, SecondaryButton, SelectInput, TextArea
 import { institutionStore, type AdminInstitution } from "@/lib/admin/institutions";
 import { selectableParams, useParameters, type ParamItem } from "@/lib/admin/parameters";
 import { useHydrated } from "@/lib/admin/store";
+import { countryStore } from "@/lib/admin/reference";
 import { LocationSelect, type LocationValue } from "@/components/location/LocationSelect";
 import { useT } from "@/lib/i18n/client";
 import { LogoUpload } from "./LogoUpload";
@@ -70,6 +71,8 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
   const router = useRouter();
   const types = useParameters("institution-types");
   const bodies = useParameters("accreditation-bodies");
+  // Accrediting bodies belong to countries; with bodies from several, the list is grouped by country.
+  const countryNames = new Map(countryStore.useItems().map((c) => [c.id, c.name]));
 
   const [form, setForm] = useState<Draft>(() => (initial ? { ...initial, webFee: initial.webFee === null ? "" : String(initial.webFee) } : EMPTY));
   const [errors, setErrors] = useState<Errors>({});
@@ -181,6 +184,7 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
               value={form.accreditationBodyId}
               onChange={(v) => set("accreditationBodyId", v)}
               render={(p) => `${p.code} — ${p.label}`}
+              group={(p) => (p.countryId ? countryNames.get(p.countryId) : undefined)}
             />
           </Field>
           <Field label={tr("Accreditation code")} required error={errors.accreditationCode} hint={tr("As printed on the accreditation certificate.")}>
@@ -315,6 +319,7 @@ function ParamSelect({
   disabled,
   placeholder = "Select…",
   render = (p) => p.label,
+  group,
   id,
 }: {
   items: ParamItem[];
@@ -323,19 +328,30 @@ function ParamSelect({
   disabled?: boolean;
   placeholder?: string;
   render?: (p: ParamItem) => string;
+  /** Groups the options (by country, say). Only shown when the items fall into more than one group. */
+  group?: (p: ParamItem) => string | undefined;
   id?: string;
 }) {
   const tr = useT();
   placeholder = tr(placeholder);
+  const option = (p: ParamItem) => (
+    <option key={p.id} value={p.id}>
+      {render(p)}
+      {p.status === "INACTIVE" ? " (inactive)" : ""}
+    </option>
+  );
+  // Alphabetical by group, with the items that have none last.
+  const groups = group ? [...new Set(items.map((p) => group(p) ?? ""))].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b))) : [];
   return (
     <SelectInput id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
       <option value="">{tr(placeholder)}</option>
-      {items.map((p) => (
-        <option key={p.id} value={p.id}>
-          {render(p)}
-          {p.status === "INACTIVE" ? " (inactive)" : ""}
-        </option>
-      ))}
+      {groups.length > 1
+        ? groups.map((g) => (
+            <optgroup key={g || "none"} label={g || tr("No country")}>
+              {items.filter((p) => (group!(p) ?? "") === g).map(option)}
+            </optgroup>
+          ))
+        : items.map(option)}
     </SelectInput>
   );
 }

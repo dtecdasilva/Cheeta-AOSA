@@ -18,6 +18,7 @@ import {
   type ParamValue,
 } from "@/lib/admin/parameters";
 import { institutionStore } from "@/lib/admin/institutions";
+import { countryStore } from "@/lib/admin/reference";
 import { matchesSearch } from "@/lib/admin/filters";
 import { formatCurrency, formatDateTime } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
@@ -105,6 +106,11 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
   const items = useMemo(() => sortParams(all.filter((i) => i.category === def.key)), [all, def.key]);
   const parents = useMemo(() => (def.parent ? sortParams(all.filter((i) => i.category === def.parent!.category)) : []), [all, def.parent]);
   const parentIndex = useMemo(() => new Map(parents.map((p) => [p.id, p])), [parents]);
+  // Regions and accrediting bodies each belong to a country.
+  const countries = countryStore.useItems();
+  const countryName = useMemo(() => new Map(countries.map((c) => [c.id, c.name])), [countries]);
+  const countryOf = (i: ParamItem) => (i.countryId ? countryName.get(i.countryId) : undefined);
+  const [countryFilter, setCountryFilter] = useState("");
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
@@ -119,8 +125,9 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
     (i) =>
       (!status || i.status === status) &&
       (!parentId || i.parentId === parentId) &&
+      (!countryFilter || i.countryId === countryFilter) &&
       (!grandFilter || parentIndex.get(i.parentId ?? "")?.parentId === grandFilter) &&
-      matchesSearch(search, [i.code, i.label, i.description, ...Object.values(i.attrs).flat().map(String)])
+      matchesSearch(search, [i.code, i.label, i.description, countryOf(i), ...Object.values(i.attrs).flat().map(String)])
   );
 
   const panelItem = panel && panel.mode !== "add" ? items.find((i) => i.id === panel.id) : undefined;
@@ -195,6 +202,7 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
           def={def}
           item={panelItem}
           parent={panelItem.parentId ? parentIndex.get(panelItem.parentId) : undefined}
+          country={countryOf(panelItem)}
           childItems={all.filter((i) => i.parentId === panelItem.id)}
           onClose={() => setPanel(null)}
           onEdit={() => {
@@ -207,6 +215,14 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
 
       <div className="mb-4 grid gap-3 rounded-xl border border-[var(--color-line)] bg-[var(--color-surface)] p-4 sm:grid-cols-2 lg:grid-cols-4">
         <SearchField value={search} onChange={setSearch} placeholder={tr("Search {toLowerCase}", { toLowerCase: def.title.toLowerCase() })} />
+        {def.country && (
+          <FilterSelect
+            label={tr("Country")}
+            value={countryFilter}
+            onChange={setCountryFilter}
+            options={[...countries].sort((a, b) => a.name.localeCompare(b.name)).map((c) => ({ value: c.id, label: c.name }))}
+          />
+        )}
         {grandDef && (
           <FilterSelect
             label={tr(grandDef.label)}
@@ -248,6 +264,7 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
               <Th>{def.codeLabel}</Th>
               <Th>{def.labelLabel}</Th>
               {def.parent && <Th>{tr(def.parent.label)}</Th>}
+              {def.country && <Th>{tr("Country")}</Th>}
               {def.columns.map((c) => (
                 <Th key={c}>{def.fields.find((f) => f.key === c)?.label}</Th>
               ))}
@@ -267,6 +284,7 @@ function CategoryScreen({ def, all }: { def: CategoryDef; all: ParamItem[] }) {
                   </button>
                 </Td>
                 {def.parent && <Td className="text-[var(--color-ink-soft)]">{i.parentId ? parentIndex.get(i.parentId)?.label ?? "—" : "—"}</Td>}
+                {def.country && <Td className="text-[var(--color-ink-soft)]">{countryOf(i) ?? "—"}</Td>}
                 {def.columns.map((c) => (
                   <Td key={c} className="text-[var(--color-ink-soft)]">
                     {formatAttr(def.fields.find((f) => f.key === c)!, i.attrs[c], true)}
@@ -303,6 +321,7 @@ function ItemView({
   def,
   item,
   parent,
+  country,
   childItems,
   onClose,
   onEdit,
@@ -311,6 +330,8 @@ function ItemView({
   def: CategoryDef;
   item: ParamItem;
   parent?: ParamItem;
+  /** The name of the item's country, for the lists that have one. */
+  country?: string;
   childItems: ParamItem[];
   onClose: () => void;
   onEdit: () => void;
@@ -343,6 +364,7 @@ function ItemView({
           { label: def.codeLabel, value: item.code },
           { label: def.labelLabel, value: item.label },
           ...(def.parent ? [{ label: def.parent.label, value: parent?.label ?? "—" }] : []),
+          ...(def.country ? [{ label: tr("Country"), value: country ?? "—" }] : []),
           ...def.fields.map((f) => ({ label: f.label, value: formatAttr(f, item.attrs[f.key], false) })),
           { label: tr("Description"), value: item.description || "—" },
           { label: tr("Display order"), value: item.order },
@@ -390,7 +412,7 @@ function formatAttr(field: FieldDef, value: ParamValue | undefined, compact: boo
 // Add / edit
 // ---------------------------------------------------------------------------
 
-type Draft = { code: string; label: string; description: string; order: string; parentId: string; status: ParamItem["status"]; attrs: Record<string, string | boolean> };
+type Draft = { code: string; label: string; description: string; order: string; parentId: string; countryId: string; status: ParamItem["status"]; attrs: Record<string, string | boolean> };
 
 function toDraft(def: CategoryDef, item: ParamItem | undefined, nextOrder: number): Draft {
   const attrs: Draft["attrs"] = {};
@@ -406,6 +428,7 @@ function toDraft(def: CategoryDef, item: ParamItem | undefined, nextOrder: numbe
     description: item?.description ?? "",
     order: String(item?.order ?? nextOrder),
     parentId: item?.parentId ?? "",
+    countryId: item?.countryId ?? "",
     status: item?.status ?? "ACTIVE",
     attrs,
   };
@@ -429,6 +452,9 @@ function ItemForm({
   const tr = useT();
   const nextOrder = Math.max(0, ...items.map((i) => i.order)) + 1;
   const [draft, setDraft] = useState<Draft>(() => toDraft(def, initial, nextOrder));
+  // The countries to choose from: the active ones, and the one it already has even if that was deactivated since.
+  const allCountries = countryStore.useItems();
+  const countryChoices = allCountries.filter((c) => c.status === "ACTIVE" || c.id === draft.countryId).sort((a, b) => a.name.localeCompare(b.name));
   // Two-level parents (a site's town sits in a region): pick the region
   // first so the town list stays short.
   const grandDef = def.parent ? CATEGORY_DEFS.find((d) => d.key === def.parent!.category)?.parent : undefined;
@@ -450,6 +476,7 @@ function ItemForm({
     else if (items.some((i) => i.id !== initial?.id && i.code.toLowerCase() === code.toLowerCase())) e.code = tr("Another {singular} already uses {code}.", { singular: def.singular, code });
     if (!draft.label.trim()) e.label = tr("Enter the {toLowerCase}.", { toLowerCase: def.labelLabel.toLowerCase() });
     if (def.parent && !draft.parentId) e.parentId = tr("Choose a {toLowerCase}.", { toLowerCase: def.parent.label.toLowerCase() });
+    if (def.country && !draft.countryId) e.countryId = tr("Choose a country.");
     if (!/^\d+$/.test(draft.order.trim())) e.order = tr("Enter a whole number.");
 
     for (const f of def.fields) {
@@ -499,6 +526,7 @@ function ItemForm({
       description: draft.description.trim(),
       order: Number(draft.order),
       parentId: def.parent ? draft.parentId : undefined,
+      countryId: def.country ? draft.countryId : undefined,
       status: draft.status,
       attrs,
       updatedAt: now,
@@ -554,6 +582,19 @@ function ItemForm({
                 {selectableParams(grandParents, grandId).map((g) => (
                   <option key={g.id} value={g.id}>
                     {tr(g.label)}
+                  </option>
+                ))}
+              </SelectInput>
+            </Field>
+          )}
+          {def.country && (
+            <Field label={tr("Country")} required error={errors.countryId}>
+              <SelectInput value={draft.countryId} onChange={(e) => setDraft({ ...draft, countryId: e.target.value })}>
+                <option value="">{tr("Select…")}</option>
+                {countryChoices.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                    {c.status === "INACTIVE" ? " (inactive)" : ""}
                   </option>
                 ))}
               </SelectInput>

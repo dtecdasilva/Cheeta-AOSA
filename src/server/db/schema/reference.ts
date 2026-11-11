@@ -28,10 +28,15 @@ export const parameters = pgTable(
     sortOrder: integer("sort_order").notNull().default(0),
     /** Region for a town, town for a quarter, and so on. */
     parentId: text("parent_id").references((): AnyPgColumn => parameters.id),
+    /**
+     * The country a region or an accrediting body belongs to (the lists whose category declares `country`).
+     * A town's country is its region's. Empty for every other list.
+     */
+    countryId: text("country_id").references((): AnyPgColumn => countries.id),
     attrs: jsonb("attrs").$type<Record<string, ParamValue>>().notNull().default({}),
     ...timestamps,
   },
-  (t) => [uniqueIndex("parameters_category_code_unique").on(t.category, t.code), index("parameters_parent_idx").on(t.parentId)]
+  (t) => [uniqueIndex("parameters_category_code_unique").on(t.category, t.code), index("parameters_parent_idx").on(t.parentId), index("parameters_country_idx").on(t.countryId)]
 );
 
 /**

@@ -7,7 +7,7 @@ import { parseQuery } from "@/server/http/validate";
 import { getDb } from "@/server/db/client";
 import { parameters } from "@/server/db/schema";
 
-const query = z.object({ category: z.enum(CATEGORY_DEFS.map((d) => d.key) as [string, ...string[]]).optional(), parentId: z.string().max(200).optional() });
+const query = z.object({ category: z.enum(CATEGORY_DEFS.map((d) => d.key) as [string, ...string[]]).optional(), parentId: z.string().max(200).optional(), countryId: z.string().max(200).optional() });
 
 /**
  * Active options in the parameter lists, for any form that picks from them:
@@ -17,9 +17,9 @@ const query = z.object({ category: z.enum(CATEGORY_DEFS.map((d) => d.key) as [st
 export const GET = handler({ auth: "authenticated" }, async ({ req }) => {
   const q = parseQuery(req, query);
   const rows = await getDb()
-    .select({ id: parameters.id, category: parameters.category, code: parameters.code, label: parameters.label, description: parameters.description, sortOrder: parameters.sortOrder, parentId: parameters.parentId, attrs: parameters.attrs })
+    .select({ id: parameters.id, category: parameters.category, code: parameters.code, label: parameters.label, description: parameters.description, sortOrder: parameters.sortOrder, parentId: parameters.parentId, countryId: parameters.countryId, attrs: parameters.attrs })
     .from(parameters)
-    .where(and(q.category ? eq(parameters.category, q.category) : undefined, eq(parameters.status, "ACTIVE"), q.parentId ? eq(parameters.parentId, q.parentId) : undefined))
+    .where(and(q.category ? eq(parameters.category, q.category) : undefined, eq(parameters.status, "ACTIVE"), q.parentId ? eq(parameters.parentId, q.parentId) : undefined, q.countryId ? eq(parameters.countryId, q.countryId) : undefined))
     .orderBy(asc(parameters.category), asc(parameters.sortOrder), asc(parameters.label));
   return ok({ data: rows });
 });

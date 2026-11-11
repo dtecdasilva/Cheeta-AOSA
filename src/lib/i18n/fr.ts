@@ -3768,4 +3768,9 @@ export const FR: Record<string, string> = {
  "Faculties / Schools": "Facultés / Écoles",
  "(opens in a new tab)": "(s’ouvre dans un nouvel onglet)",
  "See programs and requirements": "Voir les filières et les conditions",
+ "Ministries and agencies that accredit institutions, each belonging to a country.": "Ministères et agences qui accréditent les établissements, chacun rattaché à un pays.",
+ "The “Accredited by” field on institution forms, where they are grouped by country.": "Le champ « Accrédité par » des formulaires d'établissement, où ils sont regroupés par pays.",
+ "Administrative regions, each in a country. Towns belong to a region.": "Régions administratives, chacune dans un pays. Les villes appartiennent à une région.",
+ "Choose a country.": "Choisissez un pays.",
+ "No country": "Aucun pays",
 };
