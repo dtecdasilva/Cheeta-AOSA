@@ -3772,5 +3772,7 @@ export const FR: Record<string, string> = {
  "The “Accredited by” field on institution forms, where they are grouped by country.": "Le champ « Accrédité par » des formulaires d'établissement, où ils sont regroupés par pays.",
  "Administrative regions, each in a country. Towns belong to a region.": "Régions administratives, chacune dans un pays. Les villes appartiennent à une région.",
  "Choose a country.": "Choisissez un pays.",
- "No country": "Aucun pays",
+ "Choose a country first.": "Choisissez d'abord un pays.",
+ "No active regions in this country yet.": "Aucune région active dans ce pays pour le moment.",
+ "Only countries that have regions are listed.": "Seuls les pays qui ont des régions sont listés.",
 };

@@ -16,7 +16,7 @@ import { DESCRIPTION_MAX_CHARS, DESCRIPTION_MAX_WORDS, MOTTO_MAX_CHARS, descript
 import { fromLocalInput, toLocalInput, windowProblems } from "@/lib/institution/applicationWindow";
 
 type Draft = Omit<AdminInstitution, "id" | "createdAt" | "updatedAt" | "webFee"> & { webFee: string };
-type Errors = Partial<Record<keyof Draft, string>>;
+type Errors = Partial<Record<keyof Draft | "countryId", string>>;
 
 const EMPTY: Draft = {
   typeId: "",
@@ -71,10 +71,14 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
   const router = useRouter();
   const types = useParameters("institution-types");
   const bodies = useParameters("accreditation-bodies");
-  // Accrediting bodies belong to countries; with bodies from several, the list is grouped by country.
+  const regions = useParameters("regions");
+  // Accrediting bodies belong to countries, and the dropdown says which after each name.
   const countryNames = new Map(countryStore.useItems().map((c) => [c.id, c.name]));
 
   const [form, setForm] = useState<Draft>(() => (initial ? { ...initial, webFee: initial.webFee === null ? "" : String(initial.webFee) } : EMPTY));
+  // The country isn't saved with the institution: its region belongs to one. It is only chosen first, to narrow the regions.
+  const [pickedCountry, setPickedCountry] = useState("");
+  const countryId = pickedCountry || regions.find((r) => r.id === form.regionId)?.countryId || "";
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -84,10 +88,11 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
     setErrors((e) => ({ ...e, [key]: undefined }));
   }
 
-  // Region → town → quarter; LocationSelect clears levels that no longer fit.
+  // Country → region → town → quarter; LocationSelect clears levels that no longer fit.
   function setLocation(next: LocationValue) {
+    setPickedCountry(next.countryId ?? "");
     setForm((f) => ({ ...f, regionId: next.regionId, townId: next.townId, quarterId: next.leafId }));
-    setErrors((e) => ({ ...e, regionId: undefined, townId: undefined }));
+    setErrors((e) => ({ ...e, countryId: undefined, regionId: undefined, townId: undefined }));
   }
 
   function validate(): Errors {
@@ -105,6 +110,8 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
       ["email", tr("Enter an email address.")],
     ];
     for (const [k, msg] of required) if (!String(form[k]).trim()) e[k] = msg;
+    // A region already implies its country; the country is only missing when neither is chosen.
+    if (!countryId && !form.regionId) e.countryId = tr("Choose a country.");
 
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = tr("Enter an email address like admissions@school.cm.");
     if (form.phone && form.phone.replace(/\D/g, "").length < 8) e.phone = tr("Enter a phone number with at least 8 digits.");
@@ -183,8 +190,7 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
               items={selectableParams(bodies, form.accreditationBodyId)}
               value={form.accreditationBodyId}
               onChange={(v) => set("accreditationBodyId", v)}
-              render={(p) => `${p.code} — ${p.label}`}
-              group={(p) => (p.countryId ? countryNames.get(p.countryId) : undefined)}
+              render={(p) => `${p.code} — ${p.label}${p.countryId && countryNames.get(p.countryId) ? ` (${countryNames.get(p.countryId)})` : ""}`}
             />
           </Field>
           <Field label={tr("Accreditation code")} required error={errors.accreditationCode} hint={tr("As printed on the accreditation certificate.")}>
@@ -218,11 +224,12 @@ function InstitutionForm({ initial }: { initial?: AdminInstitution }) {
             </Field>
           </div>
           <LocationSelect
+            country
             leaf="quarters"
-            value={{ regionId: form.regionId, townId: form.townId, leafId: form.quarterId }}
+            value={{ countryId, regionId: form.regionId, townId: form.townId, leafId: form.quarterId }}
             onChange={setLocation}
-            required={{ region: true, town: true }}
-            errors={{ region: errors.regionId, town: errors.townId }}
+            required={{ country: true, region: true, town: true }}
+            errors={{ country: errors.countryId, region: errors.regionId, town: errors.townId }}
           />
           <Field label={tr("Location")} hint={tr("GPS coordinates or a landmark.")}>
             <TextInput value={form.location} onChange={(e) => set("location", e.target.value)} placeholder="3.8912° N, 11.4987° E" />
@@ -319,7 +326,6 @@ function ParamSelect({
   disabled,
   placeholder = "Select…",
   render = (p) => p.label,
-  group,
   id,
 }: {
   items: ParamItem[];
@@ -328,30 +334,19 @@ function ParamSelect({
   disabled?: boolean;
   placeholder?: string;
   render?: (p: ParamItem) => string;
-  /** Groups the options (by country, say). Only shown when the items fall into more than one group. */
-  group?: (p: ParamItem) => string | undefined;
   id?: string;
 }) {
   const tr = useT();
   placeholder = tr(placeholder);
-  const option = (p: ParamItem) => (
-    <option key={p.id} value={p.id}>
-      {render(p)}
-      {p.status === "INACTIVE" ? " (inactive)" : ""}
-    </option>
-  );
-  // Alphabetical by group, with the items that have none last.
-  const groups = group ? [...new Set(items.map((p) => group(p) ?? ""))].sort((a, b) => (a === "" ? 1 : b === "" ? -1 : a.localeCompare(b))) : [];
   return (
     <SelectInput id={id} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
       <option value="">{tr(placeholder)}</option>
-      {groups.length > 1
-        ? groups.map((g) => (
-            <optgroup key={g || "none"} label={g || tr("No country")}>
-              {items.filter((p) => (group!(p) ?? "") === g).map(option)}
-            </optgroup>
-          ))
-        : items.map(option)}
+      {items.map((p) => (
+        <option key={p.id} value={p.id}>
+          {render(p)}
+          {p.status === "INACTIVE" ? " (inactive)" : ""}
+        </option>
+      ))}
     </SelectInput>
   );
 }

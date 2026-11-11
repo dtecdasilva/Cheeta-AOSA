@@ -7,6 +7,8 @@ import { ButtonLinkClass } from "@/components/Form";
 import { ActiveBadge, AdminStatusBadge, StatStrip, StatusToggle } from "@/components/admin/ui";
 import { useAdminData } from "@/lib/admin/useAdminData";
 import { institutionStore } from "@/lib/admin/institutions";
+import { useParameters } from "@/lib/admin/parameters";
+import { countryStore } from "@/lib/admin/reference";
 import { useHydrated } from "@/lib/admin/store";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useT } from "@/lib/i18n/client";
@@ -18,6 +20,9 @@ export function InstitutionView({ id }: { id: string }) {
   const data = useAdminData();
   const hydrated = useHydrated();
   const inst = data.institutionById.get(id);
+  // Its country is its region's.
+  const regions = useParameters("regions");
+  const countries = countryStore.useItems();
 
   if (!inst) {
     if (!hydrated) return <p className="text-sm text-[var(--color-ink-soft)]">{tr("Loading…")}</p>;
@@ -120,6 +125,7 @@ export function InstitutionView({ id }: { id: string }) {
             items={[
               { label: tr("Address"), value: inst.address },
               { label: tr("Location"), value: inst.location || "—" },
+              { label: tr("Country"), value: countries.find((c) => c.id === regions.find((r) => r.id === inst.regionId)?.countryId)?.name ?? "—" },
               { label: tr("Region"), value: data.label(inst.regionId) },
               { label: tr("Town"), value: data.label(inst.townId) },
               { label: tr("Quarter"), value: inst.quarterId ? data.label(inst.quarterId) : "—" },
